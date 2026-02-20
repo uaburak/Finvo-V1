@@ -1,0 +1,87 @@
+import SwiftUI
+
+struct SummaryView: View {
+    @Environment(\.theme) var theme
+    
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 24) {
+                    
+                    // Mavi Bakiye Kartı
+                    BalanceCardView()
+                        .padding(.horizontal)
+                    
+                    // Gelir / Gider Alanı
+                    HStack(spacing: 16) {
+                        IncomeExpenseCardView(title: "Gelir", amount: "$12,450.00", isIncome: true)
+                        IncomeExpenseCardView(title: "Gider", amount: "$12,450.00", isIncome: false)
+                    }
+                    .padding(.horizontal)
+                    
+                    // Hızlı Butonlar Alanı
+                    QuickActionRowView()
+                    
+                    // Son İşlemler Listesi
+                    RecentTransactionsListView()
+                    
+                    Spacer(minLength: 120)
+                }
+                // Mavi kart ve Gelir/Gider HStack'i için padding'i doğrudan içeri taşıdık,
+                // Hızlı butonların ekran kenarına kadar kayabilmesi için VStack'deki yatay paddingi kaldırıyoruz.
+            }
+            .background(theme.background1.ignoresSafeArea())
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                
+                // Sol Bölüm (Bildirim / Notification)
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: {
+                        // Bildirim İşlemi
+                    }) {
+                        Image(systemName: "bell")
+                            .font(.system(size: 16))
+                            .foregroundColor(theme.labelPrimary)
+                    }
+                }
+                
+                // Orta Bölüm (Wallet Switcher)
+                ToolbarItem(placement: .principal) {
+                    Menu {
+                        Button("Cüzdan 1") { }
+                        Button("Cüzdan 2") { }
+                        Button("Cüzdan 3") { }
+                        Button("Cüzdan 4") { }
+                        Button("Cüzdan 5") { }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text("Wallet")
+                                .font(.headline)
+                            
+                            Image(systemName: "chevron.down")
+                                .font(.caption.bold())
+                        }
+                        .foregroundColor(theme.labelPrimary)
+                    }
+                }
+                
+                // Sağ Bölüm (Profil / Avatar)
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        // Profil İşlemi
+                    }) {
+                        Text("B")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(theme.labelPrimary)
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct SummaryView_Previews: PreviewProvider {
+    static var previews: some View {
+        SummaryView()
+    }
+}
