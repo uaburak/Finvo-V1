@@ -27,33 +27,52 @@ struct RecentTransactionsListView: View {
             .padding(.horizontal)
             
             // Liste Kartı
-            VStack(spacing: 0) {
-                ForEach(0..<5) { index in
-                    TransactionRowView(
-                        icon: "wifi",
-                        title: "Internet",
-                        subtitle: "@burakkoc",
-                        amount: "₺ 900,00",
-                        date: "9 Mar 2025",
-                        isExpense: true
-                    )
+            VStack(spacing: 8) {
+                // Burada örnek verilerle yeni entegre ettiğimiz ListItem bileşenini kullanıyoruz
+                ListItem(
+                    icon: "wifi",
+                    iconColor: theme.brandPrimary,
+                    title: "Internet",
+                    subtitle: "Fatura",
+                    username: "burakkoc",
+                    value: "-₺900,00",
+                    valueColor: theme.expense,
+                    secondaryInfo: "9 Mar 2025"
+                )
+                .padding(.horizontal, 16)
+                
+                Divider()
+                    .background(theme.separatorSecondary)
                     .padding(.horizontal, 16)
                     
-                    // Son eleman değilse ayırıcı çizgi koy
-                    if index < 4 {
-                        Divider()
-                            .background(theme.separatorSecondary)
-                            .padding(.horizontal, 16)
-                    }
-                }
+                ListItem(
+                    icon: "cart.fill",
+                    iconColor: Color.blue,
+                    title: "Amazon",
+                    subtitle: "Alışveriş",
+                    value: "-₺120,00",
+                    valueColor: theme.expense,
+                    secondaryInfo: "8 Mar 2025"
+                )
+                .padding(.horizontal, 16)
+                
+                Divider()
+                    .background(theme.separatorSecondary)
+                    .padding(.horizontal, 16)
+                    
+                ListItem(
+                    icon: "briefcase.fill",
+                    iconColor: Color.green,
+                    title: "Maaş",
+                    subtitle: "Aylık Gelir",
+                    value: "+₺14.500,00",
+                    valueColor: theme.income,
+                    secondaryInfo: "1 Mar 2025"
+                )
+                .padding(.horizontal, 16)
             }
-            .padding(.vertical, 8)
-            .background(theme.cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .stroke(theme.separatorSecondary, lineWidth: 1)
-            )
+            .padding(.vertical, 16)
+            .glassEffect(in: .rect(cornerRadius: 24.0))
             .padding(.horizontal)
         }
     }

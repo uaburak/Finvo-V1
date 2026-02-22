@@ -29,12 +29,7 @@ struct IncomeExpenseCardView: View {
                 .minimumScaleFactor(0.8)
         }
         .padding(16)
-        .background(theme.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(theme.separatorSecondary, lineWidth: 1)
-        )
+        .glassEffect(in: .rect(cornerRadius: 24.0))
     }
 }
 
@@ -44,7 +39,7 @@ struct IncomeExpenseCardView_Previews: PreviewProvider {
             IncomeExpenseCardView(title: "Gelir", amount: "$12,450.00", isIncome: true)
             IncomeExpenseCardView(title: "Gider", amount: "$12,450.00", isIncome: false)
         }
-        .padding()
+        .padding(.horizontal)
         .previewLayout(.sizeThatFits)
     }
 }
