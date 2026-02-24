@@ -14,8 +14,15 @@ struct SummaryView: View {
                     
                     // Gelir / Gider Alanı
                     HStack(spacing: 16) {
-                        IncomeExpenseCardView(title: "Gelir", amount: "$12,450.00", isIncome: true)
-                        IncomeExpenseCardView(title: "Gider", amount: "$12,450.00", isIncome: false)
+                        NavigationLink(destination: TransactionsView(selectedType: .income)) {
+                            IncomeExpenseCardView(title: "Gelir", amount: "₺12,450.00", isIncome: true)
+                        }
+                        .buttonStyle(.plain)
+                        
+                        NavigationLink(destination: TransactionsView(selectedType: .expense)) {
+                            IncomeExpenseCardView(title: "Gider", amount: "₺4,250.00", isIncome: false)
+                        }
+                        .buttonStyle(.plain)
                     }
                     .padding(.horizontal)
                     
@@ -24,13 +31,18 @@ struct SummaryView: View {
                     
                     // Son İşlemler Listesi
                     RecentTransactionsListView()
-                    
-                    Spacer(minLength: 120)
+                        .padding(.horizontal)
+
+                    // Esnek 4'lü Metrik Kartları
+                    SummaryMetricsGridView()
+                        .padding(.horizontal)
                 }
                 // Mavi kart ve Gelir/Gider HStack'i için padding'i doğrudan içeri taşıdık,
                 // Hızlı butonların ekran kenarına kadar kayabilmesi için VStack'deki yatay paddingi kaldırıyoruz.
             }
-            .background(theme.background1.ignoresSafeArea())
+            .safeAreaPadding(.bottom, 120)
+            .scrollEdgeEffectStyle(.soft, for: .all)
+            .scrollBounceBehavior(.always, axes: .vertical)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 
@@ -55,7 +67,7 @@ struct SummaryView: View {
                         Button("Cüzdan 5") { }
                     } label: {
                         HStack(spacing: 6) {
-                            Text("Wallet")
+                            Text("Cüzdanım")
                                 .font(.headline)
                             
                             Image(systemName: "chevron.down")
@@ -78,6 +90,7 @@ struct SummaryView: View {
             }
         }
     }
+    
 }
 
 struct SummaryView_Previews: PreviewProvider {

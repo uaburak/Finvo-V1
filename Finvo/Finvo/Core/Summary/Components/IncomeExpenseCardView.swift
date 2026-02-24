@@ -3,7 +3,7 @@ import SwiftUI
 struct IncomeExpenseCardView: View {
     @Environment(\.theme) var theme
     
-    let title: String
+    let title: LocalizedStringKey
     let amount: String
     let isIncome: Bool
     

@@ -6,8 +6,8 @@ struct ListItem: View {
     let iconColor: Color
     
     // Main Content
-    let title: String
-    let subtitle: String
+    let title: LocalizedStringKey
+    let subtitle: LocalizedStringKey
     let username: String? // New
     let isRecurring: Bool // New
     
@@ -19,7 +19,7 @@ struct ListItem: View {
     
     // Init with defaults for new properties to keep backward compatibility if needed, 
     // or just update since I control all calls.
-    init(icon: String, iconColor: Color, title: String, subtitle: String, username: String? = nil, isRecurring: Bool = false, value: String? = nil, valueColor: Color = .primary, secondaryInfo: String? = nil, isOn: Binding<Bool>? = nil) {
+    init(icon: String, iconColor: Color, title: LocalizedStringKey, subtitle: LocalizedStringKey, username: String? = nil, isRecurring: Bool = false, value: String? = nil, valueColor: Color = .primary, secondaryInfo: String? = nil, isOn: Binding<Bool>? = nil) {
         self.icon = icon
         self.iconColor = iconColor
         self.title = title

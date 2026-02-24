@@ -121,7 +121,7 @@ struct BalanceCardView: View {
         VStack(spacing: 0) {
             // Üst Kısım: Başlık ve Yüzde
             HStack {
-                Text("Total Balance")
+                Text("Toplam Bakiye")
                     .font(.subheadline)
                     .foregroundColor(.white.opacity(0.8))
                 
@@ -146,7 +146,7 @@ struct BalanceCardView: View {
             
             // Orta Kısım: Ana Bakiye
             HStack {
-                Text("$\(String(format: "%.2f", balance))")
+                Text("₺\(String(format: "%.2f", balance))")
                     .font(.system(size: 32, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                 
@@ -158,15 +158,21 @@ struct BalanceCardView: View {
             
             // Alt Kısım: Kâr ve Bekleyen (Daha kompakt tasarım)
             HStack {
-                Text("Profit: +$\(String(format: "%.2f", profit))")
-                    .font(.footnote)
-                    .foregroundColor(.white.opacity(0.8))
+                HStack(spacing: 0) {
+                    Text("Bugünün Kârı")
+                    Text(": +₺\(String(format: "%.2f", profit))")
+                }
+                .font(.footnote)
+                .foregroundColor(.white.opacity(0.8))
                 
                 Spacer()
                 
-                Text("Pending: $\(String(format: "%.2f", pending))")
-                    .font(.footnote)
-                    .foregroundColor(.white.opacity(0.8))
+                HStack(spacing: 0) {
+                    Text("Bekleyen")
+                    Text(": ₺\(String(format: "%.2f", pending))")
+                }
+                .font(.footnote)
+                .foregroundColor(.white.opacity(0.8))
             }
             .padding(.bottom, 16)
             .padding(.horizontal, 20)
@@ -184,7 +190,7 @@ struct BalanceCardView: View {
         VStack(spacing: 0) {
             // Üst: Başlık ve İkon
             HStack {
-                Text("Total Savings")
+                Text("Toplam Birikim")
                     .font(.subheadline)
                     .foregroundColor(.white.opacity(0.8))
                 
@@ -200,7 +206,7 @@ struct BalanceCardView: View {
             
             // Orta: Birikim Tutarı
             HStack {
-                Text("$\(String(format: "%.2f", balance))")
+                Text("₺\(String(format: "%.2f", balance))")
                     .font(.system(size: 32, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                 
@@ -212,9 +218,12 @@ struct BalanceCardView: View {
             
             // Alt: Hedef Çubuğu
             HStack {
-                Text("Monthly Goal: \(Int(goalProgress * 100))%")
-                    .font(.footnote)
-                    .foregroundColor(.white.opacity(0.8))
+                HStack(spacing: 0) {
+                    Text("Aylık Hedef")
+                    Text(": \(Int(goalProgress * 100))%")
+                }
+                .font(.footnote)
+                .foregroundColor(.white.opacity(0.8))
                 
                 Spacer()
                 
@@ -251,7 +260,7 @@ struct BalanceCardView: View {
             Spacer(minLength: 0)
             
             HStack {
-                Text("$\(String(format: "%.2f", amount))")
+                Text("₺\(String(format: "%.2f", amount))")
                     .font(.system(size: 32, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                 Spacer()

@@ -24,6 +24,7 @@ struct RecentTransactionsListView: View {
                         .foregroundColor(theme.brandPrimary)
                 }
             }
+            // Başlık ve metrik kartları ile hizalı olması için yatay padding eklendi
             .padding(.horizontal)
             
             // Liste Kartı
@@ -39,12 +40,11 @@ struct RecentTransactionsListView: View {
                     valueColor: theme.expense,
                     secondaryInfo: "9 Mar 2025"
                 )
-                .padding(.horizontal, 16)
+                
                 
                 Divider()
                     .background(theme.separatorSecondary)
-                    .padding(.horizontal, 16)
-                    
+
                 ListItem(
                     icon: "cart.fill",
                     iconColor: Color.blue,
@@ -54,12 +54,10 @@ struct RecentTransactionsListView: View {
                     valueColor: theme.expense,
                     secondaryInfo: "8 Mar 2025"
                 )
-                .padding(.horizontal, 16)
                 
                 Divider()
                     .background(theme.separatorSecondary)
-                    .padding(.horizontal, 16)
-                    
+                          
                 ListItem(
                     icon: "briefcase.fill",
                     iconColor: Color.green,
@@ -69,11 +67,9 @@ struct RecentTransactionsListView: View {
                     valueColor: theme.income,
                     secondaryInfo: "1 Mar 2025"
                 )
-                .padding(.horizontal, 16)
             }
-            .padding(.vertical, 16)
+            .padding(16)
             .glassEffect(in: .rect(cornerRadius: 24.0))
-            .padding(.horizontal)
         }
     }
 }
