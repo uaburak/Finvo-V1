@@ -2,6 +2,7 @@ import SwiftUI
 
 struct CategoriesListView: View {
     @Environment(\.theme) var theme
+    @State private var categoryToEdit: CategoryModel?
     @State private var selectedType: TransactionType = .expense
     // State to act as a source of truth for all categories & subcategories from mock
     @State private var categories: [CategoryModel] = CategoriesMockData.data
@@ -26,7 +27,16 @@ struct CategoriesListView: View {
                         )
                         .padding(.leading, 16)
                     }
-                    .listRowBackground(Color.clear)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button(role: .destructive) {
+                            // TODO: Kategori silme
+                        } label: {
+                            Image(systemName: "trash")
+                        }.tint(.red)
+                        Button { categoryToEdit = category } label: {
+                            Image(systemName: "pencil")
+                        }.tint(.orange)
+                    }
                     .listRowSeparator(.visible)
                     .listRowSeparator(isFirst ? .hidden : .visible, edges: .top)
                     .listSectionSeparator(isFirst ? .hidden : .visible, edges: .top)

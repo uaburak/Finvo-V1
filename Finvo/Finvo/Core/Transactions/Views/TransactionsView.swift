@@ -65,7 +65,7 @@ struct TransactionsView: View {
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) { } label: {
                                 Image(systemName: "trash")
-                            }
+                            }.tint(.red)
                             Button { transactionToEdit = transaction } label: {
                                 Image(systemName: "pencil")
                             }.tint(.orange)

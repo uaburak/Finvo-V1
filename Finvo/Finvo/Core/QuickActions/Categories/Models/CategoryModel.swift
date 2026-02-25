@@ -16,6 +16,7 @@ struct CategoryModel: Identifiable {
     let icon: String // SF Symbol
     let color: Color
     var subCategories: [SubCategoryModel]
+    var isOn: Bool = true
 }
 
 struct CategoriesMockData {
