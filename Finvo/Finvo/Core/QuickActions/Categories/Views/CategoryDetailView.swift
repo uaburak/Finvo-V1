@@ -86,6 +86,7 @@ struct CategoryDetailView: View {
                     // TODO: Alt kategori ekleme modalı eklenecek
                 } label: {
                     Image(systemName: "plus")
+                        .foregroundColor(.white)
                 }
             }
         }

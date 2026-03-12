@@ -62,6 +62,7 @@ struct CategoriesListView: View {
                     // TODO: Ana kategori ekleme modalı eklenecek
                 } label: {
                     Image(systemName: "plus")
+                        .foregroundColor(.white)
                 }
             }
         }
