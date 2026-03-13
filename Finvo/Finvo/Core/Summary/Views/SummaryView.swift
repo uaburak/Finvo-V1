@@ -45,52 +45,51 @@ struct SummaryView: View {
             .scrollBounceBehavior(.always, axes: .vertical)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                
-                // Sol Bölüm (Bildirim / Notification)
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: {
-                        // Bildirim İşlemi
-                    }) {
-                        Image(systemName: "bell")
-                            .font(.system(size: 16))
-                            .foregroundColor(theme.labelPrimary)
-                    }
-                }
-                
-                // Orta Bölüm (Wallet Switcher)
-                ToolbarItem(placement: .principal) {
-                    Menu {
-                        Button("Cüzdan 1") { }
-                        Button("Cüzdan 2") { }
-                        Button("Cüzdan 3") { }
-                        Button("Cüzdan 4") { }
-                        Button("Cüzdan 5") { }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Text("Cüzdanım")
-                                .font(.headline)
-                            
-                            Image(systemName: "chevron.down")
-                                .font(.caption.bold())
-                        }
-                        .foregroundColor(theme.labelPrimary)
-                    }
-                }
-                
-                // Sağ Bölüm (Profil / Avatar)
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {
-                        // Profil İşlemi
-                    }) {
-                        Text("B")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(theme.labelPrimary)
-                    }
-                }
+                summaryToolbar()
             }
         }
     }
     
+    @ToolbarContentBuilder
+    private func summaryToolbar() -> some ToolbarContent {
+        // Sol Bölüm (Bildirim / Notification)
+        ToolbarItem(placement: .navigationBarLeading) {
+            NavigationLink(destination: NotificationsView()) {
+                Image(systemName: "bell")
+                    .font(.system(size: 16))
+                    .foregroundColor(theme.labelPrimary)
+            }
+        }
+        
+        // Orta Bölüm (Wallet Switcher)
+        ToolbarItem(placement: .principal) {
+            Menu {
+                Button("Cüzdan 1") { }
+                Button("Cüzdan 2") { }
+                Button("Cüzdan 3") { }
+                Button("Cüzdan 4") { }
+                Button("Cüzdan 5") { }
+            } label: {
+                HStack(spacing: 6) {
+                    Text("Cüzdanım")
+                        .font(.headline)
+                    
+                    Image(systemName: "chevron.down")
+                        .font(.caption.bold())
+                }
+                .foregroundColor(theme.labelPrimary)
+            }
+        }
+        
+        // Sağ Bölüm (Profil / Avatar)
+        ToolbarItem(placement: .navigationBarTrailing) {
+            NavigationLink(destination: ProfileView()) {
+                Text("B")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(theme.labelPrimary)
+            }
+        }
+    }
 }
 
 struct SummaryView_Previews: PreviewProvider {

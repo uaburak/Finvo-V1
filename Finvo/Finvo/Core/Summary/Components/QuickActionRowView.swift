@@ -5,6 +5,7 @@ struct QuickActionItem: Identifiable {
     let id = UUID()
     let icon: String // SF Symbol adı
     let title: LocalizedStringKey
+    let destination: AnyView
 }
 
 // Hızlı İşlemler Görünümü
@@ -13,26 +14,22 @@ struct QuickActionRowView: View {
     
     // Tasarımdaki ikonlara benzer SF Symbol'ler
     let actions = [
-        QuickActionItem(icon: "square.grid.2x2", title: "Kategoriler"),
-        QuickActionItem(icon: "creditcard", title: "Borçlar"),
-        QuickActionItem(icon: "wallet.bifold", title: "Cüzdanlar"),
-        QuickActionItem(icon: "doc.text", title: "Limitler"),
-        QuickActionItem(icon: "lanyardcard", title: "Birikimler"),
-        QuickActionItem(icon: "ellipsis", title: "Daha Fazla")
+        QuickActionItem(icon: "square.grid.2x2", title: "Kategoriler", destination: AnyView(CategoriesListView())),
+        QuickActionItem(icon: "creditcard", title: "Borçlar", destination: AnyView(DebtsView())),
+        QuickActionItem(icon: "wallet.bifold", title: "Cüzdanlar", destination: AnyView(WalletsView())),
+        QuickActionItem(icon: "doc.text", title: "Limitler", destination: AnyView(LimitsView())),
+        QuickActionItem(icon: "lanyardcard", title: "Birikimler", destination: AnyView(SavingsView())),
+        QuickActionItem(icon: "repeat.circle", title: "Tekrarlayan", destination: AnyView(RecurringTransactionsView()))
     ]
     
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 12) {
                 ForEach(actions) { action in
-                        if action.title == "Kategoriler" {
-                            NavigationLink(destination: CategoriesListView()) {
-                                actionContent(action)
-                            }
-                            .buttonStyle(.plain)
-                        } else {
-                            actionContent(action)
-                        }
+                    NavigationLink(destination: action.destination) {
+                        actionContent(action)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal)

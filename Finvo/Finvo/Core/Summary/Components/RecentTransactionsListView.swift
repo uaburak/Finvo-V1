@@ -15,9 +15,7 @@ struct RecentTransactionsListView: View {
                 
                 Spacer()
                 
-                Button(action: {
-                    // "Tümü" buton aksiyonu
-                }) {
+                NavigationLink(destination: TransactionsView(selectedType: .expense)) {
                     Text("Tümü")
                         .font(.subheadline)
                         .fontWeight(.medium)
