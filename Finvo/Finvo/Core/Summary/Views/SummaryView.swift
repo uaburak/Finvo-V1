@@ -28,10 +28,6 @@ struct SummaryView: View {
                     
                     // Hızlı Butonlar Alanı
                     QuickActionRowView()
-                    
-                    // Son İşlemler Listesi
-                    RecentTransactionsListView()
-                        .padding(.horizontal)
 
                     // Esnek 4'lü Metrik Kartları
                     SummaryMetricsGridView()

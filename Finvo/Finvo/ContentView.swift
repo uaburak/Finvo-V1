@@ -107,11 +107,11 @@ struct ContentView: View {
                 }
             }
             
-            // 4. AYARLAR SEKMESİ (18pt İkon - 12pt Metin)
+            4. AYARLAR SEKMESİ (18pt İkon - 12pt Metin)
             Tab(value: .settings) {
                 SettingsView()
             } label: {
-                Label {
+                Label { 
                     Text(AppTab.settings.title)
                         .font(.system(size: 12))
                 } icon: {
