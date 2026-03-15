@@ -6,17 +6,20 @@
 //
 
 import SwiftUI
+import UIKit // UIKit'in nimetlerinden faydalanmak için eklendi
 
 enum AppTab: String, CaseIterable {
     case home = "home"
     case analytics = "analytics"
+    case family = "family"
     case add = "add"
     case settings = "settings"
     
     var symbolImage: String {
         switch self {
         case .home: return "house.fill"
-        case .analytics: return "chart.bar.fill"
+        case .analytics: return "chart.pie.fill"
+        case .family: return "person.2.fill"
         case .add: return "plus"
         case .settings: return "gearshape.fill"
         }
@@ -26,6 +29,7 @@ enum AppTab: String, CaseIterable {
         switch self {
         case .home: return "Özet"
         case .analytics: return "Analiz"
+        case .family: return "Aile"
         case .add: return "Ekle"
         case .settings: return "Ayarlar"
         }
@@ -34,9 +38,10 @@ enum AppTab: String, CaseIterable {
 
 struct ContentView: View {
     @Environment(\.theme) var theme
+    @Environment(\.colorScheme) var colorScheme
     @State private var activeTab: AppTab = .home
     @State private var isExpanded: Bool = false
-    @State private var showAddSheet: Bool = false // Sheet'i kontrol edecek state
+    @State private var showAddSheet: Bool = false
     
     // Tıklamaları araya girip yakaladığımız özel Binding
     var tabSelection: Binding<AppTab> {
@@ -44,44 +49,87 @@ struct ContentView: View {
             get: { self.activeTab },
             set: { newValue in
                 if newValue == .add {
-                    // Eğer '+' butonuna basıldıysa, sekmeyi DEĞİŞTİRME, sadece sheet'i aç
                     self.showAddSheet = true
                 } else {
-                    // Diğer sekmelere basıldıysa normal şekilde sekmeyi değiştir
                     self.activeTab = newValue
                 }
             }
         )
     }
     
+    // SwiftUI'ın ikon boyutunu ezmesini engelleyen UIKit hilesi fonksiyonumuz
+    func sizedIcon(for tab: AppTab) -> Image {
+        // İkonu UIKit seviyesinde tam 18 point olarak render ediyoruz
+        let config = UIImage.SymbolConfiguration(pointSize: 12, weight: .regular)
+        let uiImage = UIImage(systemName: tab.symbolImage, withConfiguration: config) ?? UIImage()
+        // SwiftUI'a artık değişmez bir görsel olarak veriyoruz
+        return Image(uiImage: uiImage).renderingMode(.template)
+    }
+    
     var body: some View {
-        // TabView'a artık kendi yazdığımız tabSelection binding'ini veriyoruz
         TabView(selection: tabSelection) {
             
-            Tab(AppTab.home.title, systemImage: AppTab.home.symbolImage, value: .home) {
+            // 1. ÖZET SEKMESİ (18pt İkon - 12pt Metin)
+            Tab(value: .home) {
                 SummaryView()
+            } label: {
+                Label {
+                    Text(AppTab.home.title)
+                        .font(.system(size: 12))
+                } icon: {
+                    sizedIcon(for: .home) // Özel UIKit fonksiyonumuzu çağırıyoruz
+                }
             }
             
-            Tab(AppTab.analytics.title, systemImage: AppTab.analytics.symbolImage, value: .analytics) {
+            // 2. ANALİZ SEKMESİ (18pt İkon - 12pt Metin)
+            Tab(value: .analytics) {
                 Text("Analiz Sayfası")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } label: {
+                Label {
+                    Text(AppTab.analytics.title)
+                        .font(.system(size: 12))
+                } icon: {
+                    sizedIcon(for: .analytics)
+                }
             }
             
-            Tab(AppTab.settings.title, systemImage: AppTab.settings.symbolImage, value: .settings) {
+            // 3. AİLE SEKMESİ (18pt İkon - 12pt Metin)
+            Tab(value: .family) {
+                Text("Aile Sayfası")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } label: {
+                Label {
+                    Text(AppTab.family.title)
+                        .font(.system(size: 12))
+                } icon: {
+                    sizedIcon(for: .family)
+                }
+            }
+            
+            // 4. AYARLAR SEKMESİ (18pt İkon - 12pt Metin)
+            Tab(value: .settings) {
                 SettingsView()
+            } label: {
+                Label {
+                    Text(AppTab.settings.title)
+                        .font(.system(size: 12))
+                } icon: {
+                    sizedIcon(for: .settings)
+                }
             }
             
-            // Bu tab aslında hiç render edilmeyecek, çünkü binding'de araya giriyoruz
+            // 5. EKLE BUTONU (Orijinal Boyut - Native Search Yuvasında)
+            // Buna dokunmuyoruz ki büyük ve belirgin kalsın
             Tab(AppTab.add.title, systemImage: AppTab.add.symbolImage, value: .add, role: .search) {
                 Color.clear
             }
         }
         .tint(theme.brandPrimary)
-        // Sheet'i burada tetikliyoruz
+        .id(colorScheme) // <--- Çözüm: Mod değiştiğinde tüm TabView baştan render edilecek.
         .sheet(isPresented: $showAddSheet) {
-            // Buraya yeni gelir/gider ekleme sayfanın View'ını koyabilirsin
             Text("Yeni Harcama / Gelir Ekleme Ekranı")
-                .presentationDetents([.medium, .large]) // İsteğe bağlı: yarım sayfa açılması için
+                .presentationDetents([.medium, .large])
         }
     }
 }
