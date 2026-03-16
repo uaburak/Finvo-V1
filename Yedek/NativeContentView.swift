@@ -8,7 +8,7 @@
 
 import SwiftUI
 
-struct ContentView: View {
+struct NativeContentView: View {
     @Environment(\.theme) var theme
     @Environment(\.colorScheme) var colorScheme
 
@@ -23,31 +23,31 @@ struct ContentView: View {
             Tab {
                 SummaryView()
             } label: {
-                Label { Text("Özet").font(.system(size: 8)) } icon: { sizedIcon("circle") }
+                Label { Text("Özet").font(.system(size: 12)) } icon: { sizedIcon("house.fill") }
             }
 
             Tab {
                 Text("Analiz Sayfası").frame(maxWidth: .infinity, maxHeight: .infinity)
             } label: {
-                Label { Text("Analiz").font(.system(size: 8)) } icon: { sizedIcon("circle") }
+                Label { Text("Analiz").font(.system(size: 12)) } icon: { sizedIcon("chart.pie.fill") }
             }
 
             Tab {
                 NavigationStack { AddTransactionsView() }
             } label: {
-                Label { Text("Ekle").font(.system(size: 8)) } icon: { sizedIcon("plus.circle") }
+                Label { Text("Ekle").font(.system(size: 12)) } icon: { sizedIcon("plus") }
             }
 
             Tab {
                 Text("Aile Sayfası").frame(maxWidth: .infinity, maxHeight: .infinity)
             } label: {
-                Label { Text("Aile").font(.system(size: 8)) } icon: { sizedIcon("circle") }
+                Label { Text("Aile").font(.system(size: 12)) } icon: { sizedIcon("person.2.fill") }
             }
 
             Tab {
                 SettingsView()
             } label: {
-                Label { Text("Ayarlar").font(.system(size: 8)) } icon: { sizedIcon("circle") }
+                Label { Text("Ayarlar").font(.system(size: 12)) } icon: { sizedIcon("gearshape.fill") }
             }
         }
         .tint(theme.brandPrimary)
@@ -56,6 +56,6 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView()
+    NativeContentView()
         .environment(\.theme, DefaultTheme())
 }

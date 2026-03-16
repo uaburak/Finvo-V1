@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 
-struct SubCategoryModel: Identifiable {
+struct SubCategoryModel: Identifiable, Equatable {
     let id = UUID()
     let name: LocalizedStringKey
     let icon: String // SF Symbol
@@ -9,7 +9,7 @@ struct SubCategoryModel: Identifiable {
     var isOn: Bool = true // toggle state
 }
 
-struct CategoryModel: Identifiable {
+struct CategoryModel: Identifiable, Equatable {
     let id = UUID()
     let type: TransactionType
     let name: LocalizedStringKey
