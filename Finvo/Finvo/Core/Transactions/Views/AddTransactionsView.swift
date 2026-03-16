@@ -1,76 +1,45 @@
+//
+//  AddTransactionsView.swift
+//  Finvo
+//
+//  Created by Burak KOÇ on 16.03.2026.
+//
+
 import SwiftUI
 
-// FilterSheetView.swift silindiği için bu enum buraya taşındı
-enum FilterCategory: String, CaseIterable, Identifiable {
-    var id: String { rawValue }
-    case market = "Market"
-    case faturalar = "Faturalar"
-    case ulasim = "Ulaşım"
-    case eglence = "Eğlence"
-    case saglik = "Sağlık"
-    case giyim = "Giyim"
-    case yemek = "Yemek"
-    case diger = "Diğer"
-    
-    var icon: String {
-        switch self {
-        case .market: return "cart.fill"
-        case .faturalar: return "doc.text.fill"
-        case .ulasim: return "car.fill"
-        case .eglence: return "gamecontroller.fill"
-        case .saglik: return "cross.fill"
-        case .giyim: return "tshirt.fill"
-        case .yemek: return "fork.knife"
-        case .diger: return "ellipsis.circle.fill"
-        }
-    }
-}
-
-struct TransactionsView: View {
+struct AddTransactionsView: View {
     @Environment(\.theme) var theme
-    @State var selectedType: TransactionType
 
-    @State private var transactionToEdit: TransactionItemModel?
-    @State private var searchText = ""
-    
-    // Fitre State'leri
+    @State private var selectedType: Int = 0 // 0: Tümü, 1: Gider, 2: Gelir
     @State private var useDateRange = false
     @State private var startDate = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
     @State private var endDate = Date()
     @State private var selectedCategory: FilterCategory? = nil
 
     var body: some View {
-        VStack {
-            let filteredItems: [TransactionItemModel] = TransactionsMockData.items.filter { item in
-                guard item.type == selectedType else { return false }
-                
-                if !searchText.isEmpty {
-                    guard "\(item.title)".localizedCaseInsensitiveContains(searchText) ||
-                          "\(item.subtitle)".localizedCaseInsensitiveContains(searchText) else { return false }
-                }
-                
-                if let cat = selectedCategory {
-                    guard "\(item.subtitle)".localizedCaseInsensitiveContains(cat.rawValue) else { return false }
-                }
-                
-                if useDateRange {
-                    let calendar = Calendar.current
-                    let start = calendar.startOfDay(for: startDate)
-                    let end = calendar.date(bySettingHour: 23, minute: 59, second: 59, of: endDate) ?? endDate
-                    
-                    if item.timestamp < start || item.timestamp > end {
-                        return false
-                    }
-                }
-                
-                return true
+        let filteredItems: [TransactionItemModel] = TransactionsMockData.items.filter { item in
+            // Tür filtresi
+            if selectedType == 1 && item.type != .expense { return false }
+            if selectedType == 2 && item.type != .income { return false }
+            // Kategori filtresi
+            if let cat = selectedCategory,
+               !"\(item.subtitle)".localizedCaseInsensitiveContains(cat.rawValue) { return false }
+            // Tarih aralığı filtresi
+            if useDateRange {
+                let calendar = Calendar.current
+                let start = calendar.startOfDay(for: startDate)
+                let end = calendar.date(bySettingHour: 23, minute: 59, second: 59, of: endDate) ?? endDate
+                if item.timestamp < start || item.timestamp > end { return false }
             }
+            return true
+        }
 
+        VStack {
             if filteredItems.isEmpty {
                 VStack {
                     Spacer()
                     ContentUnavailableView("İşlem Bulunamadı", systemImage: "list.bullet",
-                                          description: Text("Bu kriterlere uygun işlem bulunamadı."))
+                                          description: Text("Henüz işlem bulunmuyor."))
                     Spacer()
                 }
             } else {
@@ -89,12 +58,8 @@ struct TransactionsView: View {
                         )
                         .padding(.leading)
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button(role: .destructive) { } label: {
-                                Image(systemName: "trash")
-                            }.tint(.red)
-                            Button { transactionToEdit = transaction } label: {
-                                Image(systemName: "pencil")
-                            }.tint(.orange)
+                            Button(role: .destructive) { } label: { Image(systemName: "trash") }.tint(.red)
+                            Button { } label: { Image(systemName: "pencil") }.tint(.orange)
                         }
                         .listRowInsets(EdgeInsets(top: 12, leading: 0, bottom: 12, trailing: 20))
                         .listRowSeparator(.visible)
@@ -105,47 +70,41 @@ struct TransactionsView: View {
                 .listStyle(.plain)
             }
         }
-        .navigationTitle("")
+        .navigationTitle("İşlemler")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Picker("İşlem Tipi", selection: $selectedType) {
-                    Text("Gider").tag(TransactionType.expense)
-                    Text("Gelir").tag(TransactionType.income)
+                    Text("Tümü").tag(0)
+                    Text("Gider").tag(1)
+                    Text("Gelir").tag(2)
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 200)
+                .frame(width: 240)
             }
-
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Menu {
                         DatePicker("Başlangıç", selection: $startDate, displayedComponents: .date)
                         DatePicker("Bitiş", selection: $endDate, displayedComponents: .date)
-                        
                         Divider()
-                        
                         Button {
                             useDateRange.toggle()
                         } label: {
-                            Label(useDateRange ? "Tarih Filtresini Kapat" : "Tarih Filtresini Aç", 
+                            Label(useDateRange ? "Tarih Filtresini Kapat" : "Tarih Filtresini Aç",
                                   systemImage: useDateRange ? "calendar.badge.minus" : "calendar.badge.plus")
                         }
                     } label: {
                         Label("Tarih Aralığı Seç", systemImage: "calendar")
                     }
-
                     Divider()
-
                     Picker("Kategori", selection: $selectedCategory) {
                         Text("Tüm Kategoriler").tag(Optional<FilterCategory>.none)
                         ForEach(FilterCategory.allCases) { cat in
                             Label(cat.rawValue, systemImage: cat.icon).tag(Optional(cat))
                         }
                     }
-
                     Divider()
-
                     if useDateRange || selectedCategory != nil {
                         Button(role: .destructive) {
                             useDateRange = false
@@ -165,12 +124,11 @@ struct TransactionsView: View {
                 }
             }
         }
-        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Ara")
     }
 }
 
 #Preview {
     NavigationStack {
-        TransactionsView(selectedType: .expense)
+        AddTransactionsView()
     }
 }

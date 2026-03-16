@@ -42,21 +42,22 @@ struct ContentView: View {
     @State private var activeTab: AppTab = .home
     @State private var isExpanded: Bool = false
     @State private var showAddSheet: Bool = false
-    
-    // Tıklamaları araya girip yakaladığımız özel Binding
+
+    // Zaten Ekle sayfasındayken tekrar '+' ikonuna basılırsa Sheet'i tetiklemek için Binding araya giriyoruz.
     var tabSelection: Binding<AppTab> {
         Binding(
             get: { self.activeTab },
             set: { newValue in
                 if newValue == .add {
+                    // Kullanıcı "Ekle" sekmesine herhangi bir konumdan tıkladığında hemen Sheet'i aç.
+                    // TabView tabı da .add kalsın ki native gibi sekme de değişsin, re-render sorunu yaşanmasın.
                     self.showAddSheet = true
-                } else {
-                    self.activeTab = newValue
                 }
+                self.activeTab = newValue
             }
         )
     }
-    
+
     // SwiftUI'ın ikon boyutunu ezmesini engelleyen UIKit hilesi fonksiyonumuz
     func sizedIcon(for tab: AppTab) -> Image {
         // İkonu UIKit seviyesinde tam 18 point olarak render ediyoruz
@@ -65,11 +66,11 @@ struct ContentView: View {
         // SwiftUI'a artık değişmez bir görsel olarak veriyoruz
         return Image(uiImage: uiImage).renderingMode(.template)
     }
-    
+
     var body: some View {
         TabView(selection: tabSelection) {
-            
-            // 1. ÖZET SEKMESİ (18pt İkon - 12pt Metin)
+
+            // 1. ÖZET SEKMESİ
             Tab(value: .home) {
                 SummaryView()
             } label: {
@@ -77,11 +78,11 @@ struct ContentView: View {
                     Text(AppTab.home.title)
                         .font(.system(size: 12))
                 } icon: {
-                    sizedIcon(for: .home) // Özel UIKit fonksiyonumuzu çağırıyoruz
+                    sizedIcon(for: .home)
                 }
             }
-            
-            // 2. ANALİZ SEKMESİ (18pt İkon - 12pt Metin)
+
+            // 2. ANALİZ SEKMESİ
             Tab(value: .analytics) {
                 Text("Analiz Sayfası")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -93,8 +94,8 @@ struct ContentView: View {
                     sizedIcon(for: .analytics)
                 }
             }
-            
-            // 3. AİLE SEKMESİ (18pt İkon - 12pt Metin)
+
+            // 3. AİLE SEKMESİ
             Tab(value: .family) {
                 Text("Aile Sayfası")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -106,33 +107,34 @@ struct ContentView: View {
                     sizedIcon(for: .family)
                 }
             }
-            
-            4. AYARLAR SEKMESİ (18pt İkon - 12pt Metin)
+
+            // 4. AYARLAR SEKMESİ
             Tab(value: .settings) {
                 SettingsView()
             } label: {
-                Label { 
+                Label {
                     Text(AppTab.settings.title)
                         .font(.system(size: 12))
                 } icon: {
                     sizedIcon(for: .settings)
                 }
             }
-            
-            // 5. EKLE BUTONU (Orijinal Boyut - Native Search Yuvasında)
-            // Buna dokunmuyoruz ki büyük ve belirgin kalsın
+
+            // 5. EKLE SEKMESİ
             Tab(AppTab.add.title, systemImage: AppTab.add.symbolImage, value: .add, role: .search) {
-                Color.clear
+                NavigationStack {
+                    AddTransactionsView()
+                }
             }
         }
         .tint(theme.brandPrimary)
-        .id(colorScheme) // <--- Çözüm: Mod değiştiğinde tüm TabView baştan render edilecek.
+        .id(colorScheme)
         .sheet(isPresented: $showAddSheet) {
-            Text("Yeni Harcama / Gelir Ekleme Ekranı")
-                .presentationDetents([.medium, .large])
+            AddTransactionSheet()
         }
     }
 }
+
 
 #Preview {
     ContentView()
