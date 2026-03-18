@@ -7,17 +7,43 @@ import SwiftUI
 
 struct AddTransactionsView: View {
     @Environment(\.theme) var theme
+    @Environment(\.dismiss) var dismiss
 
     @State private var selectedType: TransactionType = .expense
     @State private var selectedMainCategory: CategoryModel?
     @State private var selectedSubCategory: SubCategoryModel?
     @State private var selectedDate: Date = Date()
     @State private var amount: String = ""
-    @State private var selectedWallet: String = "Ana Cüzdan"
     @State private var activeSheet: ActiveSheet?
+    @State private var isDebt: Bool = false
+    @State private var debtContact: String = ""
+    @State private var installmentCount: String = ""
+    @State private var paidInstallments: String = ""
+    @State private var dueDay: Int = 1
+    @State private var isRecurring: Bool = false
+    @State private var recurringFrequency: String = "Aylık"
+    
+    @State private var currentStep: TransactionStep = .type
+    @State private var selectedDetent: PresentationDetent = .height(280)
+
+    enum TransactionStep: Int, CaseIterable {
+        case type = 1
+        case category = 2
+        case subcategory = 3
+        case details = 4
+        
+        var title: String {
+            switch self {
+            case .type: return "İşlem Türü"
+            case .category: return "Kategori Seçin"
+            case .subcategory: return "Alt Kategori Seçin"
+            case .details: return "İşlem Detayları"
+            }
+        }
+    }
 
     enum ActiveSheet: Identifiable {
-        case category, date, wallet, amount
+        case category, amount
         var id: Int { hashValue }
     }
 
@@ -27,132 +53,293 @@ struct AddTransactionsView: View {
         return "Seçin"
     }
 
+    private let columns = [
+        GridItem(.flexible(), spacing: 16),
+        GridItem(.flexible(), spacing: 16)
+    ]
+
     var body: some View {
-        ZStack {
-            theme.background1.ignoresSafeArea()
+        NavigationStack {
+            VStack(spacing: 0) {
 
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 24) {
-
-                    // MARK: Header
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Yeni İşlem")
-                            .font(.system(size: 28, weight: .bold))
-                            .foregroundStyle(theme.labelPrimary)
-                        Text("Harcamalarını veya gelirlerini kaydet.")
-                            .font(.subheadline)
-                            .foregroundStyle(theme.labelSecondary)
+                    ScrollView(showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 24) {
+                            stepContent
+                                .padding(.top, 20)
+                        }
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 100)
                     }
-                    .padding(.horizontal, 24)
-                    .padding(.top, 20)
-
-                    // MARK: Form
-                    VStack(spacing: 0) {
-                        Picker("İşlem Türü", selection: Binding(
-                            get: { selectedType },
-                            set: { v in
-                                UISelectionFeedbackGenerator().selectionChanged()
-                                withAnimation(.spring()) {
-                                    selectedType = v
-                                    selectedMainCategory = nil
-                                    selectedSubCategory = nil
+                } // Ends VStack
+                .navigationTitle(currentStep.title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        if currentStep != .type {
+                            Button {
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                if let prev = TransactionStep(rawValue: currentStep.rawValue - 1) {
+                                    // İçerik (currentStep) anında değişir:
+                                    currentStep = prev
+                                    // Sheet boyutu (selectedDetent) animasyonlu değişir:
+                                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                        selectedDetent = prev == .type ? .height(280) : .height(650)
+                                    }
                                 }
+                            } label: {
+                                Image(systemName: "chevron.left")
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(theme.labelPrimary)
                             }
-                        )) {
-                            Text("Gider").tag(TransactionType.expense)
-                            Text("Gelir").tag(TransactionType.income)
                         }
-                        .pickerStyle(.segmented)
-                        .controlSize(.large)
-                        .padding(.top, 20)
-                        .padding(.horizontal, 16)
-
-                        VStack(spacing: 0) {
-                            formRow("square.grid.2x2", "Kategori", categoryRowValue) { activeSheet = .category }
-
-                            Divider().padding(.leading, 56)
-                            formRow("calendar", "Tarih", LocalizedStringKey(selectedDate.formatted(date: .long, time: .omitted))) { activeSheet = .date }
-
-                            Divider().padding(.leading, 56)
-                            formRow("creditcard", "Cüzdan", LocalizedStringKey(selectedWallet)) { activeSheet = .wallet }
-
-                            Divider().padding(.leading, 56)
-                            formRow("turkishlirasign.circle", "Tutar", LocalizedStringKey(amount.isEmpty ? "0,00 ₺" : "₺\(amount)")) { activeSheet = .amount }
-                        }
-                        .padding(.top, 8)
-
+                    }
+                    
+                    // Sağ tarafta her zaman "Kapat" butonu olacak
+                    ToolbarItem(placement: .topBarTrailing) {
                         Button {
-                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            dismiss()
                         } label: {
-                            Text("Kaydet")
-                                .font(.headline).fontWeight(.bold)
-                                .foregroundStyle(.white)
-                                .frame(maxWidth: .infinity, minHeight: 56)
-                                .background(theme.brandPrimary)
-                                .clipShape(Capsule())
+                            Image(systemName: "xmark")
+                                .fontWeight(.bold)
+                                .foregroundStyle(theme.labelPrimary)
                         }
-                        .padding(16)
                     }
-                    .glassEffect(in: .rect(cornerRadius: 24))
-                    .padding(.horizontal, 16)
+                }
+            } // Ends NavigationStack
+            // Dinamik Sheet Yüksekliği (Animasyonla Geçiş)
+            .presentationDetents([.height(280), .height(650)], selection: $selectedDetent)
+            .presentationDragIndicator(.hidden)
+            // Bütün steplerde hiçbir arka plan rengi yok (Tamamen Şeffaf)
+            .presentationBackground(.clear) 
+            .onAppear {
+                UISegmentedControl.appearance().selectedSegmentTintColor = UIColor(theme.brandPrimary)
+                UISegmentedControl.appearance().setTitleTextAttributes([.foregroundColor: UIColor.white], for: .selected)
+                UISegmentedControl.appearance().setTitleTextAttributes([.foregroundColor: UIColor(theme.labelSecondary)], for: .normal)
+            }
+            .sheet(item: $activeSheet) { sheet in
+                switch sheet {
+                case .category:
+                    CategorySelectionSheet(
+                        categories: CategoriesMockData.data.filter { $0.type == selectedType },
+                        selectedMainCategory: $selectedMainCategory,
+                        selectedSubCategory: $selectedSubCategory
+                    )
+                case .amount:
+                    AmountInputSheet(amount: $amount)
+                        .presentationDetents([.height(300)])
+                        .presentationBackground(.clear)
+                }
+            }
+    }
 
-                   
-                    let recentItems = Array(TransactionsMockData.items.prefix(3))
-                    List {
-                        ForEach(recentItems) { item in
-                            let isFirst = item.id == recentItems.first?.id
-                            ListItem(
-                                icon: item.icon,
-                                iconColor: item.color,
-                                title: item.title,
-                                subtitle: item.subtitle,
-                                value: (item.type == .income ? "+₺" : "-₺") + String(format: "%.2f", item.amount),
-                                valueColor: item.type == .income ? theme.income : theme.expense,
-                                secondaryInfo: item.date
-                            )
-                            .padding(.leading)
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                Button(role: .destructive) { } label: {
-                                    Image(systemName: "trash")
-                                }.tint(.red)
-                                Button { } label: {
-                                    Image(systemName: "pencil")
-                                }.tint(.orange)
-                            }
-                            .listRowInsets(EdgeInsets(top: 12, leading: 0, bottom: 12, trailing: 20))
-                            .listRowSeparator(.visible)
-                            .listRowSeparator(isFirst ? .hidden : .visible, edges: .top)
-                            .listSectionSeparator(isFirst ? .hidden : .visible, edges: .top)
-                        }
-                    }
-                    .listStyle(.plain)
-                    .frame(height: 3 * 80)
-                    .padding(.bottom, 20)
+    @ViewBuilder
+    private var stepContent: some View {
+        switch currentStep {
+        case .type:
+            typeSelectionView
+        case .category:
+            categorySelectionView
+        case .subcategory:
+            subcategorySelectionView
+        case .details:
+            detailsFormView
+        }
+    }
+
+    private var typeSelectionView: some View {
+        LazyVGrid(columns: columns, spacing: 16) {
+            SelectionCard(title: "Gider", icon: "arrow.down.circle.fill", color: theme.expense) {
+                selectedType = .expense
+                nextStep()
+            }
+            SelectionCard(title: "Gelir", icon: "arrow.up.circle.fill", color: theme.income) {
+                selectedType = .income
+                nextStep()
+            }
+        }
+    }
+
+    private var categorySelectionView: some View {
+        LazyVGrid(columns: columns, spacing: 16) {
+            let filteredCategories = CategoriesMockData.data.filter { $0.type == selectedType }
+            ForEach(filteredCategories) { category in
+                SelectionCard(title: category.name, icon: category.icon, color: category.color) {
+                    selectedMainCategory = category
+                    nextStep()
                 }
             }
         }
-        .onAppear {
-            UISegmentedControl.appearance().selectedSegmentTintColor = UIColor(theme.brandPrimary)
-            UISegmentedControl.appearance().setTitleTextAttributes([.foregroundColor: UIColor.white], for: .selected)
-            UISegmentedControl.appearance().setTitleTextAttributes([.foregroundColor: UIColor(theme.labelSecondary)], for: .normal)
+    }
+
+    private var subcategorySelectionView: some View {
+        LazyVGrid(columns: columns, spacing: 16) {
+            if let subCategories = selectedMainCategory?.subCategories {
+                ForEach(subCategories) { sub in
+                    SelectionCard(title: sub.name, icon: sub.icon, color: sub.color) {
+                        selectedSubCategory = sub
+                        nextStep()
+                    }
+                }
+            }
         }
-        .sheet(item: $activeSheet) { sheet in
-            switch sheet {
-            case .category:
-                CategorySelectionSheet(
-                    categories: CategoriesMockData.data.filter { $0.type == selectedType },
-                    selectedMainCategory: $selectedMainCategory,
-                    selectedSubCategory: $selectedSubCategory
-                )
-            case .date:
-                TransactionDatePickerSheet(selection: $selectedDate)
-                    .presentationDetents([.height(500)])
-            case .wallet:
-                WalletSelectionSheet(selectedWallet: $selectedWallet)
-                    .presentationDetents([.medium])
-            case .amount:
-                AmountInputSheet(amount: $amount)
-                    .presentationDetents([.height(350)])
+    }
+
+    private var detailsFormView: some View {
+        VStack(spacing: 24) {
+            // Selected Path Summary
+            HStack {
+                summaryItem(icon: selectedMainCategory?.icon ?? "", color: selectedMainCategory?.color ?? .gray, text: selectedMainCategory?.name ?? "")
+                Image(systemName: "chevron.right").font(.caption).foregroundStyle(theme.labelSecondary)
+                summaryItem(icon: selectedSubCategory?.icon ?? "", color: selectedSubCategory?.color ?? .gray, text: selectedSubCategory?.name ?? "")
+            }
+            .padding(.vertical, 8)
+
+            VStack(spacing: 0) {
+                formRow("turkishlirasign.circle", "Tutar", LocalizedStringKey(amount.isEmpty ? "0,00 ₺" : "₺\(amount)")) { activeSheet = .amount }
+                Divider().padding(.leading, 56)
+                
+                HStack(spacing: 16) {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 20))
+                        .foregroundStyle(theme.brandPrimary)
+                        .frame(width: 24)
+                    DatePicker("Tarih", selection: $selectedDate, displayedComponents: .date)
+                        .foregroundStyle(theme.labelPrimary)
+                        .tint(theme.brandPrimary)
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 24))
+            .overlay(RoundedRectangle(cornerRadius: 24).stroke(theme.separator, lineWidth: 1))
+
+            VStack(spacing: 0) {
+                toggleRow("person.2.fill", "Borç / Alacak İşlemi", isOn: $isDebt)
+                
+                if isDebt {
+                    Divider().padding(.leading, 56)
+                    
+                    HStack(spacing: 16) {
+                        Image(systemName: "person.crop.circle")
+                            .font(.system(size: 20))
+                            .foregroundStyle(theme.brandPrimary)
+                            .frame(width: 24)
+                        TextField("Kişi veya Kurum (Örn: Ahmet)", text: $debtContact)
+                            .foregroundStyle(theme.labelPrimary)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    
+                    Divider().padding(.leading, 56)
+                    
+                    HStack(spacing: 16) {
+                        Image(systemName: "number.circle")
+                            .font(.system(size: 20))
+                            .foregroundStyle(theme.brandPrimary)
+                            .frame(width: 24)
+                        
+                        TextField("Toplam Taksit", text: $installmentCount)
+                            .keyboardType(.numberPad)
+                            .foregroundStyle(theme.labelPrimary)
+                        
+                        Divider().frame(height: 20)
+                        
+                        TextField("Ödenen", text: $paidInstallments)
+                            .keyboardType(.numberPad)
+                            .foregroundStyle(theme.labelPrimary)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    
+                    Divider().padding(.leading, 56)
+                    
+                    HStack(spacing: 16) {
+                        Image(systemName: "calendar.badge.clock")
+                            .font(.system(size: 20))
+                            .foregroundStyle(theme.brandPrimary)
+                            .frame(width: 24)
+                        Text("Son Ödeme Günü")
+                            .foregroundStyle(theme.labelPrimary)
+                        Spacer()
+                        Text("Her ayın")
+                            .font(.subheadline)
+                            .foregroundStyle(theme.labelSecondary)
+                        Picker("", selection: $dueDay) {
+                            ForEach(1...31, id: \.self) { day in
+                                Text("\(day)").tag(day)
+                            }
+                        }
+                        .tint(theme.labelSecondary)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 8)
+                }
+                
+                Divider()
+                
+                toggleRow("arrow.2.squarepath", "Tekrarlayan İşlem", isOn: $isRecurring)
+                
+                if isRecurring {
+                    Divider().padding(.leading, 56)
+                    HStack(spacing: 16) {
+                        Image(systemName: "clock.arrow.2.circlepath")
+                            .font(.system(size: 20))
+                            .foregroundStyle(theme.brandPrimary)
+                            .frame(width: 24)
+                        Text("Sıklık:")
+                            .foregroundStyle(theme.labelPrimary)
+                        Spacer()
+                        Picker("", selection: $recurringFrequency) {
+                            Text("Günlük").tag("Günlük")
+                            Text("Haftalık").tag("Haftalık")
+                            Text("Aylık").tag("Aylık")
+                            Text("Yıllık").tag("Yıllık")
+                        }
+                        .tint(theme.labelSecondary)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 8)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 24))
+            .overlay(RoundedRectangle(cornerRadius: 24).stroke(theme.separator, lineWidth: 1))
+
+            Button {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                dismiss()
+            } label: {
+                Text("Kaydet")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, minHeight: 48)
+            }
+            .buttonStyle(.glassProminent)
+            .padding(.top, 8)
+        }
+    }
+
+    private func summaryItem(icon: String, color: Color, text: LocalizedStringKey) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .foregroundStyle(color)
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(theme.labelPrimary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(color.opacity(0.1))
+        .clipShape(Capsule())
+    }
+
+    private func nextStep() {
+        UISelectionFeedbackGenerator().selectionChanged()
+        if let next = TransactionStep(rawValue: currentStep.rawValue + 1) {
+            // İçerik anında değişir
+            currentStep = next
+            // Sheet'in yüksekliği animasyonla büyür
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                selectedDetent = next == .type ? .height(280) : .height(650)
             }
         }
     }
@@ -176,6 +363,52 @@ struct AddTransactionsView: View {
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
+        }
+    }
+    
+    private func toggleRow(_ icon: String, _ title: String, isOn: Binding<Bool>) -> some View {
+        HStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(.system(size: 20))
+                .foregroundStyle(theme.brandPrimary)
+                .frame(width: 24)
+            Toggle(isOn: isOn) {
+                Text(title).foregroundStyle(theme.labelPrimary)
+            }
+            .tint(theme.brandPrimary)
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+    }
+}
+
+struct SelectionCard: View {
+    @Environment(\.theme) var theme
+    let title: LocalizedStringKey
+    let icon: String
+    let color: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 16) {
+                Image(systemName: icon)
+                    .font(.system(size: 32))
+                    .foregroundStyle(color)
+                
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(theme.labelPrimary)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 120)
+            .clipShape(RoundedRectangle(cornerRadius: 24))
+            .overlay(
+                RoundedRectangle(cornerRadius: 24)
+                    .stroke(theme.separator, lineWidth: 1)
+            )
         }
     }
 }

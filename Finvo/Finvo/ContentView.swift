@@ -8,50 +8,106 @@
 
 import SwiftUI
 
+// MARK: - Tab tanımları
+enum AppTab: String, CaseIterable {
+    case home     = "home"
+    case analysis = "analysis"
+    case add      = "add"
+    case family   = "family"
+    case settings = "setting"
+
+    var title: String {
+        switch self {
+        case .home:     return "Özet"
+        case .analysis: return "Analiz"
+        case .add:      return "Ekle"
+        case .family:   return "Aile"
+        case .settings: return "Ayarlar"
+        }
+    }
+
+    func iconName(isSelected: Bool) -> String {
+        "tab-\(rawValue)-\(isSelected ? "fill" : "outline")"
+    }
+}
+
+// MARK: - ContentView
 struct ContentView: View {
     @Environment(\.theme) var theme
     @Environment(\.colorScheme) var colorScheme
-
-    func sizedIcon(_ systemName: String) -> Image {
-        let config = UIImage.SymbolConfiguration(pointSize: 14, weight: .regular)
-        let uiImage = UIImage(systemName: systemName, withConfiguration: config) ?? UIImage()
-        return Image(uiImage: uiImage).renderingMode(.template)
-    }
+    @State private var selectedTab: AppTab = .home
+    @State private var showAddSheet: Bool = false
+    
+    // Uygulama dilini takip ediyoruz
+    @AppStorage("appLanguage") private var appLanguage: String = "tr"
 
     var body: some View {
-        TabView {
-            Tab {
+        TabView(selection: $selectedTab) {
+
+            Tab(value: AppTab.home) {
                 SummaryView()
             } label: {
-                Label { Text("Özet").font(.system(size: 8)) } icon: { sizedIcon("circle") }
+                tabLabel(for: .home)
             }
 
-            Tab {
+            Tab(value: AppTab.analysis) {
                 Text("Analiz Sayfası").frame(maxWidth: .infinity, maxHeight: .infinity)
             } label: {
-                Label { Text("Analiz").font(.system(size: 8)) } icon: { sizedIcon("circle") }
+                tabLabel(for: .analysis)
             }
 
-            Tab {
-                NavigationStack { AddTransactionsView() }
+            Tab(value: AppTab.add) {
+                Color.clear // "Add" sekmesi için içerik artık sheet üzerinden gösterilecek
             } label: {
-                Label { Text("Ekle").font(.system(size: 8)) } icon: { sizedIcon("plus.circle") }
+                tabLabel(for: .add)
             }
 
-            Tab {
+            Tab(value: AppTab.family) {
                 Text("Aile Sayfası").frame(maxWidth: .infinity, maxHeight: .infinity)
             } label: {
-                Label { Text("Aile").font(.system(size: 8)) } icon: { sizedIcon("circle") }
+                tabLabel(for: .family)
             }
 
-            Tab {
+            Tab(value: AppTab.settings) {
                 SettingsView()
             } label: {
-                Label { Text("Ayarlar").font(.system(size: 8)) } icon: { sizedIcon("circle") }
+                tabLabel(for: .settings)
             }
         }
+        .onChange(of: selectedTab) { oldValue, newValue in
+            if newValue == .add {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                
+                // 1. Modal'ı aç
+                showAddSheet = true
+                
+                // 2. Seçimi hemen eski sekmeye geri çek!
+                selectedTab = oldValue
+            }
+        }
+        .onChange(of: showAddSheet) { oldValue, newValue in
+            if !newValue {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            }
+        }
+        .sheet(isPresented: $showAddSheet) {
+            AddTransactionsView()
+        }
+        .environment(\.locale, Locale(identifier: appLanguage)) // Seçili dile göre labelları günceller
         .tint(theme.brandPrimary)
-        .id(colorScheme)
+        .id("\(colorScheme)-\(appLanguage)") // Dil veya tema değiştiğinde görünümü yenilemeye zorlar
+    }
+
+    // MARK: - Tab etiketi
+    @ViewBuilder
+    private func tabLabel(for tab: AppTab) -> some View {
+        let isSelected = selectedTab == tab
+        Label {
+            Text(LocalizedStringKey(tab.title)) // Yerelleştirilmiş metin
+        } icon: {
+            Image(tab.iconName(isSelected: isSelected))
+                .renderingMode(.template)
+        }
     }
 }
 
