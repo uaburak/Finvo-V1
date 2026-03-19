@@ -15,7 +15,8 @@ struct TransactionsView: View {
 
     var body: some View {
         VStack {
-            let filteredItems: [TransactionItemModel] = TransactionsMockData.items.filter { item in
+            let allItems: [TransactionItemModel] = [] // Geçiçi boş liste, Firestore'dan beslenecek
+            let filteredItems: [TransactionItemModel] = allItems.filter { item in
                 guard item.type == selectedType else { return false }
                 
                 if !searchText.isEmpty {

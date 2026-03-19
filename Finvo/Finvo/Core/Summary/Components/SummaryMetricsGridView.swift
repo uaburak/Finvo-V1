@@ -12,13 +12,10 @@ struct SummaryMetricsGridView: View {
     var body: some View {
         LazyVGrid(columns: columns, spacing: 16) {
             // Harcama Limiti
-            MetricCardView(title: "Harcama Limiti", amount: "₺4,200", iconName: "creditcard.fill", iconColor: theme.expense, progress: 0.85)
-            // En çok harcama yapılan kategori
-            MetricCardView(title: "En Çok Harcama", amount: "Market", iconName: "cart.fill", iconColor: .blue, progress: 0.60)
-            // Ödeme Takvimi (Progress'siz sadece sayaç veya tutar gösterebilir)
-            MetricCardView(title: "Ödeme Takvimi", amount: "3 Gün", iconName: "calendar.badge.clock", iconColor: .orange, progress: nil)
-            // Akıllı İpuçları
-            MetricCardView(title: "Akıllı İpuçları", amount: "2 Yeni", iconName: "lightbulb.fill", iconColor: .yellow, progress: nil)
+            MetricCardView(title: "Harcama Limiti", amount: "₺0,00", iconName: "creditcard.fill", iconColor: theme.expense, progress: 0.0)
+            MetricCardView(title: "En Çok Harcama", amount: "-", iconName: "cart.fill", iconColor: .blue, progress: 0.0)
+            MetricCardView(title: "Ödeme Takvimi", amount: "-", iconName: "calendar.badge.clock", iconColor: .orange, progress: nil)
+            MetricCardView(title: "Akıllı İpuçları", amount: "Yok", iconName: "lightbulb.fill", iconColor: .yellow, progress: nil)
         }
     }
 }

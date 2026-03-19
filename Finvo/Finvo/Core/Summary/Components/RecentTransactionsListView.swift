@@ -27,45 +27,12 @@ struct RecentTransactionsListView: View {
             
             // Liste Kartı
             VStack(spacing: 8) {
-                // Burada örnek verilerle yeni entegre ettiğimiz ListItem bileşenini kullanıyoruz
-                ListItem(
-                    icon: "wifi",
-                    iconColor: theme.brandPrimary,
-                    title: "Internet",
-                    subtitle: "Fatura",
-                    username: "burakkoc",
-                    value: "-₺900,00",
-                    valueColor: theme.expense,
-                    secondaryInfo: "9 Mar 2025"
-                )
-                
-                
-                Divider()
-                    .background(theme.separatorSecondary)
-
-                ListItem(
-                    icon: "cart.fill",
-                    iconColor: Color.blue,
-                    title: "Amazon",
-                    subtitle: "Alışveriş",
-                    value: "-₺120,00",
-                    valueColor: theme.expense,
-                    secondaryInfo: "8 Mar 2025"
-                )
-                
-                Divider()
-                    .background(theme.separatorSecondary)
-                          
-                ListItem(
-                    icon: "briefcase.fill",
-                    iconColor: Color.green,
-                    title: "Maaş",
-                    subtitle: "Aylık Gelir",
-                    value: "+₺14.500,00",
-                    valueColor: theme.income,
-                    secondaryInfo: "1 Mar 2025"
-                )
+                Text("Henüz işlem bulunmuyor.")
+                    .font(.subheadline)
+                    .foregroundColor(theme.labelSecondary)
+                    .padding()
             }
+            .frame(maxWidth: .infinity)
             .padding(16)
             .glassEffect(in: .rect(cornerRadius: 24.0))
         }

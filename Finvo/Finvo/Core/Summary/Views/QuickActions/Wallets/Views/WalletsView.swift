@@ -1,28 +1,75 @@
 import SwiftUI
 
 struct WalletsView: View {
+    @Environment(\.theme) var theme
+    @EnvironmentObject var walletManager: WalletManager
+    
+    @State private var showCreateSheet = false
+    
     var body: some View {
-        VStack {
-            Image(systemName: "wallet.bifold")
-                .font(.system(size: 80))
-                .foregroundColor(.green)
-                .padding()
-            
-            Text("Cüzdanlar")
-                .font(.title)
-                .bold()
-            
-            Text("Çok Yakında")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+        List {
+            ForEach(walletManager.wallets) { wallet in
+                NavigationLink(destination: WalletDetailView(walletId: wallet.id ?? "")) {
+                    HStack(spacing: 16) {
+                        Image(systemName: wallet.type == .shared ? "person.3.fill" : "wallet.pass.fill")
+                            .font(.system(size: 20))
+                            .foregroundStyle(theme.brandPrimary)
+                            .frame(width: 32)
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(wallet.name)
+                                .font(.body)
+                                .fontWeight(.medium)
+                                .foregroundStyle(theme.labelPrimary)
+                            
+                            HStack(spacing: 6) {
+                                Text(wallet.type.title)
+                                Text("•")
+                                Text(wallet.context.title)
+                            }
+                            .font(.caption)
+                            .foregroundStyle(theme.labelSecondary)
+                        }
+                        
+                        Spacer()
+                        
+                        if walletManager.activeWallet?.id == wallet.id {
+                            Text("AKTİF")
+                                .font(.system(size: 10, weight: .bold))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(theme.cardBackground)
+                                .foregroundStyle(theme.brandPrimary)
+                                .clipShape(Capsule())
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                .listRowBackground(theme.cardBackground)
+            }
         }
-        .navigationTitle("Cüzdanlar")
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(theme.background1.ignoresSafeArea())
+        .navigationTitle("Cüzdanlarım")
         .navigationBarTitleDisplayMode(.inline)
-    }
-}
-
-struct WalletsView_Previews: PreviewProvider {
-    static var previews: some View {
-        WalletsView()
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    showCreateSheet = true
+                } label: {
+                    Image(systemName: "plus")
+                        .fontWeight(.semibold)
+                        .foregroundStyle(theme.labelPrimary)
+                }
+            }
+        }
+        .sheet(isPresented: $showCreateSheet) {
+            CreateWalletSheet()
+                .presentationDetents([.medium, .height(500)])
+                .presentationBackground(.clear)
+                .presentationDragIndicator(.hidden)
+        }
     }
 }

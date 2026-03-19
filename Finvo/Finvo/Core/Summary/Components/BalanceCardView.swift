@@ -19,8 +19,8 @@ struct BalanceCardView: View {
     
     // İstediğin kadar kart ekleyebilirsin:
     let cards: [BalanceCardModel] = [
-        BalanceCardModel(type: .main(balance: 12450.00, profit: 340.00, pending: 120.50, trend: 4.5)),
-        BalanceCardModel(type: .savings(balance: 3200.00, goalProgress: 0.8))
+        BalanceCardModel(type: .main(balance: 0.0, profit: 0.0, pending: 0.0, trend: 0.0)),
+        BalanceCardModel(type: .savings(balance: 0.0, goalProgress: 0.0))
         // İleride buraya virgül koyup üçüncü kartı da ekleyebilirsin! Örneğin:
         // BalanceCardModel(type: .custom(title: "Investments", amount: 5000, icon: "chart.pie.fill", color: .orange))
     ]

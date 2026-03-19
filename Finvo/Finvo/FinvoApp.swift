@@ -10,6 +10,7 @@ import SwiftUI
 @main
 struct FinvoApp: App {
     @AppStorage("appLanguage") private var appLanguage: String = "tr"
+    @StateObject private var walletManager = WalletManager()
     
     init() {
         // Konsoldaki gereksiz AutoLayout ve klavye uyarılarını gizlemek için
@@ -19,6 +20,7 @@ struct FinvoApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(walletManager)
                 // Seçilen dile göre tüm uygulama arayüzünü anında render eder
                 .environment(\.locale, Locale(identifier: appLanguage))
         }
