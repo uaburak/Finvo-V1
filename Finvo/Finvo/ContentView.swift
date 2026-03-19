@@ -91,9 +91,9 @@ struct ContentView: View {
                 showAddSheet = true
             } label: {
                 Color.black.opacity(0.001)
-                    // Tüm ekran genişliğinin 5'te 1'i kadar (sadece ortadaki Ekle sekmesini kaplar)
-                    // Yükseklik 85 civarı seçilerek sekme barının tamamını örtmesi sağlanır.
-                    .frame(width: UIScreen.main.bounds.width / 5, height: 85)
+                    // Düğme genişliğini sabit 75 puanda tutarak hem UIScreen uyarısını çözüyoruz,
+                    // hem de yatay ekran/iPad'lerde çok genişleyerek yandaki sekmeleri engellemesini önlüyoruz.
+                    .frame(width: 75, height: 85)
             }
             // Safe area insets'i yoksayarak tamamen ekranın altına yaslanmasını sağlarız
             .ignoresSafeArea(.all, edges: .bottom)

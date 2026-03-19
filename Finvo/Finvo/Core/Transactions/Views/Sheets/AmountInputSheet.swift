@@ -132,7 +132,7 @@ struct AmountInputSheet: View {
             } else if floor(current) == current {
                 amount = String(format: "%.0f", current)
             } else {
-                amount = String(format: "%.2f", current).replacingOccurrences(of: ".", with: ",")
+                amount = current.formatted(.number.grouping(.automatic).precision(.fractionLength(2)))
             }
         }
     }

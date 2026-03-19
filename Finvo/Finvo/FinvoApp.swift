@@ -11,6 +11,11 @@ import SwiftUI
 struct FinvoApp: App {
     @AppStorage("appLanguage") private var appLanguage: String = "tr"
     
+    init() {
+        // Konsoldaki gereksiz AutoLayout ve klavye uyarılarını gizlemek için
+        UserDefaults.standard.set(false, forKey: "_UIConstraintBasedLayoutLogUnsatisfiable")
+    }
+    
     var body: some Scene {
         WindowGroup {
             ContentView()

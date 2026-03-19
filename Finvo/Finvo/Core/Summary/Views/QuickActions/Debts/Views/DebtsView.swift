@@ -63,7 +63,7 @@ struct DebtsView: View {
                         .font(.headline)
                         .foregroundColor(theme.labelPrimary)
                     
-                    Text("Toplam: ₺\(String(format: "%.2f", debt.totalAmount))")
+                    Text("Toplam: ₺\(debt.totalAmount.formatted(.number.grouping(.automatic).precision(.fractionLength(2))))")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }

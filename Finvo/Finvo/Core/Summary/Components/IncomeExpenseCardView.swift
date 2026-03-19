@@ -29,6 +29,8 @@ struct IncomeExpenseCardView: View {
                 .minimumScaleFactor(0.8)
         }
         .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
         .glassEffect(in: .rect(cornerRadius: 24.0))
     }
 }

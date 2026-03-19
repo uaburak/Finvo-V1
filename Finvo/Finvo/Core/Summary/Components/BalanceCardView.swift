@@ -103,6 +103,18 @@ struct BalanceCardView: View {
         }
     }
     
+    // MARK: - Shared Action Menu
+    private var settingsMenuButton: some View {
+        Menu {
+            Button("Harcama limiti belirle") { }
+            Button("Birikim hedefi belirle") { }
+        } label: {
+            Image(systemName: "gearshape.fill")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundColor(.white)
+        }
+    }
+    
     // MARK: - Dynamic Card Router
     @ViewBuilder
     private func cardView(for model: BalanceCardModel) -> some View {
@@ -127,17 +139,7 @@ struct BalanceCardView: View {
                 
                 Spacer()
                 
-                // Artış Yüzdesi
-                HStack(spacing: 4) {
-                    Image(systemName: "chart.line.uptrend.xyaxis")
-                    Text("+\(String(format: "%.1f", trend))%")
-                }
-                .font(.caption2.bold())
-                .foregroundColor(.white)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.white.opacity(0.2))
-                .clipShape(Capsule())
+                settingsMenuButton
             }
             .padding(.top, 16)
             .padding(.horizontal, 20)
@@ -146,7 +148,7 @@ struct BalanceCardView: View {
             
             // Orta Kısım: Ana Bakiye
             HStack {
-                Text("₺\(String(format: "%.2f", balance))")
+                Text("₺\(balance.formatted(.number.grouping(.automatic).precision(.fractionLength(2))))")
                     .font(.system(size: 32, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                 
@@ -160,7 +162,7 @@ struct BalanceCardView: View {
             HStack {
                 HStack(spacing: 0) {
                     Text("Bugünün Kârı")
-                    Text(": +₺\(String(format: "%.2f", profit))")
+                    Text(": +₺\(profit.formatted(.number.grouping(.automatic).precision(.fractionLength(2))))")
                 }
                 .font(.footnote)
                 .foregroundColor(.white.opacity(0.8))
@@ -169,7 +171,7 @@ struct BalanceCardView: View {
                 
                 HStack(spacing: 0) {
                     Text("Bekleyen")
-                    Text(": ₺\(String(format: "%.2f", pending))")
+                    Text(": ₺\(pending.formatted(.number.grouping(.automatic).precision(.fractionLength(2))))")
                 }
                 .font(.footnote)
                 .foregroundColor(.white.opacity(0.8))
@@ -196,8 +198,7 @@ struct BalanceCardView: View {
                 
                 Spacer()
                 
-                Image(systemName: "banknote.fill")
-                    .foregroundColor(.white.opacity(0.8))
+                settingsMenuButton
             }
             .padding(.top, 16)
             .padding(.horizontal, 20)
@@ -206,7 +207,7 @@ struct BalanceCardView: View {
             
             // Orta: Birikim Tutarı
             HStack {
-                Text("₺\(String(format: "%.2f", balance))")
+                Text("₺\(balance.formatted(.number.grouping(.automatic).precision(.fractionLength(2))))")
                     .font(.system(size: 32, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                 
@@ -216,28 +217,29 @@ struct BalanceCardView: View {
             
             Spacer(minLength: 0)
             
-            // Alt: Hedef Çubuğu
+            // Alt: Hedef Çubuğu (Daha kalın ve şık)
             HStack {
-                HStack(spacing: 0) {
-                    Text("Aylık Hedef")
-                    Text(": \(Int(goalProgress * 100))%")
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        // Arka Plan Pisti
+                        Capsule()
+                            .fill(Color.white.opacity(0.3))
+                            .frame(height: 8)
+                        
+                        // Dolan Kısım
+                        Capsule()
+                            .fill(Color.white)
+                            .frame(width: max(0, min(CGFloat(goalProgress) * geometry.size.width, geometry.size.width)), height: 8)
+                    }
                 }
-                .font(.footnote)
-                .foregroundColor(.white.opacity(0.8))
-                
-                Spacer()
-                
-                ProgressView(value: goalProgress)
-                    .progressViewStyle(.linear)
-                    .tint(.white)
-                    .frame(width: 80)
+                .frame(height: 8)
             }
-            .padding(.bottom, 16)
+            .padding(.bottom, 20)
             .padding(.horizontal, 20)
         }
         .frame(height: 150)
         .background(
-            Color.purple.opacity(0.8)
+            Color.orange.opacity(1)
                 .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         ) // Birikim için opsiyonel mor tonu
         .glassEffect(in: .rect(cornerRadius: 24.0))
@@ -251,8 +253,7 @@ struct BalanceCardView: View {
                     .font(.subheadline)
                     .foregroundColor(.white.opacity(0.8))
                 Spacer()
-                Image(systemName: icon)
-                    .foregroundColor(.white.opacity(0.8))
+                settingsMenuButton
             }
             .padding(.top, 16)
             .padding(.horizontal, 20)
@@ -260,7 +261,7 @@ struct BalanceCardView: View {
             Spacer(minLength: 0)
             
             HStack {
-                Text("₺\(String(format: "%.2f", amount))")
+                Text("₺\(amount.formatted(.number.grouping(.automatic).precision(.fractionLength(2))))")
                     .font(.system(size: 32, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                 Spacer()

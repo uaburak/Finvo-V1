@@ -57,7 +57,7 @@ struct TransactionsView: View {
                             iconColor: transaction.color,
                             title: transaction.title,
                             subtitle: transaction.subtitle,
-                            value: (transaction.type == .income ? "+₺" : "-₺") + String(format: "%.2f", transaction.amount),
+                            value: (transaction.type == .income ? "+₺" : "-₺") + transaction.amount.formatted(.number.grouping(.automatic).precision(.fractionLength(2))),
                             valueColor: transaction.type == .income ? theme.income : theme.expense,
                             secondaryInfo: transaction.date
                         )

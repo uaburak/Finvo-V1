@@ -147,7 +147,7 @@ struct CategoriesMockData {
                 
                 // 2. Yatırım Getirileri
                 CategoryModel(type: .income, name: "Yatırım Getirisi", icon: "chart.line.uptrend.xyaxis", color: .teal, subCategories: [
-                    SubCategoryModel(name: "Borsa / Temettü", icon: "chart.line.trend.up", color: .green),
+                    SubCategoryModel(name: "Borsa / Temettü", icon: "chart.line.uptrend.xyaxis", color: .green),
                     SubCategoryModel(name: "Kripto Kar Satışı", icon: "bitcoinsign.circle.fill", color: .orange),
                     SubCategoryModel(name: "Faiz Getirisi", icon: "percent", color: .teal),
                     SubCategoryModel(name: "Döviz Kuru Farkı", icon: "eurosign.arrow.circlepath", color: .blue)

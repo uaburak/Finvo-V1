@@ -65,7 +65,7 @@ struct RecurringTransactionsView: View {
             
             Spacer()
             
-            Text((transaction.type == .income ? "+₺" : "-₺") + String(format: "%.2f", transaction.amount))
+            Text((transaction.type == .income ? "+₺" : "-₺") + transaction.amount.formatted(.number.grouping(.automatic).precision(.fractionLength(2))))
                 .font(.subheadline.bold())
                 .foregroundColor(transaction.type == .income ? theme.income : theme.expense)
         }
