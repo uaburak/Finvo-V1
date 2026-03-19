@@ -74,17 +74,6 @@ struct ContentView: View {
                 tabLabel(for: .settings)
             }
         }
-        .onChange(of: selectedTab) { oldValue, newValue in
-            if newValue == .add {
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                
-                // 1. Modal'ı aç
-                showAddSheet = true
-                
-                // 2. Seçimi hemen eski sekmeye geri çek!
-                selectedTab = oldValue
-            }
-        }
         .onChange(of: showAddSheet) { oldValue, newValue in
             if !newValue {
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -96,6 +85,19 @@ struct ContentView: View {
         .environment(\.locale, Locale(identifier: appLanguage)) // Seçili dile göre labelları günceller
         .tint(theme.brandPrimary)
         .id("\(colorScheme)-\(appLanguage)") // Dil veya tema değiştiğinde görünümü yenilemeye zorlar
+        .overlay(alignment: .bottom) {
+            Button {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                showAddSheet = true
+            } label: {
+                Color.black.opacity(0.001)
+                    // Tüm ekran genişliğinin 5'te 1'i kadar (sadece ortadaki Ekle sekmesini kaplar)
+                    // Yükseklik 85 civarı seçilerek sekme barının tamamını örtmesi sağlanır.
+                    .frame(width: UIScreen.main.bounds.width / 5, height: 85)
+            }
+            // Safe area insets'i yoksayarak tamamen ekranın altına yaslanmasını sağlarız
+            .ignoresSafeArea(.all, edges: .bottom)
+        }
     }
 
     // MARK: - Tab etiketi
