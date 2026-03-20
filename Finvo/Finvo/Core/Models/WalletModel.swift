@@ -1,4 +1,5 @@
 import Foundation
+import FirebaseFirestore
 
 enum WalletType: String, Codable, CaseIterable {
     case personal = "personal"
@@ -33,7 +34,7 @@ enum WalletRole: String, Codable {
 }
 
 struct WalletModel: Identifiable, Codable, Equatable {
-    var id: String? // Firestore entegrasyonunda @DocumentID olacak
+    @DocumentID var id: String?
     var name: String
     var ownerId: String
     var type: WalletType

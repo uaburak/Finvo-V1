@@ -1,0 +1,118 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper Functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(walletId) {
+      return isSignedIn() && request.auth.uid == get(/databases/$(database)/documents/wallets/$(walletId)).data.ownerId;
+    }
+    
+    function isMember(walletId) {
+      return isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/wallets/$(walletId)).data.members;
+    }
+
+    // New: Check if user is a VALID member (not pending)
+    function isActiveMember(walletId) {
+      let wallet = get(/databases/$(database)/documents/wallets/$(walletId)).data;
+      return isMember(walletId) && (
+        wallet.ownerId == request.auth.uid || 
+        (wallet.permissions[request.auth.uid] != 'pending')
+      );
+    }
+    
+    // Check if user has specific permission role in the wallet
+    // permissions is a Map: { "uid": "role" }
+    
+    // Check if user has specific permission role in the wallet
+    // permissions is a Map: { "uid": "role" }
+    function hasRole(walletId, role) {
+       let wallet = get(/databases/$(database)/documents/wallets/$(walletId)).data;
+       return isSignedIn() && (wallet.ownerId == request.auth.uid || wallet.permissions[request.auth.uid] == role);
+    }
+
+    // Default: Authenticated users can read/write their own user doc
+    match /users/{userId} {
+      allow read: if isSignedIn(); // Allow reading other users for search/sharing
+      allow write: if isSignedIn() && request.auth.uid == userId; // Write only own profile
+    }
+
+    // Invites
+    match /invites/{inviteId} {
+      // Create: Any signed in user
+      allow create: if isSignedIn();
+      // Read: Sender or Receiver
+      allow read: if isSignedIn() && (resource.data.fromUserId == request.auth.uid || resource.data.toUserId == request.auth.uid);
+      // Update: Receiver (to Accept/Reject)
+      allow update: if isSignedIn() && resource.data.toUserId == request.auth.uid;
+    }
+
+    // Permission Requests
+    match /permission_requests/{requestId} {
+      allow create: if isSignedIn();
+      allow read: if isSignedIn() && (resource.data.fromUserId == request.auth.uid || resource.data.toOwnerId == request.auth.uid);
+      allow update: if isSignedIn() && resource.data.toOwnerId == request.auth.uid;
+    }
+    
+    // Wallets
+    match /wallets/{walletId} {
+      // Create: Anyone signed in
+      allow create: if isSignedIn();
+      
+      // Read: Owner or Member (Active only)
+      // Pending members cannot read wallet details yet (except to upgrade themselves maybe? No, they don't need to read wallet to upgrade permissions usually, or we allow basic read but not transactions?)
+      // Actually, if they accept invite, they need to read wallet to see it in list? 
+      // Invite acceptance happens via Invites collection. Once accepted, they become Editor.
+      // So blocking 'pending' from reading Wallet is good.
+      allow read: if isSignedIn() && (
+         resource.data.ownerId == request.auth.uid || 
+         (resource.data.members.hasAny([request.auth.uid]) && resource.data.permissions[request.auth.uid] != 'pending')
+      );
+      
+      // Update: Owner can update everything. ...
+      allow update: if isSignedIn() && (
+        resource.data.ownerId == request.auth.uid || 
+        // Allow a user to remove themselves (Leave Wallet)
+        (resource.data.members.hasAny([request.auth.uid]) && request.resource.data.members.hasAny([request.auth.uid]) == false) ||
+        // Allow Accepting Invite: Upgrading OWN role from 'pending' to something else
+        (
+           resource.data.permissions[request.auth.uid] == 'pending' &&
+           request.resource.data.permissions[request.auth.uid] != 'pending' 
+        )
+      );
+      
+      // Delete: Owner only
+      allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      
+      // Transactions (Sub-collection)
+      match /transactions/{transactionId} {
+        // Read: Any ACTIVE member of parent wallet
+        allow read: if isActiveMember(walletId);
+        
+      // Create/Update/Delete: Owner OR Editor
+        // We use hasRole check which reads parent wallet
+        allow write: if hasRole(walletId, "editor") || isOwner(walletId);
+      }
+      
+      // Debts (Sub-collection)
+      match /debts/{debtId} {
+        // Read: Any ACTIVE member of parent wallet
+        allow read: if isActiveMember(walletId);
+        
+        // Create/Update/Delete: Owner OR Editor
+        allow write: if hasRole(walletId, "editor") || isOwner(walletId);
+      }
+    }
+    
+    // Notifications (Generic)
+    match /notifications/{notificationId} {
+      // Anyone can create (send) a notification
+      allow create: if isSignedIn();
+      // Only the recipient can read or update (mark read)
+      allow read, update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+  }
+}

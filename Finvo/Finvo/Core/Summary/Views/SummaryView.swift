@@ -1,9 +1,12 @@
 import SwiftUI
+import FirebaseAuth
 
 struct SummaryView: View {
     @Environment(\.theme) var theme
     @EnvironmentObject var walletManager: WalletManager
+    @EnvironmentObject var authManager: AuthenticationManager
     @State private var showCreateWalletSheet = false
+    @State private var showSettings = false
     
     var body: some View {
         NavigationStack {
@@ -79,6 +82,9 @@ struct SummaryView: View {
                     .presentationBackground(.clear)
                     .presentationDragIndicator(.hidden)
             }
+            .sheet(isPresented: $showSettings) {
+                SettingsView()
+            }
         }
     }
     
@@ -96,14 +102,13 @@ struct SummaryView: View {
         // Orta Bölüm (Wallet Switcher) yerine Native Navigation Title ve Title Menu
         // (Bunu .toolbar parantezinin dışında navigation modifier'ı olarak çağırırdık ama
         // SwiftUI 16'da TitleMenu destekleniyor. Önceki principal item'ı siliyoruz)
-        
         // Sağ Bölüm (Profil / Avatar)
-        ToolbarItem(placement: .navigationBarTrailing) {
-            NavigationLink(destination: ProfileView()) {
-                Text("B")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(theme.labelPrimary)
-            }
+        ToolbarItem(placement: .topBarTrailing) {
+            ProfileImageView(photoURL: authManager.user?.photoURL)
+                .onTapGesture {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    showSettings = true
+                }
         }
     }
 }

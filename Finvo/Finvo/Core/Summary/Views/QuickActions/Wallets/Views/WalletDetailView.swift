@@ -4,12 +4,18 @@ struct WalletDetailView: View {
     @Environment(\.theme) var theme
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var walletManager: WalletManager
+    @EnvironmentObject var authManager: AuthenticationManager
+    @EnvironmentObject var notificationManager: NotificationManager
     
     let walletId: String
     
     @State private var showEditSheet = false
     @State private var showDeleteAlert = false
     @State private var showInviteSheet = false
+    @State private var showRoleRequestSentAlert = false
+    @State private var showLeaveWalletAlert = false
+    
+    @State private var memberProfiles: [String: UserModel] = [:]
     
     // Güvenlik için Manager'dan güncel state okunuyor
     var wallet: WalletModel? {
@@ -50,16 +56,28 @@ struct WalletDetailView: View {
                     
                     // Paylaşımlı Cüzdan İse Üyeleri Göster
                     if activeWallet.type == .shared {
+                        let currentUsername = authManager.currentUserProfile?.username ?? ""
+                        
                         Section {
-                            // Mock Üye Listeleme (Permissions tablosuna göre)
+                            // Davetli / Mevcut Üyeleri Listeleme
                             ForEach(Array(activeWallet.permissions.keys), id: \.self) { memberId in
                                 HStack {
-                                    Image(systemName: "person.circle.fill")
-                                        .font(.title2)
-                                        .foregroundStyle(theme.separatorSecondary)
+                                    if let profileUrl = memberProfiles[memberId]?.photoUrl, let url = URL(string: profileUrl) {
+                                        AsyncImage(url: url) { image in
+                                            image.resizable().scaledToFill()
+                                        } placeholder: {
+                                            ProgressView().scaleEffect(0.5)
+                                        }
+                                        .frame(width: 32, height: 32)
+                                        .clipShape(Circle())
+                                    } else {
+                                        Image(systemName: "person.circle.fill")
+                                            .font(.system(size: 32))
+                                            .foregroundStyle(theme.separatorSecondary)
+                                    }
                                     
                                     VStack(alignment: .leading) {
-                                        Text(memberId == "current_user_id" ? "Sen" : memberId)
+                                        Text(memberId == currentUsername ? "Sen (\(memberId))" : memberId)
                                             .font(.body)
                                             .foregroundStyle(theme.labelPrimary)
                                         
@@ -73,12 +91,37 @@ struct WalletDetailView: View {
                                     
                                     Spacer()
                                     
-                                    if activeWallet.ownerId == "current_user_id" && memberId != "current_user_id" {
+                                    if memberId == currentUsername && activeWallet.ownerId != currentUsername {
+                                        if activeWallet.permissions[currentUsername] != WalletRole.member.rawValue {
+                                            Menu {
+                                                Button("Yetki İste") {
+                                                    notificationManager.sendRoleRequest(walletId: activeWallet.id!, walletName: activeWallet.name, ownerUsername: activeWallet.ownerId)
+                                                    let generator = UINotificationFeedbackGenerator()
+                                                    generator.notificationOccurred(.success)
+                                                    showRoleRequestSentAlert = true
+                                                }
+                                            } label: {
+                                                Image(systemName: "ellipsis")
+                                                    .font(.body.weight(.bold))
+                                                    .foregroundStyle(theme.labelSecondary)
+                                                    .frame(width: 44, height: 44)
+                                                    .contentShape(Rectangle())
+                                            }
+                                        }
+                                    }
+                                    
+                                    if activeWallet.ownerId == currentUsername && memberId != currentUsername {
                                         Menu {
-                                            Button("Rolü Değiştir (Üye)") { /* Action */ }
-                                            Button("Rolü Değiştir (İzleyici)") { /* Action */ }
+                                            Button("Rolü Değiştir (Üye)") {
+                                                walletManager.addMember(to: walletId, memberId: memberId, role: .member)
+                                            }
+                                            Button("Rolü Değiştir (İzleyici)") {
+                                                walletManager.addMember(to: walletId, memberId: memberId, role: .viewer)
+                                            }
                                             Divider()
-                                            Button("Üyeyi Çıkar", role: .destructive) { /* Action */ }
+                                            Button("Üyeyi Çıkar", role: .destructive) {
+                                                walletManager.removeMember(from: walletId, memberId: memberId)
+                                            }
                                         } label: {
                                             Image(systemName: "ellipsis")
                                                 .font(.body.weight(.bold))
@@ -92,7 +135,7 @@ struct WalletDetailView: View {
                             }
                             
                             // Yeni Üye Ekle Butonu
-                            if activeWallet.ownerId == "current_user_id" || activeWallet.permissions["current_user_id"] == WalletRole.member.rawValue {
+                            if activeWallet.ownerId == currentUsername || activeWallet.permissions[currentUsername] == WalletRole.member.rawValue {
                                 Button {
                                     showInviteSheet = true
                                 } label: {
@@ -106,21 +149,36 @@ struct WalletDetailView: View {
                         .listRowBackground(theme.cardBackground)
                     }
                     
-                    // Tehlikeli Alan
-                    Section {
-                        if walletManager.wallets.count > 1 {
-                            Button(role: .destructive) {
-                                showDeleteAlert = true
-                            } label: {
-                                Text("Cüzdanı Sil")
+                    // Tehlikeli Alan - SADECE KURUCU GÖREBİLİR
+                    if activeWallet.ownerId == authManager.currentUserProfile?.username {
+                        Section {
+                            if walletManager.wallets.count > 1 {
+                                Button(role: .destructive) {
+                                    showDeleteAlert = true
+                                } label: {
+                                    Text("Cüzdanı Sil")
+                                        .frame(maxWidth: .infinity)
+                                }
+                            } else {
+                                Text("Tek kalan cüzdan silinemez.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(theme.labelSecondary)
+                                    .frame(maxWidth: .infinity)
                             }
-                        } else {
-                            Text("Tek kalan cüzdan silinemez.")
-                                .font(.subheadline)
-                                .foregroundStyle(theme.labelSecondary)
                         }
+                        .listRowBackground(theme.cardBackground)
+                    } else {
+                        // Eğer kurucu değilsek, cüzdandan ayrıl butonunu en altta gösteriyoruz
+                        Section {
+                            Button(role: .destructive) {
+                                showLeaveWalletAlert = true
+                            } label: {
+                                Text("Cüzdandan Ayrıl")
+                                    .frame(maxWidth: .infinity)
+                            }
+                        }
+                        .listRowBackground(theme.cardBackground)
                     }
-                    .listRowBackground(theme.cardBackground)
                 }
                 .listStyle(.insetGrouped)
                 .scrollContentBackground(.hidden)
@@ -128,9 +186,11 @@ struct WalletDetailView: View {
                 .navigationTitle(activeWallet.name)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button("Düzenle") {
-                            showEditSheet = true
+                    if activeWallet.ownerId == authManager.currentUserProfile?.username {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("Düzenle") {
+                                showEditSheet = true
+                            }
                         }
                     }
                 }
@@ -155,8 +215,43 @@ struct WalletDetailView: View {
                 } message: {
                     Text("Bu cüzdanı silmek istediğinize emin misiniz? Bu işlem geri alınamaz.")
                 }
+                .alert("İstek Gönderildi", isPresented: $showRoleRequestSentAlert) {
+                    Button("Tamam", role: .cancel) { }
+                } message: {
+                    Text("Cüzdan kurucusuna yetki isteğiniz başarıyla iletildi.")
+                }
+                .alert("Cüzdandan Ayrıl", isPresented: $showLeaveWalletAlert) {
+                    Button("İptal", role: .cancel) { }
+                    Button("Ayrıl", role: .destructive) {
+                        let currentUsername = authManager.currentUserProfile?.username ?? ""
+                        walletManager.removeMember(from: walletId, memberId: currentUsername)
+                        dismiss()
+                    }
+                } message: {
+                    Text("Bu cüzdandan ayrılmak istediğinize emin misiniz? Bir daha erişemeyeceksiniz.")
+                }
+                .onAppear {
+                    loadMemberProfiles(activeWallet)
+                }
+                .onChange(of: activeWallet.permissions.keys) {
+                    loadMemberProfiles(activeWallet)
+                }
             } else {
                 Text("Cüzdan bulunamadı.")
+            }
+        }
+    }
+    
+    private func loadMemberProfiles(_ activeWallet: WalletModel) {
+        for memberId in activeWallet.permissions.keys {
+            if memberProfiles[memberId] == nil {
+                Task {
+                    if let profile = try? await FirestoreService.shared.getUserProfileByUsername(memberId) {
+                        await MainActor.run {
+                            memberProfiles[memberId] = profile
+                        }
+                    }
+                }
             }
         }
     }

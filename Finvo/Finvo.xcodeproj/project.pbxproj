@@ -6,13 +6,36 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		67E8C3602F6C42EE00964879 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 67E8C35F2F6C42EE00964879 /* FirebaseAnalytics */; };
+		67E8C3622F6C42EE00964879 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 67E8C3612F6C42EE00964879 /* FirebaseAuth */; };
+		67E8C3642F6C42EE00964879 /* FirebaseAuthCombine-Community in Frameworks */ = {isa = PBXBuildFile; productRef = 67E8C3632F6C42EE00964879 /* FirebaseAuthCombine-Community */; };
+		67E8C3662F6C42EE00964879 /* FirebaseDatabase in Frameworks */ = {isa = PBXBuildFile; productRef = 67E8C3652F6C42EE00964879 /* FirebaseDatabase */; };
+		67E8C3682F6C42EE00964879 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 67E8C3672F6C42EE00964879 /* FirebaseFirestore */; };
+		67E8C3E12F6DC2EB00964879 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 67E8C3E02F6DC2EB00964879 /* GoogleSignIn */; };
+		67E8C3E32F6DC2EB00964879 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 67E8C3E22F6DC2EB00964879 /* GoogleSignInSwift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		670FA7B12F48F05600DA7224 /* Finvo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Finvo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		67E8C3EE2F6DCA8D00964879 /* Exceptions for "Finvo" folder in "Finvo" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 670FA7B02F48F05600DA7224 /* Finvo */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		670FA7B32F48F05600DA7224 /* Finvo */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				67E8C3EE2F6DCA8D00964879 /* Exceptions for "Finvo" folder in "Finvo" target */,
+			);
 			path = Finvo;
 			sourceTree = "<group>";
 		};
@@ -23,6 +46,13 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				67E8C3602F6C42EE00964879 /* FirebaseAnalytics in Frameworks */,
+				67E8C3642F6C42EE00964879 /* FirebaseAuthCombine-Community in Frameworks */,
+				67E8C3E32F6DC2EB00964879 /* GoogleSignInSwift in Frameworks */,
+				67E8C3662F6C42EE00964879 /* FirebaseDatabase in Frameworks */,
+				67E8C3682F6C42EE00964879 /* FirebaseFirestore in Frameworks */,
+				67E8C3622F6C42EE00964879 /* FirebaseAuth in Frameworks */,
+				67E8C3E12F6DC2EB00964879 /* GoogleSignIn in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +95,13 @@
 			);
 			name = Finvo;
 			packageProductDependencies = (
+				67E8C35F2F6C42EE00964879 /* FirebaseAnalytics */,
+				67E8C3612F6C42EE00964879 /* FirebaseAuth */,
+				67E8C3632F6C42EE00964879 /* FirebaseAuthCombine-Community */,
+				67E8C3652F6C42EE00964879 /* FirebaseDatabase */,
+				67E8C3672F6C42EE00964879 /* FirebaseFirestore */,
+				67E8C3E02F6DC2EB00964879 /* GoogleSignIn */,
+				67E8C3E22F6DC2EB00964879 /* GoogleSignInSwift */,
 			);
 			productName = Finvo;
 			productReference = 670FA7B12F48F05600DA7224 /* Finvo.app */;
@@ -94,6 +131,10 @@
 			);
 			mainGroup = 670FA7A82F48F05600DA7224;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				67E8C35E2F6C42EE00964879 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				67E8C3DF2F6DC2EB00964879 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 670FA7B22F48F05600DA7224 /* Products */;
 			projectDirPath = "";
@@ -251,11 +292,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Finvo/Finvo.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = Q6GDNC3V8B;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Finvo/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -267,7 +310,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.burakkoc.Finvo.Finvo;
+				PRODUCT_BUNDLE_IDENTIFIER = com.burakkoc.Finvo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -284,11 +327,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Finvo/Finvo.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = Q6GDNC3V8B;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Finvo/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -300,7 +345,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.burakkoc.Finvo.Finvo;
+				PRODUCT_BUNDLE_IDENTIFIER = com.burakkoc.Finvo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -334,6 +379,63 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		67E8C35E2F6C42EE00964879 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.11.0;
+			};
+		};
+		67E8C3DF2F6DC2EB00964879 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.1.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		67E8C35F2F6C42EE00964879 /* FirebaseAnalytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 67E8C35E2F6C42EE00964879 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalytics;
+		};
+		67E8C3612F6C42EE00964879 /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 67E8C35E2F6C42EE00964879 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+		67E8C3632F6C42EE00964879 /* FirebaseAuthCombine-Community */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 67E8C35E2F6C42EE00964879 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = "FirebaseAuthCombine-Community";
+		};
+		67E8C3652F6C42EE00964879 /* FirebaseDatabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 67E8C35E2F6C42EE00964879 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseDatabase;
+		};
+		67E8C3672F6C42EE00964879 /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 67E8C35E2F6C42EE00964879 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
+		};
+		67E8C3E02F6DC2EB00964879 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 67E8C3DF2F6DC2EB00964879 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+		67E8C3E22F6DC2EB00964879 /* GoogleSignInSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 67E8C3DF2F6DC2EB00964879 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignInSwift;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 670FA7A92F48F05600DA7224 /* Project object */;
 }

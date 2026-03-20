@@ -1,24 +1,17 @@
 import SwiftUI
 import Combine
 
-// Mock User Search Model
-struct MockUserResult: Identifiable {
-    let id = UUID().uuidString
-    let username: String
-    let fullName: String
-    let systemImage: String = "person.circle.fill"
-}
-
 struct InviteUserSheet: View {
     @Environment(\.theme) var theme
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var walletManager: WalletManager
+    @EnvironmentObject var authManager: AuthenticationManager
     
     let walletId: String
     
     @State private var searchText = ""
     @State private var isSearching = false
-    @State private var searchResult: MockUserResult? = nil
+    @State private var searchResults: [UserModel] = []
     @State private var searchCompleted = false
     @State private var searchTask: Task<Void, Never>? = nil
     
@@ -53,8 +46,14 @@ struct InviteUserSheet: View {
                 
                 // Sonuç Alanı
                 if searchCompleted {
-                    if let user = searchResult {
-                        userCard(user)
+                    if !searchResults.isEmpty {
+                        ScrollView {
+                            VStack(spacing: 12) {
+                                ForEach(searchResults, id: \.uid) { user in
+                                    userCard(user)
+                                }
+                            }
+                        }
                     } else if !searchText.isEmpty {
                         VStack(spacing: 12) {
                             Image(systemName: "person.crop.circle.badge.questionmark")
@@ -86,14 +85,24 @@ struct InviteUserSheet: View {
         }
     }
     
-    private func userCard(_ user: MockUserResult) -> some View {
+    private func userCard(_ user: UserModel) -> some View {
         HStack(spacing: 16) {
-            Image(systemName: user.systemImage)
-                .font(.system(size: 40))
-                .foregroundStyle(theme.brandPrimary.opacity(0.8))
+            if let photoUrl = user.photoUrl, let url = URL(string: photoUrl) {
+                AsyncImage(url: url) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: {
+                    ProgressView().scaleEffect(0.5)
+                }
+                .frame(width: 40, height: 40)
+                .clipShape(Circle())
+            } else {
+                Image(systemName: "person.circle.fill")
+                    .font(.system(size: 40))
+                    .foregroundStyle(theme.brandPrimary.opacity(0.8))
+            }
             
             VStack(alignment: .leading, spacing: 4) {
-                Text(user.fullName)
+                Text("\(user.firstName) \(user.lastName)")
                     .font(.headline)
                     .foregroundStyle(theme.labelPrimary)
                 Text("@\(user.username)")
@@ -107,7 +116,7 @@ struct InviteUserSheet: View {
                 let feedback = UIImpactFeedbackGenerator(style: .medium)
                 feedback.prepare()
                 
-                // Cüzdana MOCK olarak yeni üyeyi Ekle (Viewer yetkisinde)
+                // Cüzdana yeni üyeyi Ekle (Viewer yetkisinde)
                 walletManager.addMember(to: walletId, memberId: user.username, role: .viewer)
                 
                 feedback.impactOccurred()
@@ -138,29 +147,35 @@ struct InviteUserSheet: View {
         if trimmedQuery.isEmpty {
             isSearching = false
             searchCompleted = false
-            searchResult = nil
+            searchResults = []
             return
         }
         
         isSearching = true
         searchCompleted = false
-        searchResult = nil
+        searchResults = []
         
         searchTask = Task {
-            // Arama simülasyonu için yarım saniye gecikme
-            try? await Task.sleep(nanoseconds: 700_000_000)
-            
+            try? await Task.sleep(nanoseconds: 500_000_000)
             guard !Task.isCancelled else { return }
             
-            // Eğer "burak" veya "test" yazarsa sahte bir kullanıcı dön, yoksa nil dön
-            if trimmedQuery.lowercased() == "burak" || trimmedQuery.lowercased() == "test" {
-                searchResult = MockUserResult(username: trimmedQuery.lowercased(), fullName: "Test Kullanıcısı")
-            } else {
-                searchResult = nil
+            do {
+                let results = try await FirestoreService.shared.searchUsers(query: trimmedQuery)
+                
+                await MainActor.run {
+                    let currentUsername = self.authManager.currentUserProfile?.username ?? ""
+                    let walletMembers = self.walletManager.wallets.first(where: { $0.id == self.walletId })?.members ?? []
+                    
+                    self.searchResults = results.filter { $0.username != currentUsername && !walletMembers.contains($0.username) }
+                    self.isSearching = false
+                    self.searchCompleted = true
+                }
+            } catch {
+                await MainActor.run {
+                    self.isSearching = false
+                    self.searchCompleted = true
+                }
             }
-            
-            isSearching = false
-            searchCompleted = true
         }
     }
 }
