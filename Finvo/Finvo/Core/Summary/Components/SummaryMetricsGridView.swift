@@ -2,6 +2,8 @@ import SwiftUI
 
 struct SummaryMetricsGridView: View {
     @Environment(\.theme) var theme
+    @EnvironmentObject var transactionManager: TransactionManager
+    @EnvironmentObject var walletManager: WalletManager
     
     // Düzenli 2 kolonlu yapı (Esnek)
     let columns = [
@@ -10,10 +12,18 @@ struct SummaryMetricsGridView: View {
     ]
     
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 16) {
+        let limit = walletManager.activeWallet?.monthlyLimit ?? 5000.0
+        let totalSpent = transactionManager.totalExpense
+        let limitProgress = limit > 0 ? (totalSpent / limit) : 0.0
+        
+        // En çok harcama yapılan kategori bulma
+        let expenseDict = Dictionary(grouping: transactionManager.transactions.filter { $0.type == .expense }, by: { $0.mainCategoryName })
+        let topCategory = expenseDict.max(by: { a, b in a.value.reduce(0) { $0 + $1.amount } < b.value.reduce(0) { $0 + $1.amount } })?.key ?? "-"
+
+        return LazyVGrid(columns: columns, spacing: 16) {
             // Harcama Limiti
-            MetricCardView(title: "Harcama Limiti", amount: "₺0,00", iconName: "creditcard.fill", iconColor: theme.expense, progress: 0.0)
-            MetricCardView(title: "En Çok Harcama", amount: "-", iconName: "cart.fill", iconColor: .blue, progress: 0.0)
+            MetricCardView(title: "Harcama Limiti", amount: "₺\(totalSpent.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))) / ₺\(limit.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))", iconName: "creditcard.fill", iconColor: theme.expense, progress: limitProgress)
+            MetricCardView(title: "En Çok Harcama", amount: LocalizedStringKey(topCategory), iconName: "cart.fill", iconColor: .blue, progress: 0.0)
             MetricCardView(title: "Ödeme Takvimi", amount: "-", iconName: "calendar.badge.clock", iconColor: .orange, progress: nil)
             MetricCardView(title: "Akıllı İpuçları", amount: "Yok", iconName: "lightbulb.fill", iconColor: .yellow, progress: nil)
         }

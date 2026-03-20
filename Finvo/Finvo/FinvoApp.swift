@@ -23,6 +23,7 @@ struct FinvoApp: App {
     @StateObject private var authManager = AuthenticationManager.shared
     @StateObject private var walletManager = WalletManager()
     @StateObject private var notificationManager = NotificationManager()
+    @StateObject private var transactionManager = TransactionManager()
     
     init() {
         // Konsoldaki gereksiz AutoLayout ve klavye uyarılarını gizlemek için
@@ -42,6 +43,7 @@ struct FinvoApp: App {
                         ContentView()
                             .environmentObject(walletManager)
                             .environmentObject(notificationManager)
+                            .environmentObject(transactionManager)
                     } else {
                         CompleteProfileView()
                     }

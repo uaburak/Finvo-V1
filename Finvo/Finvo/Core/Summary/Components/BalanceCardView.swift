@@ -14,16 +14,27 @@ struct BalanceCardModel: Identifiable {
 
 struct BalanceCardView: View {
     @Environment(\.theme) var theme
+    @EnvironmentObject var transactionManager: TransactionManager
+    @EnvironmentObject var walletManager: WalletManager
     @State private var scrolledID: Int? = 500
     @State private var isDragging: Bool = false
     
-    // İstediğin kadar kart ekleyebilirsin:
-    let cards: [BalanceCardModel] = [
-        BalanceCardModel(type: .main(balance: 0.0, profit: 0.0, pending: 0.0, trend: 0.0)),
-        BalanceCardModel(type: .savings(balance: 0.0, goalProgress: 0.0))
-        // İleride buraya virgül koyup üçüncü kartı da ekleyebilirsin! Örneğin:
-        // BalanceCardModel(type: .custom(title: "Investments", amount: 5000, icon: "chart.pie.fill", color: .orange))
-    ]
+    // Dinamik kart verileri:
+    var cards: [BalanceCardModel] {
+        let totalBalance = transactionManager.totalIncome - transactionManager.totalExpense
+        let savingsTotal = transactionManager.transactions
+            .filter { $0.mainCategoryName == "Yatırım Getirisi" || $0.mainCategoryName == "Diğer Gelirler" } // Basit bir kural, geliştirilebilir
+            .reduce(0) { $0 + ($1.type == .income ? $1.amount : -$1.amount) }
+        
+        // Hedef ilerlemesi (WalletModel'den)
+        let savingsGoal = walletManager.activeWallet?.savingsGoal ?? 10000.0
+        let progress = savingsGoal > 0 ? (savingsTotal / savingsGoal) : 0.0
+
+        return [
+            BalanceCardModel(type: .main(balance: totalBalance, profit: transactionManager.totalIncome, pending: 0.0, trend: 0.0)),
+            BalanceCardModel(type: .savings(balance: savingsTotal, goalProgress: progress))
+        ]
+    }
     
     var body: some View {
         ZStack {

@@ -1,48 +1,26 @@
 import SwiftUI
 
-// MARK: - Mock Models
-struct DebtModel: Identifiable {
-    let id = UUID()
-    let name: String
-    let totalAmount: Double
-    let totalInstallments: Int
-    var paidInstallments: Int
-    
-    var progress: Double {
-        return Double(paidInstallments) / Double(totalInstallments)
-    }
-}
-
-@Observable
-class DebtsViewModel {
-    var activeDebts: [DebtModel] = [
-        DebtModel(name: "KYK Kredisi", totalAmount: 12000, totalInstallments: 12, paidInstallments: 4),
-        DebtModel(name: "MacBook Pro Taksidi", totalAmount: 45000, totalInstallments: 9, paidInstallments: 2)
-    ]
-    
-    func payInstallment(for debtID: UUID) {
-        if let index = activeDebts.firstIndex(where: { $0.id == debtID }) {
-            if activeDebts[index].paidInstallments < activeDebts[index].totalInstallments {
-                withAnimation {
-                    activeDebts[index].paidInstallments += 1
-                }
-            }
-        }
-    }
-}
-
 // MARK: - Debts View
 struct DebtsView: View {
     @Environment(\.theme) var theme
-    @State private var viewModel = DebtsViewModel()
+    @EnvironmentObject var transactionManager: TransactionManager
+    @EnvironmentObject var authManager: AuthenticationManager
+    
+    @State private var isPaying = false
+    @State private var showingError = false
+    @State private var errorMessage = ""
+    
+    private var activeDebts: [TransactionModel] {
+        transactionManager.transactions.filter { $0.isDebt && !$0.isPaid }
+    }
     
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                if viewModel.activeDebts.isEmpty {
+                if activeDebts.isEmpty {
                     ContentUnavailableView("Kayıtlı Borç Yok", systemImage: "checkmark.seal", description: Text("Tüm borçlarınızı sıfırladınız."))
                 } else {
-                    ForEach(viewModel.activeDebts) { debt in
+                    ForEach(activeDebts) { debt in
                         debtCard(for: debt)
                     }
                 }
@@ -51,19 +29,28 @@ struct DebtsView: View {
         }
         .navigationTitle("Borçlar ve Taksitler")
         .navigationBarTitleDisplayMode(.inline)
+        .alert("Ödeme Hatası", isPresented: $showingError) {
+            Button("Tamam", role: .cancel) { }
+        } message: {
+            Text(errorMessage)
+        }
     }
     
     @ViewBuilder
-    private func debtCard(for debt: DebtModel) -> some View {
+    private func debtCard(for debt: TransactionModel) -> some View {
+        let total = Double(debt.totalInstallments ?? 1)
+        let paid = Double(debt.paidInstallments ?? 0)
+        let progress = paid / total
+        
         VStack(spacing: 16) {
             // Header
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(debt.name)
+                    Text(debt.debtContact ?? debt.mainCategoryName)
                         .font(.headline)
                         .foregroundColor(theme.labelPrimary)
                     
-                    Text("Toplam: ₺\(debt.totalAmount.formatted(.number.grouping(.automatic).precision(.fractionLength(2))))")
+                    Text("Toplam: ₺\(debt.amount.formatted(.number.grouping(.automatic).precision(.fractionLength(2))))")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -76,11 +63,11 @@ struct DebtsView: View {
                         .stroke(theme.cardBackground, lineWidth: 4)
                     
                     Circle()
-                        .trim(from: 0, to: debt.progress)
+                        .trim(from: 0, to: progress)
                         .stroke(theme.expense, style: StrokeStyle(lineWidth: 4, lineCap: .round))
                         .rotationEffect(.degrees(-90))
                     
-                    Text("\(debt.paidInstallments)/\(debt.totalInstallments)")
+                    Text("\(Int(paid))/\(Int(total))")
                         .font(.caption.bold())
                 }
                 .frame(width: 48, height: 48)
@@ -90,9 +77,12 @@ struct DebtsView: View {
             
             // Checklists (Taksitler)
             VStack(spacing: 12) {
-                ForEach(0..<debt.totalInstallments, id: \.self) { index in
-                    let isPaid = index < debt.paidInstallments
-                    let isNext = index == debt.paidInstallments
+                let totalCount = debt.totalInstallments ?? 0
+                let paidCount = debt.paidInstallments ?? 0
+                
+                ForEach(0..<totalCount, id: \.self) { index in
+                    let isPaid = index < paidCount
+                    let isNext = index == paidCount
                     
                     HStack {
                         Image(systemName: isPaid ? "checkmark.circle.fill" : "circle")
@@ -108,7 +98,8 @@ struct DebtsView: View {
                         
                         if isNext {
                             Button("Öde") {
-                                viewModel.payInstallment(for: debt.id)
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                payInstallment(debt)
                             }
                             .font(.caption.bold())
                             .foregroundColor(.white)
@@ -116,6 +107,7 @@ struct DebtsView: View {
                             .padding(.vertical, 6)
                             .background(theme.brandPrimary)
                             .clipShape(Capsule())
+                            .disabled(isPaying)
                         } else if isPaid {
                             Text("Ödendi")
                                 .font(.caption)
@@ -126,10 +118,29 @@ struct DebtsView: View {
                 }
             }
         }
-        .padding()
         .background(theme.cardBackground)
         .cornerRadius(16)
         .shadow(color: Color.black.opacity(0.05), radius: 5, y: 2)
+    }
+    
+    private func payInstallment(_ debt: TransactionModel) {
+        let username = authManager.currentUserProfile?.username ?? "unknown"
+        isPaying = true
+        
+        Task {
+            do {
+                try await transactionManager.payDebtInstallment(for: debt, currentUsername: username)
+                await MainActor.run {
+                    isPaying = false
+                }
+            } catch {
+                await MainActor.run {
+                    isPaying = false
+                    errorMessage = error.localizedDescription
+                    showingError = true
+                }
+            }
+        }
     }
 }
 

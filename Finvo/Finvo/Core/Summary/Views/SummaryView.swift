@@ -5,6 +5,8 @@ struct SummaryView: View {
     @Environment(\.theme) var theme
     @EnvironmentObject var walletManager: WalletManager
     @EnvironmentObject var authManager: AuthenticationManager
+    @EnvironmentObject var notificationManager: NotificationManager
+    @EnvironmentObject var transactionManager: TransactionManager
     @State private var showCreateWalletSheet = false
     @State private var showSettings = false
     
@@ -20,12 +22,12 @@ struct SummaryView: View {
                     // Gelir / Gider Alanı
                     HStack(spacing: 16) {
                         NavigationLink(destination: TransactionsView(selectedType: .income)) {
-                            IncomeExpenseCardView(title: "Gelir", amount: "₺0,00", isIncome: true)
+                            IncomeExpenseCardView(title: "Gelir", amount: "₺\(transactionManager.totalIncome.formatted(.number.grouping(.automatic).precision(.fractionLength(2))))", isIncome: true)
                         }
                         .buttonStyle(.plain)
                         
                         NavigationLink(destination: TransactionsView(selectedType: .expense)) {
-                            IncomeExpenseCardView(title: "Gider", amount: "₺0,00", isIncome: false)
+                            IncomeExpenseCardView(title: "Gider", amount: "₺\(transactionManager.totalExpense.formatted(.number.grouping(.automatic).precision(.fractionLength(2))))", isIncome: false)
                         }
                         .buttonStyle(.plain)
                     }
@@ -85,6 +87,18 @@ struct SummaryView: View {
             .sheet(isPresented: $showSettings) {
                 SettingsView()
             }
+            .onAppear {
+                if let walletId = walletManager.activeWallet?.id {
+                    transactionManager.startListening(walletId: walletId)
+                }
+            }
+            .onChange(of: walletManager.activeWallet) { oldValue, newValue in
+                if let walletId = newValue?.id {
+                    transactionManager.startListening(walletId: walletId)
+                } else {
+                    transactionManager.stopListening()
+                }
+            }
         }
     }
     
@@ -93,9 +107,18 @@ struct SummaryView: View {
         // Sol Bölüm (Bildirim / Notification)
         ToolbarItem(placement: .navigationBarLeading) {
             NavigationLink(destination: NotificationsView()) {
-                Image(systemName: "bell")
-                    .font(.system(size: 16))
-                    .foregroundColor(theme.labelPrimary)
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: "bell")
+                        .font(.system(size: 16))
+                        .foregroundColor(theme.labelPrimary)
+                    
+                    if !notificationManager.notifications.isEmpty {
+                        Circle()
+                            .fill(theme.expense)
+                            .frame(width: 8, height: 8)
+                            .offset(x: 2, y: -2)
+                    }
+                }
             }
         }
         

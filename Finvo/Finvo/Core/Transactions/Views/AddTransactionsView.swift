@@ -8,6 +8,8 @@ import SwiftUI
 struct AddTransactionsView: View {
     @Environment(\.theme) var theme
     @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var authManager: AuthenticationManager
+    @EnvironmentObject var walletManager: WalletManager
 
     @State private var selectedType: TransactionType = .expense
     @State private var selectedMainCategory: CategoryModel?
@@ -21,10 +23,15 @@ struct AddTransactionsView: View {
     @State private var paidInstallments: String = ""
     @State private var dueDay: Int = 1
     @State private var isRecurring: Bool = false
-    @State private var recurringFrequency: String = "Aylık"
+    @State private var recurringFrequency: RecurrenceInterval = .monthly
+    @State private var hasRecurrenceEndDate: Bool = false
+    @State private var recurrenceEndDate: Date = Date().addingTimeInterval(86400 * 30) // +1 Month default
     
     @State private var currentStep: TransactionStep = .type
     @State private var selectedDetent: PresentationDetent = .height(280)
+    
+    @State private var isSaving = false
+    @State private var showPermissionErrorAlert = false
 
     enum TransactionStep: Int, CaseIterable {
         case type = 1
@@ -129,6 +136,11 @@ struct AddTransactionsView: View {
                         .presentationDetents([.height(300)])
                         .presentationBackground(.clear)
                 }
+            }
+            .alert("Yetki İste", isPresented: $showPermissionErrorAlert) {
+                Button("Tamam", role: .cancel) { }
+            } message: {
+                Text("Görüntüleyici rolüne sahip olduğunuz için cüzdana işlem ekleyemezsiniz. Lütfen kurucudan yetki isteyin.")
             }
     }
 
@@ -290,12 +302,34 @@ struct AddTransactionsView: View {
                             .foregroundStyle(theme.labelPrimary)
                         Spacer()
                         Picker("", selection: $recurringFrequency) {
-                            Text("Günlük").tag("Günlük")
-                            Text("Haftalık").tag("Haftalık")
-                            Text("Aylık").tag("Aylık")
-                            Text("Yıllık").tag("Yıllık")
+                            ForEach(RecurrenceInterval.allCases, id: \.self) { interval in
+                                Text(interval.rawValue).tag(interval)
+                            }
                         }
                         .tint(theme.labelSecondary)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 8)
+                    
+                    Divider().padding(.leading, 56)
+                    HStack(spacing: 16) {
+                        Image(systemName: "calendar.badge.clock")
+                            .font(.system(size: 20))
+                            .foregroundStyle(theme.brandPrimary)
+                            .frame(width: 24)
+                        Text("Bitiş Tarihi")
+                            .foregroundStyle(theme.labelPrimary)
+                        Spacer()
+                        
+                        Toggle("", isOn: $hasRecurrenceEndDate)
+                            .labelsHidden()
+                            .tint(theme.brandPrimary)
+                        
+                        if hasRecurrenceEndDate {
+                            DatePicker("", selection: $recurrenceEndDate, displayedComponents: .date)
+                                .labelsHidden()
+                                .tint(theme.brandPrimary)
+                        }
                     }
                     .padding(.horizontal, 20)
                     .padding(.vertical, 8)
@@ -306,15 +340,16 @@ struct AddTransactionsView: View {
 
             Button {
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                dismiss()
+                saveTransaction()
             } label: {
-                Text("Kaydet")
+                Text(isSaving ? "Kaydediliyor..." : "Kaydet")
                     .font(.headline)
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity, minHeight: 48)
             }
             .buttonStyle(.glassProminent)
             .padding(.top, 8)
+            .disabled(isSaving)
         }
     }
 
@@ -379,6 +414,79 @@ struct AddTransactionsView: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
+    }
+    
+    // MARK: - Save Logic
+    private func saveTransaction() {
+        guard let activeWallet = walletManager.activeWallet, 
+              let walletId = activeWallet.id,
+              !walletId.isEmpty,
+              let currentUser = authManager.currentUserProfile?.username else { 
+            print("DEBUG: Wallet ID or Current User is missing. ActiveWallet ID: \(String(describing: walletManager.activeWallet?.id))")
+            return 
+        }
+        
+        let roleRaw = activeWallet.permissions[currentUser]
+        if roleRaw == WalletRole.viewer.rawValue {
+            showPermissionErrorAlert = true
+            return
+        }
+        
+        // Parse Amount safely
+        let cleanAmount = amount.replacingOccurrences(of: ".", with: "").replacingOccurrences(of: ",", with: ".")
+        let parsedAmount = Double(cleanAmount) ?? 0.0
+        
+        isSaving = true
+        
+        let newTransaction = TransactionModel(
+            walletId: activeWallet.id ?? "",
+            type: selectedType,
+            amount: parsedAmount,
+            mainCategoryName: selectedMainCategory?.name.stringValue ?? "Bilinmeyen",
+            subCategoryName: selectedSubCategory?.name.stringValue,
+            categoryIcon: selectedMainCategory?.icon ?? "questionmark",
+            categoryColor: "blue", // Gelecekte kategori rengi string'e çekilebilir
+            date: selectedDate,
+            note: nil,
+            createdBy: currentUser,
+            createdAt: Date(),
+            isDebt: isDebt,
+            debtContact: isDebt ? debtContact : nil,
+            totalInstallments: isDebt ? Int(installmentCount) : nil,
+            paidInstallments: isDebt ? Int(paidInstallments) : nil,
+            dueDay: isDebt ? dueDay : nil,
+            isPaid: false,
+            isRecurring: isRecurring,
+            recurrenceInterval: isRecurring ? recurringFrequency : nil,
+            recurrenceEndDate: (isRecurring && hasRecurrenceEndDate) ? recurrenceEndDate : nil
+        )
+        
+        Task {
+            do {
+                try await FirestoreService.shared.createTransaction(newTransaction)
+                await MainActor.run {
+                    isSaving = false
+                    dismiss()
+                }
+            } catch {
+                await MainActor.run {
+                    isSaving = false
+                    print("Error saving: \(error)")
+                }
+            }
+        }
+    }
+}
+
+extension LocalizedStringKey {
+    var stringValue: String {
+        let mirrored = Mirror(reflecting: self)
+        for child in mirrored.children {
+            if child.label == "key" {
+                return child.value as? String ?? ""
+            }
+        }
+        return ""
     }
 }
 
