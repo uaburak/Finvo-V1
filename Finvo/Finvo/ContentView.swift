@@ -1,9 +1,11 @@
 //
-//  NativeContentView.swift
+//  ContentView.swift
 //  Finvo
 //
-//  Native TabView varyantı — karşılaştırma için.
-//  Add sekmesi tam ortada (3. pozisyon).
+//  Native TabView + iOS 26 Liquid Glass desteği.
+//  Tab ikonları: outline (image) + fill (selectedImage)
+//  UIKit seviyesinde set edilir, liquid glass efekti
+//  otomatik olarak morph yapar.
 //
 
 import SwiftUI
@@ -26,8 +28,8 @@ enum AppTab: String, CaseIterable {
         }
     }
 
-    func iconName(isSelected: Bool) -> String {
-        "tab-\(rawValue)-\(isSelected ? "fill" : "outline")"
+    func iconName(isActive: Bool) -> String {
+        "tab-\(rawValue)-\(isActive ? "fill" : "outline")"
     }
 }
 
@@ -37,7 +39,7 @@ struct ContentView: View {
     @Environment(\.colorScheme) var colorScheme
     @State private var selectedTab: AppTab = .home
     @State private var showAddSheet: Bool = false
-    
+
     // Uygulama dilini takip ediyoruz
     @AppStorage("appLanguage") private var appLanguage: String = "tr"
 
@@ -57,7 +59,7 @@ struct ContentView: View {
             }
 
             Tab(value: AppTab.add) {
-                Color.clear // "Add" sekmesi için içerik artık sheet üzerinden gösterilecek
+                Color.clear
             } label: {
                 tabLabel(for: .add)
             }
@@ -74,7 +76,15 @@ struct ContentView: View {
                 tabLabel(for: .settings)
             }
         }
-        .onChange(of: showAddSheet) { oldValue, newValue in
+        .onAppear {
+            // UITabBarItem'lara selectedImage (fill) ve image (outline) set et
+            TabBarConfigurator.configure(tabs: AppTab.allCases)
+        }
+        .onChange(of: colorScheme) { _, _ in
+            // Tema değişince UITabBar item'larını tekrar konfigüre et
+            TabBarConfigurator.configure(tabs: AppTab.allCases)
+        }
+        .onChange(of: showAddSheet) { _, newValue in
             if !newValue {
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
             }
@@ -82,32 +92,30 @@ struct ContentView: View {
         .sheet(isPresented: $showAddSheet) {
             AddTransactionsView()
         }
-        .environment(\.locale, Locale(identifier: appLanguage)) // Seçili dile göre labelları günceller
+        .environment(\.locale, Locale(identifier: appLanguage))
         .tint(theme.brandPrimary)
-        .id("\(colorScheme)-\(appLanguage)") // Dil veya tema değiştiğinde görünümü yenilemeye zorlar
+        .id("\(colorScheme)-\(appLanguage)")
         .overlay(alignment: .bottom) {
             Button {
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 showAddSheet = true
             } label: {
                 Color.black.opacity(0.001)
-                    // Düğme genişliğini sabit 75 puanda tutarak hem UIScreen uyarısını çözüyoruz,
-                    // hem de yatay ekran/iPad'lerde çok genişleyerek yandaki sekmeleri engellemesini önlüyoruz.
                     .frame(width: 75, height: 85)
             }
-            // Safe area insets'i yoksayarak tamamen ekranın altına yaslanmasını sağlarız
             .ignoresSafeArea(.all, edges: .bottom)
         }
     }
 
     // MARK: - Tab etiketi
+    /// Daima outline ikonu gösterir (UITabBarItem.image olur).
+    /// Fill, UIKit seviyesinde selectedImage olarak set edilir.
     @ViewBuilder
     private func tabLabel(for tab: AppTab) -> some View {
-        let isSelected = selectedTab == tab
         Label {
-            Text(LocalizedStringKey(tab.title)) // Yerelleştirilmiş metin
+            Text(LocalizedStringKey(tab.title))
         } icon: {
-            Image(tab.iconName(isSelected: isSelected))
+            Image(tab.iconName(isActive: false))
                 .renderingMode(.template)
         }
     }
