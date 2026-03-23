@@ -38,6 +38,7 @@ struct ContentView: View {
     @Environment(\.theme) var theme
     @Environment(\.colorScheme) var colorScheme
     @State private var selectedTab: AppTab = .home
+    @State private var previousTab: AppTab = .home
     @State private var showAddSheet: Bool = false
 
     // Uygulama dilini takip ediyoruz
@@ -59,7 +60,7 @@ struct ContentView: View {
             }
 
             Tab(value: AppTab.add) {
-                Color.clear
+                EmptyView()
             } label: {
                 tabLabel(for: .add)
             }
@@ -81,8 +82,17 @@ struct ContentView: View {
             TabBarConfigurator.configure(tabs: AppTab.allCases)
         }
         .onChange(of: colorScheme) { _, _ in
-            // Tema değişince UITabBar item'larını tekrar konfigüre et
             TabBarConfigurator.configure(tabs: AppTab.allCases)
+        }
+        .onChange(of: selectedTab) { oldTab, newTab in
+            if newTab == .add {
+                // Önceki tab'a geri dön ve sheet aç
+                selectedTab = oldTab
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                showAddSheet = true
+            } else {
+                previousTab = newTab
+            }
         }
         .onChange(of: showAddSheet) { _, newValue in
             if !newValue {
@@ -95,16 +105,6 @@ struct ContentView: View {
         .environment(\.locale, Locale(identifier: appLanguage))
         .tint(theme.brandPrimary)
         .id("\(colorScheme)-\(appLanguage)")
-        .overlay(alignment: .bottom) {
-            Button {
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                showAddSheet = true
-            } label: {
-                Color.black.opacity(0.001)
-                    .frame(width: 75, height: 85)
-            }
-            .ignoresSafeArea(.all, edges: .bottom)
-        }
     }
 
     // MARK: - Tab etiketi
