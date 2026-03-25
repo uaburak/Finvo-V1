@@ -38,8 +38,11 @@ struct ContentView: View {
     @Environment(\.theme) var theme
     @Environment(\.colorScheme) var colorScheme
     @State private var selectedTab: AppTab = .home
-    @State private var previousTab: AppTab = .home
     @State private var showAddSheet: Bool = false
+
+    // Haptic generator'lar her çağrıda yeniden oluşturulmasın
+    private let hapticMedium = UIImpactFeedbackGenerator(style: .medium)
+    private let hapticLight  = UIImpactFeedbackGenerator(style: .light)
 
     // Uygulama dilini takip ediyoruz
     @AppStorage("appLanguage") private var appLanguage: String = "tr"
@@ -54,7 +57,7 @@ struct ContentView: View {
             }
 
             Tab(value: AppTab.analysis) {
-                Text("Analiz Sayfası").frame(maxWidth: .infinity, maxHeight: .infinity)
+                AnalysisView()
             } label: {
                 tabLabel(for: .analysis)
             }
@@ -85,32 +88,22 @@ struct ContentView: View {
             TabBarConfigurator.configure(tabs: AppTab.allCases)
         }
         .onChange(of: selectedTab) { oldTab, newTab in
-            if newTab == .add {
-                // Önceki tab'a geri dön ve sheet aç
-                selectedTab = oldTab
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                showAddSheet = true
-            } else {
-                previousTab = newTab
-            }
+            guard newTab == .add else { return }
+            selectedTab = oldTab
+            hapticMedium.impactOccurred()
+            showAddSheet = true
         }
         .onChange(of: showAddSheet) { _, newValue in
-            if !newValue {
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            }
+            if !newValue { hapticLight.impactOccurred() }
         }
         .sheet(isPresented: $showAddSheet) {
             AddTransactionsView()
         }
         .environment(\.locale, Locale(identifier: appLanguage))
         .tint(theme.brandPrimary)
-        .id("\(colorScheme)-\(appLanguage)")
     }
 
     // MARK: - Tab etiketi
-    /// Daima outline ikonu gösterir (UITabBarItem.image olur).
-    /// Fill, UIKit seviyesinde selectedImage olarak set edilir.
-    @ViewBuilder
     private func tabLabel(for tab: AppTab) -> some View {
         Label {
             Text(LocalizedStringKey(tab.title))

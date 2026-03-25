@@ -305,7 +305,7 @@ struct CompleteProfileView: View {
     
     // Send Wallet to Firebase
     private func completeWallet() {
-        guard let firebaseUser = authManager.user else { return }
+        guard authManager.user != nil else { return }
         isSaving = true
         errorMessage = nil
         

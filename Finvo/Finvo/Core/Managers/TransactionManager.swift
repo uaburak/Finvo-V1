@@ -6,6 +6,7 @@ import SwiftUI
 @MainActor
 class TransactionManager: ObservableObject {
     @Published var transactions: [TransactionModel] = []
+    @Published var hasLoaded = false
     
     private var listener: ListenerRegistration?
     private let db = Firestore.firestore()
@@ -18,9 +19,14 @@ class TransactionManager: ObservableObject {
         transactions.filter { $0.type == .expense && !$0.isDebt }.reduce(0) { $0 + $1.amount }
     }
     
+    private var currentWalletId: String?
+    
     // Geçerli cüzdanın ID'si ile işlemleri dinlemeye başla
     func startListening(walletId: String) {
+        // Aynı cüzdan için zaten dinliyorsak tekrar başlatma
+        guard walletId != currentWalletId else { return }
         stopListening()
+        currentWalletId = walletId
         
         listener = db.collection("wallets").document(walletId).collection("transactions")
             .order(by: "date", descending: true)
@@ -38,13 +44,15 @@ class TransactionManager: ObservableObject {
                 }
                 
                 self.transactions = documents.compactMap { try? $0.data(as: TransactionModel.self) }
+                self.hasLoaded = true
             }
     }
     
     func stopListening() {
         listener?.remove()
         listener = nil
-        transactions = []
+        currentWalletId = nil
+        hasLoaded = false
     }
     
     // Borç ödeme operasyonu
@@ -78,9 +86,10 @@ class TransactionManager: ObservableObject {
             updatedDebt.isPaid = true
         }
         
-        // 3. İki işlemi de Firestore'a yaz (Transaction bloğu ile yapılması daha sağlıklı olur ama şimdilik concurrent)
+        // 3. İki işlemi de Firestore'a yaz
+        let debtToSave = updatedDebt
         async let step1: Void = FirestoreService.shared.createTransaction(newExpense)
-        async let step2: Void = FirestoreService.shared.updateTransaction(updatedDebt)
+        async let step2: Void = FirestoreService.shared.updateTransaction(debtToSave)
         
         _ = try await (step1, step2)
     }

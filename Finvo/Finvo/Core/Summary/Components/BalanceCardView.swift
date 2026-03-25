@@ -16,7 +16,7 @@ struct BalanceCardView: View {
     @Environment(\.theme) var theme
     @EnvironmentObject var transactionManager: TransactionManager
     @EnvironmentObject var walletManager: WalletManager
-    @State private var scrolledID: Int? = 500
+    @State private var scrolledID: Int? = 50
     @State private var isDragging: Bool = false
     
     // Dinamik kart verileri:
@@ -48,7 +48,7 @@ struct BalanceCardView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(spacing: 0) {
                     // Sonsuz kayma (Smart Stack) hissi vermek için geniş bir döngü
-                    ForEach(0..<1000, id: \.self) { index in
+                    ForEach(0..<100, id: \.self) { index in
                         // Hangi kartın gösterileceğini modüler aritmetikle bul (Sonsuz Döngü)
                         let cardIndex = index % cards.count
                         let card = cards[cardIndex]
@@ -88,7 +88,7 @@ struct BalanceCardView: View {
         )
         .onAppear {
             if scrolledID == nil || scrolledID == 0 {
-                scrolledID = 500
+                scrolledID = 50
             }
         }
         // İndikatörler (Absolute gibi fiziksel yer kaplamaz, dışarıda durur)

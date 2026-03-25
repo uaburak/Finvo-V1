@@ -6,6 +6,12 @@ import FirebaseAuth
 class WalletManager: ObservableObject {
     @Published var wallets: [WalletModel] = []
     @Published var activeWallet: WalletModel?
+
+    /// Son seçilen cüzdan ID'sini cihazda kalıcı olarak saklar
+    private var lastActiveWalletId: String {
+        get { UserDefaults.standard.string(forKey: "lastActiveWalletId") ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: "lastActiveWalletId") }
+    }
     
     private var cancellables = Set<AnyCancellable>()
     
@@ -14,15 +20,23 @@ class WalletManager: ObservableObject {
         FirestoreService.shared.$wallets
             .receive(on: DispatchQueue.main)
             .sink { [weak self] newWallets in
-                self?.wallets = newWallets
+                guard let self else { return }
+                self.wallets = newWallets
                 
-                // Aktif cüzdanın silinme, güncellenme vb. durumlarını kontrol et
-                if let currentActive = self?.activeWallet, let updatedActive = newWallets.first(where: { $0.id == currentActive.id }) {
-                    self?.activeWallet = updatedActive
-                } else if self?.activeWallet == nil && !newWallets.isEmpty {
-                    self?.activeWallet = newWallets.first
+                if let currentActive = self.activeWallet,
+                   let updated = newWallets.first(where: { $0.id == currentActive.id }) {
+                    // Aktif cüzdan hâlâ varsa güncelle
+                    self.activeWallet = updated
+                } else if self.activeWallet == nil && !newWallets.isEmpty {
+                    // İlk açılış: kaydedilmiş ID'yi kontrol et
+                    if !self.lastActiveWalletId.isEmpty,
+                       let saved = newWallets.first(where: { $0.id == self.lastActiveWalletId }) {
+                        self.activeWallet = saved
+                    } else {
+                        self.activeWallet = newWallets.first
+                    }
                 } else if newWallets.isEmpty {
-                    self?.activeWallet = nil
+                    self.activeWallet = nil
                 }
             }
             .store(in: &cancellables)
@@ -43,6 +57,7 @@ class WalletManager: ObservableObject {
     // MARK: - Aktif Cüzdan Seçimi
     func selectWallet(_ wallet: WalletModel) {
         self.activeWallet = wallet
+        self.lastActiveWalletId = wallet.id ?? ""
     }
     
     // MARK: - Firestore Proxy API

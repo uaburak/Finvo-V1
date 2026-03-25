@@ -37,7 +37,6 @@ class FirestoreService: ObservableObject {
     func stopListeningWallets() {
         walletsListener?.remove()
         walletsListener = nil
-        wallets = []
     }
     
     func updateWallet(_ wallet: WalletModel) async throws {

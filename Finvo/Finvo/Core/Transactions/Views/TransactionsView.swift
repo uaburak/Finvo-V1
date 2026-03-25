@@ -46,7 +46,10 @@ struct TransactionsView: View {
                 return true
             }
 
-            if filteredItems.isEmpty {
+            if !transactionManager.hasLoaded {
+                // Veri henüz yüklenmedi — boş state gösterme
+                Color.clear
+            } else if filteredItems.isEmpty {
                 VStack {
                     Spacer()
                     ContentUnavailableView("İşlem Bulunamadı", systemImage: "list.bullet",
@@ -59,17 +62,24 @@ struct TransactionsView: View {
                     ForEach(sortedItems) { transaction in
                         let isFirst = transaction.id == sortedItems.first?.id
                         let subtitleText = transaction.subCategoryName != nil ? "\(transaction.subCategoryName!) • Ekleyen: @\(transaction.createdBy)" : "Ekleyen: @\(transaction.createdBy)"
-                        
-                        ListItem(
-                            icon: transaction.categoryIcon,
-                            iconColor: theme.brandPrimary,
-                            title: LocalizedStringKey(transaction.mainCategoryName),
-                            subtitle: LocalizedStringKey(subtitleText),
-                            value: (transaction.type == .income ? "+₺" : "-₺") + transaction.amount.formatted(.number.grouping(.automatic).precision(.fractionLength(2))),
-                            valueColor: transaction.type == .income ? theme.income : theme.expense,
-                            secondaryInfo: transaction.date.formatted(date: .abbreviated, time: .shortened)
-                        )
-                        .padding(.leading)
+
+                        ZStack {
+                            NavigationLink(destination: TransactionDetailView(transaction: transaction)) {
+                                EmptyView()
+                            }
+                            .opacity(0)
+
+                            ListItem(
+                                icon: transaction.categoryIcon,
+                                iconColor: theme.brandPrimary,
+                                title: LocalizedStringKey(transaction.mainCategoryName),
+                                subtitle: LocalizedStringKey(subtitleText),
+                                value: (transaction.type == .income ? "+₺" : "-₺") + transaction.amount.formatted(.number.grouping(.automatic).precision(.fractionLength(2))),
+                                valueColor: transaction.type == .income ? theme.income : theme.expense,
+                                secondaryInfo: transaction.date.formatted(date: .abbreviated, time: .shortened)
+                            )
+                            .padding(.leading)
+                        }
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             
                             let isOwner = walletManager.activeWallet?.ownerId == authManager.currentUserProfile?.username
