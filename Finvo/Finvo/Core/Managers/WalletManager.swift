@@ -23,19 +23,26 @@ class WalletManager: ObservableObject {
                 guard let self else { return }
                 self.wallets = newWallets
                 
-                if let currentActive = self.activeWallet,
-                   let updated = newWallets.first(where: { $0.id == currentActive.id }) {
-                    // Aktif cüzdan hâlâ varsa güncelle
-                    self.activeWallet = updated
-                } else if self.activeWallet == nil && !newWallets.isEmpty {
-                    // İlk açılış: kaydedilmiş ID'yi kontrol et
+                if let currentActive = self.activeWallet {
+                    if let updated = newWallets.first(where: { $0.id == currentActive.id }) {
+                        // Aktif cüzdan hâlâ varsa güncelle
+                        self.activeWallet = updated
+                    } else {
+                        // Aktif cüzdan artık listede yok (silinmiş veya yetki alınmış) -> İlk cüzdana geç
+                        self.activeWallet = newWallets.first
+                        if let first = newWallets.first {
+                            self.lastActiveWalletId = first.id ?? ""
+                        }
+                    }
+                } else if !newWallets.isEmpty {
+                    // İlk açılış veya seçim yokken cüzdanlar geldi: kaydedilmiş ID'yi kontrol et
                     if !self.lastActiveWalletId.isEmpty,
                        let saved = newWallets.first(where: { $0.id == self.lastActiveWalletId }) {
                         self.activeWallet = saved
                     } else {
                         self.activeWallet = newWallets.first
                     }
-                } else if newWallets.isEmpty {
+                } else {
                     self.activeWallet = nil
                 }
             }
