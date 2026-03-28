@@ -25,6 +25,7 @@ struct IncomeExpenseCardView: View {
             Text(amount)
                 .font(.system(size: 24, weight: .bold, design: .rounded))
                 .foregroundColor(theme.labelPrimary)
+                .contentTransition(.numericText())
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }

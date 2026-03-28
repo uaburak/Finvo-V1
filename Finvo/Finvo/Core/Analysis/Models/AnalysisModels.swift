@@ -25,3 +25,10 @@ struct CategorySummary: Identifiable, Equatable {
     let percentage: Double
     let transactionCount: Int
 }
+
+struct MemberContribution: Identifiable, Equatable {
+    var id: String { username }
+    let username: String
+    let amount: Double
+    let transactionCount: Int
+}

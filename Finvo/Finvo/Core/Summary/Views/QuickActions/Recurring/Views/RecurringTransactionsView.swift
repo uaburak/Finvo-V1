@@ -1,83 +1,100 @@
 import SwiftUI
 
-// MARK: - Mock Models
-struct RecurringTransactionModel: Identifiable {
-    let id = UUID()
-    let title: String
-    let amount: Double
-    let type: TransactionType
-    let frequency: String
-    let nextDate: Date
-}
-
-@Observable
-class RecurringTransactionsViewModel {
-    var autoTransactions: [RecurringTransactionModel] = [
-        RecurringTransactionModel(title: "Netflix Aboneliği", amount: 120.0, type: .expense, frequency: "Aylık", nextDate: Calendar.current.date(byAdding: .day, value: 5, to: Date())!),
-        RecurringTransactionModel(title: "Maaş (Düzenli)", amount: 35000.0, type: .income, frequency: "Aylık", nextDate: Calendar.current.date(byAdding: .day, value: 12, to: Date())!),
-        RecurringTransactionModel(title: "Spor Salonu", amount: 450.0, type: .expense, frequency: "Aylık", nextDate: Calendar.current.date(byAdding: .day, value: 2, to: Date())!)
-    ]
-}
-
 struct RecurringTransactionsView: View {
     @Environment(\.theme) var theme
-    @State private var viewModel = RecurringTransactionsViewModel()
+    @EnvironmentObject var transactionManager: TransactionManager
     
     var body: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                if viewModel.autoTransactions.isEmpty {
-                    ContentUnavailableView("Kayıtlı İşlem Yok", systemImage: "repeat", description: Text("Düzenli tekrar eden bir işlem bulunmuyor."))
-                } else {
-                    ForEach(viewModel.autoTransactions) { transaction in
-                        recurringCard(for: transaction)
+        ZStack {
+            theme.background1.ignoresSafeArea()
+            
+            let recurringTxs = transactionManager.transactions.filter { $0.isRecurring }
+            
+            if recurringTxs.isEmpty {
+                VStack {
+                    Spacer()
+                    Image(systemName: "repeat.circle")
+                        .font(.system(size: 60))
+                        .foregroundColor(theme.labelSecondary)
+                    Text("Kayıtlı İşlem Yok")
+                        .font(.headline)
+                        .foregroundColor(theme.labelPrimary)
+                        .padding(.top, 10)
+                    Text("Düzenli tekrar eden bir abonelik veya işleminiz bulunmuyor.")
+                        .font(.subheadline)
+                        .foregroundColor(theme.labelSecondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
+                    Spacer()
+                }
+            } else {
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 16) {
+                        ForEach(recurringTxs) { transaction in
+                            NavigationLink(destination: TransactionDetailView(transaction: transaction)) {
+                                recurringCard(for: transaction)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
+                    .padding()
+                    .safeAreaPadding(.bottom, 40)
                 }
             }
-            .padding()
         }
-        .navigationTitle("Abonelikler ve Düzenli İşlemler")
+        .navigationTitle("Tekrarlayan İşlemler")
         .navigationBarTitleDisplayMode(.inline)
     }
     
     @ViewBuilder
-    private func recurringCard(for transaction: RecurringTransactionModel) -> some View {
+    private func recurringCard(for transaction: TransactionModel) -> some View {
         HStack(spacing: 16) {
             ZStack {
                 Circle()
-                    .fill(transaction.type == .income ? theme.income.opacity(0.1) : theme.expense.opacity(0.1))
+                    .fill(transaction.type == .income ? theme.income.opacity(0.15) : theme.expense.opacity(0.15))
                     .frame(width: 50, height: 50)
                 
-                Image(systemName: "repeat")
+                Image(systemName: transaction.categoryIcon)
                     .foregroundColor(transaction.type == .income ? theme.income : theme.expense)
                     .font(.title3)
             }
             
             VStack(alignment: .leading, spacing: 4) {
-                Text(transaction.title)
+                let displayTitle = (transaction.note?.isEmpty == false) ? transaction.note! : transaction.mainCategoryName
+                Text(displayTitle)
                     .font(.headline)
                     .foregroundColor(theme.labelPrimary)
+                    .lineLimit(1)
                 
-                Text("\(transaction.frequency) - Sonraki Eğitim: \(transaction.nextDate.formatted(date: .abbreviated, time: .omitted))")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                if let interval = transaction.recurrenceInterval {
+                    HStack(spacing: 4) {
+                        Image(systemName: "repeat")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.orange)
+                        Text("\(interval.rawValue) Tekrar")
+                            .font(.caption)
+                            .foregroundColor(theme.labelSecondary)
+                    }
+                }
             }
             
             Spacer()
             
-            Text((transaction.type == .income ? "+₺" : "-₺") + transaction.amount.formatted(.number.grouping(.automatic).precision(.fractionLength(2))))
-                .font(.subheadline.bold())
-                .foregroundColor(transaction.type == .income ? theme.income : theme.expense)
+            Text((transaction.type == .income ? "+₺" : "-₺") + transaction.amount.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))
+                .font(.headline.bold())
+                .foregroundColor(theme.labelPrimary) // Tutarı label rengi yaptık özet ekranındaki gibi tutarlılık açısından
         }
-        .padding()
-        .background(theme.cardBackground)
-        .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.05), radius: 5, y: 2)
+        .padding(16)
+        .glassEffect(in: .rect(cornerRadius: 20))
+        .padding(.horizontal, 4) // Shadow taşması olmaması için
     }
 }
 
 #Preview {
     NavigationStack {
         RecurringTransactionsView()
+            .environment(\.theme, DefaultTheme())
+            .environmentObject(TransactionManager())
+            .environmentObject(WalletManager())
     }
 }

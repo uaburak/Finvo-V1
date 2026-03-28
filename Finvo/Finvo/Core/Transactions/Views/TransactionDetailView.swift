@@ -220,7 +220,7 @@ struct TransactionDetailView: View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .medium))
-                .foregroundColor(theme.brandPrimary)
+                .foregroundColor(transaction.resolvedColor)
                 .frame(width: 24)
 
             Text(title)

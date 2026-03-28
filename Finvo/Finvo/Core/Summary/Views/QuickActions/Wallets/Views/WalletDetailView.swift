@@ -95,7 +95,9 @@ struct WalletDetailView: View {
                                         if activeWallet.permissions[currentUsername] != WalletRole.member.rawValue {
                                             Menu {
                                                 Button("Yetki İste") {
-                                                    notificationManager.sendRoleRequest(walletId: activeWallet.id!, walletName: activeWallet.name, ownerUsername: activeWallet.ownerId)
+                                        if let walletId = activeWallet.id {
+                                            notificationManager.sendRoleRequest(walletId: walletId, walletName: activeWallet.name, ownerUsername: activeWallet.ownerId)
+                                        }
                                                     let generator = UINotificationFeedbackGenerator()
                                                     generator.notificationOccurred(.success)
                                                     showRoleRequestSentAlert = true

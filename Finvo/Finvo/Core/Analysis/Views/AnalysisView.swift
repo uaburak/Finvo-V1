@@ -1,6 +1,12 @@
 import SwiftUI
 import Charts
 
+enum TransactionTypeFilter: String, CaseIterable {
+    case all = "Tümü"
+    case income = "Sadece Gelirler"
+    case expense = "Sadece Giderler"
+}
+
 struct AnalysisView: View {
     @Environment(\.theme) var theme
     @EnvironmentObject var transactionManager: TransactionManager
@@ -15,8 +21,14 @@ struct AnalysisView: View {
     // Core Data
     @State private var flowData: [FlowData] = []
     @State private var biggestTransaction: TransactionModel? = nil
-    @State private var pendingDebtAmount: Double = 0
+    @State private var recurringTransactions: [TransactionModel] = []
     @State private var categorySummaries: [CategorySummary] = []
+    @State private var memberContributions: [MemberContribution] = []
+    
+    // Filter & Export States
+    @State private var selectedFilterType: TransactionTypeFilter = .all
+    @State private var isSharingPDF: Bool = false
+    @State private var pdfURL: URL? = nil
     
     var body: some View {
         NavigationStack {
@@ -36,13 +48,21 @@ struct AnalysisView: View {
                         )
                         
                         AnalysisMiniCards(
-                            pendingDebtAmount: pendingDebtAmount,
+                            recurringTransactions: recurringTransactions,
                             biggestTransaction: biggestTransaction
                         )
                         
                         AnalysisCategoryCard(
                             categorySummaries: categorySummaries
                         )
+                        
+                        // Sadece paylaşımlı cüzdanlarda (veya üye sayısı 1'den büyükse) Liderlik tablosunu göster
+                        if let wallet = walletManager.activeWallet, (wallet.type == .shared || wallet.members.count > 1) {
+                            AnalysisCollaboratorCard(
+                                contributions: memberContributions,
+                                allTransactions: transactionManager.transactions // Filtrelenmemiş gerçek tüm veri listesi gönderiliyor ki detay ekranında tarihe göre süzebilsin
+                            )
+                        }
                         
                     }
                     .padding(.horizontal, 20)
@@ -52,24 +72,33 @@ struct AnalysisView: View {
             .navigationTitle("Analiz")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                // PDF Share Button
+                ToolbarItem(placement: .topBarLeading) {
                     Button(action: {
-                        withAnimation(.spring()) {
-                            isLineGraph.toggle()
-                        }
+                        sharePDF()
                     }) {
-                        Image(systemName: isLineGraph ? "chart.bar.fill" : "chart.xyaxis.line")
-                            .foregroundColor(theme.brandPrimary)
-                            .font(.system(size: 16, weight: .semibold))
+                        if isSharingPDF {
+                            ProgressView().tint(theme.labelPrimary)
+                        } else {
+                            Image(systemName: "square.and.arrow.up")
+                                .foregroundColor(theme.labelPrimary)
+                                .font(.system(size: 16, weight: .semibold))
+                        }
                     }
                 }
                 
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {
-                        // Filtreleme ekranı/sheet açılacak
-                    }) {
-                        Image(systemName: "line.3.horizontal.decrease.circle")
-                            .foregroundColor(theme.brandPrimary)
+                // Advanced Filter Menu
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Picker("İşlem Tipi", selection: $selectedFilterType) {
+                            ForEach(TransactionTypeFilter.allCases, id: \.self) { type in
+                                Text(type.rawValue).tag(type)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: selectedFilterType == .all ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+                            .foregroundColor(theme.labelPrimary)
+                            .font(.system(size: 18))
                     }
                 }
             }
@@ -81,6 +110,15 @@ struct AnalysisView: View {
             }
             .onChange(of: transactionManager.transactions.count) {
                 updateData(startAnimation: false)
+            }
+            .onChange(of: selectedFilterType) {
+                updateData(startAnimation: true)
+            }
+            .sheet(isPresented: .init(get: { pdfURL != nil }, set: { if !$0 { pdfURL = nil } })) {
+                if let url = pdfURL {
+                    ShareSheet(activityItems: [url])
+                        .presentationDetents([.medium, .large])
+                }
             }
         }
     }
@@ -140,6 +178,10 @@ struct AnalysisView: View {
         
         // 2. Net Nakit Akışını Yuvalara Yerleştir (Gelir - Gider)
         for tx in filteredTxs {
+            if tx.isDebt { continue } // Borç işlemleri grafikte hesaplanmaz, taksitleri hesaplanır.
+            if selectedFilterType == .income && tx.type != .income { continue }
+            if selectedFilterType == .expense && tx.type != .expense { continue }
+            
             let value = tx.type == .income ? tx.amount : -tx.amount
             if let index = newFlowData.firstIndex(where: {
                 calendar.isDate($0.date, equalTo: tx.date, toGranularity: chartUnit)
@@ -149,34 +191,54 @@ struct AnalysisView: View {
         }
             
         // 3. Mini Kart Verileri
-        let biggest = filteredTxs.filter { $0.type == .expense }.max(by: { $0.amount < $1.amount })
-        let pendingAmount = allTxs.filter { $0.isDebt }.reduce(0) { $0 + $1.amount }
-        let samplePending = pendingAmount > 0 ? pendingAmount : 4250.0 
+        let biggestActive = filteredTxs.filter {
+            !$0.isDebt && 
+            ((selectedFilterType == .all && $0.type == .expense) ||
+            (selectedFilterType == .income && $0.type == .income) ||
+            (selectedFilterType == .expense && $0.type == .expense))
+        }.max(by: { $0.amount < $1.amount })
+        
+        let recurring = allTxs.filter { $0.isRecurring }
         
         // 4. Kategori Verileri
         var catDict: [String: (amount: Double, icon: String, count: Int)] = [:]
-        let expenseTxs = filteredTxs.filter { $0.type == .expense }
-        let totalExpense = expenseTxs.reduce(0) { $0 + $1.amount }
+        var memberDict: [String: (amount: Double, count: Int)] = [:]
         
-        for tx in expenseTxs {
+        // Kullanıcı filtreyi gelire çekerse Kategori ve Liderlik Dağılımını sadece Gelirler ile göster!
+        let targetTypeForCategories: TransactionType = selectedFilterType == .income ? .income : .expense
+        let typeFilteredTxs = filteredTxs.filter { $0.type == targetTypeForCategories && !$0.isDebt }
+        let totalTypeAmount = typeFilteredTxs.reduce(0) { $0 + $1.amount }
+        
+        for tx in typeFilteredTxs {
+            // Kategori Toplama
             let cat = tx.mainCategoryName
-            let current = catDict[cat] ?? (amount: 0, icon: tx.categoryIcon, count: 0)
-            catDict[cat] = (amount: current.amount + tx.amount, icon: tx.categoryIcon, count: current.count + 1)
+            let currentCat = catDict[cat] ?? (amount: 0, icon: tx.categoryIcon, count: 0)
+            catDict[cat] = (amount: currentCat.amount + tx.amount, icon: tx.categoryIcon, count: currentCat.count + 1)
+            
+            // Kişi Toplama
+            let currentMember = memberDict[tx.createdBy] ?? (0, 0)
+            memberDict[tx.createdBy] = (currentMember.0 + tx.amount, currentMember.1 + 1)
         }
+        
         let newCatSums = catDict.map { 
             CategorySummary(
                 name: $0.key, amount: $0.value.amount, icon: $0.value.icon,
-                percentage: totalExpense > 0 ? ($0.value.amount / totalExpense) * 100 : 0,
+                percentage: totalTypeAmount > 0 ? ($0.value.amount / totalTypeAmount) * 100 : 0,
                 transactionCount: $0.value.count
             ) 
+        }.sorted(by: { $0.amount > $1.amount })
+        
+        let newMemberSums = memberDict.map {
+            MemberContribution(username: $0.key, amount: $0.value.amount, transactionCount: $0.value.count)
         }.sorted(by: { $0.amount > $1.amount })
         
         // State Ataması
         self.flowData = newFlowData
         withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-            self.biggestTransaction = biggest
-            self.pendingDebtAmount = samplePending
+            self.biggestTransaction = biggestActive
+            self.recurringTransactions = recurring
             self.categorySummaries = newCatSums
+            self.memberContributions = newMemberSums
         }
         
         // Yeniden yüklendiği için animasyon tetikle
@@ -206,9 +268,54 @@ struct AnalysisView: View {
         case .year: return .month
         }
     }
+    
+    // MARK: - PDF Export Engine
+    @MainActor
+    private func sharePDF() {
+        isSharingPDF = true
+        
+        // Raporlanacak datanın UI'ını Main Actor garantisinde yakala
+        let reportDetails = AnalysisPDFReportView(
+            flowData: flowData,
+            categorySummaries: categorySummaries,
+            biggestTransaction: biggestTransaction,
+            totalRecurring: recurringTransactions.reduce(0.0) { $0 + $1.amount },
+            timeFrame: selectedTab.rawValue
+        )
+        
+        let renderer = ImageRenderer(content: reportDetails)
+        
+        // iOS 16 için ImageRenderer ile PDF dönüştürme
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("Finvo_Analiz_\(selectedTab.rawValue).pdf")
+        
+        renderer.render { size, context in
+            var box = CGRect(x: 0, y: 0, width: size.width, height: size.height)
+            guard let pdf = CGContext(tempURL as CFURL, mediaBox: &box, nil) else { return }
+            
+            pdf.beginPDFPage(nil)
+            context(pdf)
+            pdf.endPDFPage()
+            pdf.closePDF()
+        }
+        
+        self.pdfURL = tempURL
+        self.isSharingPDF = false
+    }
+}
+
+// UIKit UIActivityViewController Wrapper for flawless PDF sharing
+struct ShareSheet: UIViewControllerRepresentable {
+    var activityItems: [Any]
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+        return controller
+    }
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 #Preview {
     AnalysisView()
         .environment(\.theme, DefaultTheme())
+        .environmentObject(WalletManager())
+        .environmentObject(TransactionManager())
 }

@@ -2,6 +2,9 @@ import SwiftUI
 
 struct RecentTransactionsListView: View {
     @Environment(\.theme) var theme
+    @EnvironmentObject var walletManager: WalletManager
+    @EnvironmentObject var transactionManager: TransactionManager
+    @EnvironmentObject var authManager: AuthenticationManager
     
     var body: some View {
         VStack(spacing: 16) {
@@ -15,7 +18,12 @@ struct RecentTransactionsListView: View {
                 
                 Spacer()
                 
-                NavigationLink(destination: TransactionsView(selectedType: .expense)) {
+                NavigationLink {
+                    TransactionsView(selectedType: .expense)
+                        .environmentObject(walletManager)
+                        .environmentObject(transactionManager)
+                        .environmentObject(authManager)
+                } label: {
                     Text("Tümü")
                         .font(.subheadline)
                         .fontWeight(.medium)

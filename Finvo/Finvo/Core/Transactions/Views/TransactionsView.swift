@@ -15,7 +15,10 @@ struct TransactionsView: View {
     @State private var useDateRange = false
     @State private var startDate = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
     @State private var endDate = Date()
-    @State private var selectedCategory: FilterCategory? = nil
+    @State private var selectedCategory: String? = nil
+    
+    @State private var showDeleteConfirmation = false
+    @State private var transactionToDelete: TransactionModel? = nil
 
     var body: some View {
         VStack {
@@ -29,8 +32,8 @@ struct TransactionsView: View {
                           (item.note ?? "").localizedCaseInsensitiveContains(searchText) else { return false }
                 }
                 
-                if let cat = selectedCategory {
-                    guard item.mainCategoryName.localizedCaseInsensitiveContains(cat.rawValue) else { return false }
+                if let catName = selectedCategory {
+                    guard item.mainCategoryName == catName else { return false }
                 }
                 
                 if useDateRange {
@@ -61,18 +64,21 @@ struct TransactionsView: View {
                 List {
                     ForEach(sortedItems) { transaction in
                         let isFirst = transaction.id == sortedItems.first?.id
-                        let subtitleText = transaction.subCategoryName != nil ? "\(transaction.subCategoryName!) • Ekleyen: @\(transaction.createdBy)" : "Ekleyen: @\(transaction.createdBy)"
+                        let mainTitle = transaction.subCategoryName ?? transaction.mainCategoryName
+                        let subtitleText = transaction.subCategoryName != nil ? "\(transaction.mainCategoryName) • @\(transaction.createdBy)" : "@\(transaction.createdBy)"
 
                         ZStack {
-                            NavigationLink(destination: TransactionDetailView(transaction: transaction)) {
+                            NavigationLink(destination: TransactionDetailView(transaction: transaction)
+                                .environmentObject(walletManager)
+                                .environmentObject(authManager)) {
                                 EmptyView()
                             }
                             .opacity(0)
 
                             ListItem(
                                 icon: transaction.categoryIcon,
-                                iconColor: theme.brandPrimary,
-                                title: LocalizedStringKey(transaction.mainCategoryName),
+                                iconColor: transaction.resolvedColor,
+                                title: LocalizedStringKey(mainTitle),
                                 subtitle: LocalizedStringKey(subtitleText),
                                 value: (transaction.type == .income ? "+₺" : "-₺") + transaction.amount.formatted(.number.grouping(.automatic).precision(.fractionLength(2))),
                                 valueColor: transaction.type == .income ? theme.income : theme.expense,
@@ -89,17 +95,16 @@ struct TransactionsView: View {
                             
                             if canDelete {
                                 Button(role: .destructive) {
-                                    Task {
-                                        if let id = transaction.id {
-                                            try? await FirestoreService.shared.deleteTransaction(walletId: transaction.walletId, transactionId: id)
-                                        }
-                                    }
+                                    transactionToDelete = transaction
+                                    showDeleteConfirmation = true
                                 } label: {
                                     Image(systemName: "trash")
                                 }
                                 .tint(.red)
                                 
-                                Button { transactionToEdit = transaction } label: {
+                                Button { 
+                                    transactionToEdit = transaction 
+                                } label: {
                                     Image(systemName: "pencil")
                                 }
                                 .tint(.orange)
@@ -112,6 +117,12 @@ struct TransactionsView: View {
                     }
                 }
                 .listStyle(.plain)
+                .sheet(item: $transactionToEdit) { transaction in
+                    AddTransactionsView(transactionToEdit: transaction)
+                        .environmentObject(walletManager)
+                        .environmentObject(transactionManager)
+                        .environmentObject(authManager)
+                }
             }
         }
         .navigationTitle("")
@@ -147,9 +158,10 @@ struct TransactionsView: View {
                     Divider()
 
                     Picker("Kategori", selection: $selectedCategory) {
-                        Text("Tüm Kategoriler").tag(Optional<FilterCategory>.none)
-                        ForEach(FilterCategory.allCases) { cat in
-                            Label(cat.rawValue, systemImage: cat.icon).tag(Optional(cat))
+                        Text("Tüm Kategoriler").tag(Optional<String>.none)
+                        let availableCategories = CategoryManager.shared.categories.isEmpty ? CategoriesMockData.data : CategoryManager.shared.categories
+                        ForEach(availableCategories.filter { $0.type == selectedType }) { cat in
+                            Label(cat.name, systemImage: cat.icon).tag(Optional(cat.name))
                         }
                     }
 
@@ -175,6 +187,18 @@ struct TransactionsView: View {
             }
         }
         .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Ara")
+        .confirmationDialog("İşlemi Sil", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
+            Button("Sil", role: .destructive) {
+                if let transaction = transactionToDelete, let id = transaction.id {
+                    Task {
+                        try? await FirestoreService.shared.deleteTransaction(walletId: transaction.walletId, transactionId: id)
+                    }
+                }
+            }
+            Button("Vazgeç", role: .cancel) { }
+        } message: {
+            Text("Bu işlemi silmek istediğinize emin misiniz? Bu işlem geri alınamaz.")
+        }
     }
 }
 

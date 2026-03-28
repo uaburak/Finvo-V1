@@ -1,165 +1,246 @@
 import Foundation
 import SwiftUI
+import FirebaseFirestore
 
-struct SubCategoryModel: Identifiable, Equatable {
-    let id = UUID()
-    let name: LocalizedStringKey
+struct SubCategoryModel: Identifiable, Equatable, Codable {
+    var id: String = UUID().uuidString
+    let name: String
     let icon: String // SF Symbol
-    let color: Color
+    let color: String // Hex or Name
     var isOn: Bool = true // toggle state
 }
 
-struct CategoryModel: Identifiable, Equatable {
-    let id = UUID()
+struct CategoryModel: Identifiable, Equatable, Codable {
+    @DocumentID var firestoreId: String?
+    var id: String { firestoreId ?? safeId }
+    
     let type: TransactionType
-    let name: LocalizedStringKey
+    let name: String
     let icon: String // SF Symbol
-    let color: Color
+    let color: String // Hex or Name
     var subCategories: [SubCategoryModel]
     var isOn: Bool = true
+}
+
+// Extending for UI Layer
+extension CategoryModel {
+    var safeId: String {
+        return name.lowercased()
+            .replacingOccurrences(of: " ", with: "_")
+            .replacingOccurrences(of: "&", with: "n")
+    }
+    
+    var uiColor: Color {
+        self.color.hasPrefix("#") ? Color(hex: self.color) : getColorFromName(self.color)
+    }
+    
+    var localizedName: LocalizedStringKey {
+        LocalizedStringKey(self.name)
+    }
+
+    private func getColorFromName(_ name: String) -> Color {
+        switch name.lowercased() {
+        case "blue": return .blue
+        case "green": return .green
+        case "red": return .red
+        case "orange": return .orange
+        case "purple": return .purple
+        case "pink": return .pink
+        case "teal": return .teal
+        case "indigo": return .indigo
+        case "brown": return .brown
+        case "cyan": return .cyan
+        case "gray": return .gray
+        case "black": return .black
+        case "mint": return .mint
+        default: return .blue
+        }
+    }
+}
+
+extension SubCategoryModel {
+    var uiColor: Color {
+        self.color.hasPrefix("#") ? Color(hex: self.color) : getColorFromName(self.color)
+    }
+    
+    var localizedName: LocalizedStringKey {
+        LocalizedStringKey(self.name)
+    }
+
+    private func getColorFromName(_ name: String) -> Color {
+        switch name.lowercased() {
+        case "blue": return .blue
+        case "green": return .green
+        case "red": return .red
+        case "orange": return .orange
+        case "purple": return .purple
+        case "pink": return .pink
+        case "teal": return .teal
+        case "indigo": return .indigo
+        case "brown": return .brown
+        case "cyan": return .cyan
+        case "gray": return .gray
+        case "black": return .black
+        case "mint": return .mint
+        default: return .blue
+        }
+    }
 }
 
 struct CategoriesMockData {
     static var data: [CategoryModel] = [
         // MARK: - GİDER KATEGORİLERİ (EXPENSES)
-                
-                // 1. Market ve Gıda
-                CategoryModel(type: .expense, name: "Market ve Gıda", icon: "cart.fill", color: .blue, subCategories: [
-                    SubCategoryModel(name: "Süpermarket", icon: "basket.fill", color: .blue),
-                    SubCategoryModel(name: "Manav", icon: "leaf.fill", color: .green),
-                    SubCategoryModel(name: "Kasap", icon: "fork.knife", color: .red),
-                    SubCategoryModel(name: "Fırın & Pastane", icon: "mouth.fill", color: .orange),
-                    SubCategoryModel(name: "İçecek & Tekel", icon: "wineglass.fill", color: .purple),
-                    SubCategoryModel(name: "Su Siparişi (Damacana)", icon: "drop.fill", color: .cyan),
-                    SubCategoryModel(name: "Temizlik Malzemeleri", icon: "bubbles.and.sparkles.fill", color: .teal)
-                ]),
-                
-                // 2. Dışarıda Yemek ve Sosyal
-                CategoryModel(type: .expense, name: "Yeme İçme & Sosyal", icon: "cup.and.saucer.fill", color: .brown, subCategories: [
-                    SubCategoryModel(name: "Kahve & Çay", icon: "mug.fill", color: .brown),
-                    SubCategoryModel(name: "Restoran & Akşam Yemeği", icon: "fork.knife.circle.fill", color: .orange),
-                    SubCategoryModel(name: "Öğle Yemeği (İş)", icon: "bag.fill", color: .yellow),
-                    SubCategoryModel(name: "Fast Food & Atıştırmalık", icon: "hamburger.fill", color: .red),
-                    SubCategoryModel(name: "Bar & Gece Hayatı", icon: "party.popper.fill", color: .indigo),
-                    SubCategoryModel(name: "Etkinlik & Konser", icon: "music.mic", color: .pink)
-                ]),
-                
-                // 3. Konut ve Ev Giderleri
-                CategoryModel(type: .expense, name: "Konut ve Ev", icon: "house.fill", color: .indigo, subCategories: [
-                    SubCategoryModel(name: "Kira / Kredi Ödemesi", icon: "key.fill", color: .indigo),
-                    SubCategoryModel(name: "Aidat", icon: "building.2.fill", color: .gray),
-                    SubCategoryModel(name: "Ev Tamirat & Tadilat", icon: "hammer.fill", color: .orange),
-                    SubCategoryModel(name: "Mobilya & Dekorasyon", icon: "lamp.floor.fill", color: .teal),
-                    SubCategoryModel(name: "Bahçe & Dış Mekan", icon: "camera.macro", color: .green),
-                    SubCategoryModel(name: "Emlak Vergisi", icon: "doc.text.fill", color: .red)
-                ]),
-                
-                // 4. Faturalar ve Abonelikler
-                CategoryModel(type: .expense, name: "Sabit Ödemeler", icon: "doc.plaintext.fill", color: .cyan, subCategories: [
-                    SubCategoryModel(name: "Elektrik", icon: "bolt.fill", color: .yellow),
-                    SubCategoryModel(name: "Su", icon: "drop.circle.fill", color: .blue),
-                    SubCategoryModel(name: "Doğalgaz", icon: "flame.fill", color: .orange),
-                    SubCategoryModel(name: "İnternet", icon: "wifi", color: .indigo),
-                    SubCategoryModel(name: "Telefon/GSM", icon: "iphone", color: .gray),
-                    SubCategoryModel(name: "Dijital Platform (Netflix/Spotify)", icon: "play.tv.fill", color: .red),
-                    SubCategoryModel(name: "Yazılım / iCloud / Google One", icon: "icloud.fill", color: .blue)
-                ]),
-                
-                // 5. Ulaşım ve Araç
-                CategoryModel(type: .expense, name: "Ulaşım", icon: "car.fill", color: .orange, subCategories: [
-                    SubCategoryModel(name: "Akaryakıt", icon: "fuelpump.fill", color: .orange),
-                    SubCategoryModel(name: "Toplu Taşıma (Akbil vb.)", icon: "bus.fill", color: .green),
-                    SubCategoryModel(name: "Taksi & Martı & Uber", icon: "car.side.fill", color: .yellow),
-                    SubCategoryModel(name: "Araç Bakım & Servis", icon: "wrench.and.screwdriver.fill", color: .blue),
-                    SubCategoryModel(name: "Otopark & Köprü/Yol", icon: "parkingsign.circle.fill", color: .gray),
-                    SubCategoryModel(name: "Trafik Sigortası & Kasko", icon: "shield.checkerboard", color: .red)
-                ]),
-                
-                // 6. Alışveriş ve Kişisel Bakım
-                CategoryModel(type: .expense, name: "Alışveriş & Bakım", icon: "bag.fill", color: .pink, subCategories: [
-                    SubCategoryModel(name: "Giyim & Ayakkabı", icon: "tshirt.fill", color: .pink),
-                    SubCategoryModel(name: "Aksesuar & Takı", icon: "sparkles", color: .yellow),
-                    SubCategoryModel(name: "Elektronik & Gadget", icon: "laptopcomputer", color: .blue),
-                    SubCategoryModel(name: "Kozmetik & Parfüm", icon: "face.smiling", color: .purple),
-                    SubCategoryModel(name: "Kuaför & Berber", icon: "scissors", color: .brown),
-                    SubCategoryModel(name: "Kuru Temizleme", icon: "washer.fill", color: .cyan)
-                ]),
-                
-                // 7. Sağlık ve Spor
-                CategoryModel(type: .expense, name: "Sağlık ve Spor", icon: "heart.fill", color: .red, subCategories: [
-                    SubCategoryModel(name: "Eczane & İlaç", icon: "pills.fill", color: .red),
-                    SubCategoryModel(name: "Doktor & Hastane", icon: "stethoscope", color: .teal),
-                    SubCategoryModel(name: "Diş Randevusu", icon: "mouth", color: .white),
-                    SubCategoryModel(name: "Spor Salonu Üyeliği", icon: "figure.run", color: .orange),
-                    SubCategoryModel(name: "Vitamin & Takviye", icon: "leaf.arrow.triangle.circlepath", color: .green),
-                    SubCategoryModel(name: "Terapi & Danışmanlık", icon: "brain.head.profile", color: .purple)
-                ]),
-                
-                // 8. Eğitim ve Gelişim
-                CategoryModel(type: .expense, name: "Eğitim", icon: "graduationcap.fill", color: .indigo, subCategories: [
-                    SubCategoryModel(name: "Kurs & Eğitim Ücreti", icon: "graduationcap.fill", color: .indigo),
-                    SubCategoryModel(name: "Kitap & Dergi", icon: "book.fill", color: .brown),
-                    SubCategoryModel(name: "Kırtasiye", icon: "pencil.and.ruler.fill", color: .blue),
-                    SubCategoryModel(name: "Sınav Başvuruları", icon: "doc.text.badge.plus", color: .gray),
-                    SubCategoryModel(name: "Dil Eğitimi", icon: "character.bubble.fill", color: .orange)
-                ]),
-                
-                // 9. Çocuk ve Aile
-                CategoryModel(type: .expense, name: "Çocuk ve Aile", icon: "figure.and.child.holdinghands", color: .mint, subCategories: [
-                    SubCategoryModel(name: "Okul Taksitleri", icon: "building.columns.fill", color: .indigo),
-                    SubCategoryModel(name: "Oyuncak & Oyun", icon: "puzzlepiece.fill", color: .orange),
-                    SubCategoryModel(name: "Bebek Bezi & Mama", icon: "stroller.fill", color: .blue),
-                    SubCategoryModel(name: "Harçlık", icon: "hand.waves.fill", color: .green)
-                ]),
-                
-                // 10. Evcil Hayvan
-                CategoryModel(type: .expense, name: "Evcil Hayvan", icon: "pawprint.fill", color: .orange, subCategories: [
-                    SubCategoryModel(name: "Mama & Kum", icon: "shippingbox.fill", color: .brown),
-                    SubCategoryModel(name: "Veteriner & Aşı", icon: "cross.case.fill", color: .red),
-                    SubCategoryModel(name: "Oyuncak & Aksesuar", icon: "tennisball.fill", color: .green)
-                ]),
-                
-                // 11. Finansal Giderler
-                CategoryModel(type: .expense, name: "Finansal Giderler", icon: "dollarsign.circle.fill", color: .gray, subCategories: [
-                    SubCategoryModel(name: "Borç Ödemesi", icon: "arrow.right.arrow.left.circle.fill", color: .red),
-                    SubCategoryModel(name: "Banka Komisyon & Ücret", icon: "building.columns", color: .gray),
-                    SubCategoryModel(name: "Bağış & Yardımlaşma", icon: "heart.circle.fill", color: .pink),
-                    SubCategoryModel(name: "Cezalar (Trafik vb.)", icon: "exclamationmark.triangle.fill", color: .orange)
-                ]),
-                
-                // 12. Seyahat ve Tatil
-                CategoryModel(type: .expense, name: "Seyahat", icon: "airplane", color: .blue, subCategories: [
-                    SubCategoryModel(name: "Uçak & Otobüs Bileti", icon: "ticket.fill", color: .blue),
-                    SubCategoryModel(name: "Konaklama / Otel", icon: "bed.double.fill", color: .indigo),
-                    SubCategoryModel(name: "Vize & Pasaport", icon: "passport.fill", color: .brown),
-                    SubCategoryModel(name: "Tur & Gezi", icon: "map.fill", color: .green)
-                ]),
+        
+        // 1. DİJİTAL ABONELİKLER (Tümü Tek Çatıda)
+        CategoryModel(type: .expense, name: "Abonelikler", icon: "repeat.circle.fill", color: "purple", subCategories: [
+            SubCategoryModel(name: "Netflix", icon: "play.tv.fill", color: "red"),
+            SubCategoryModel(name: "Disney+", icon: "sparkles.tv.fill", color: "blue"),
+            SubCategoryModel(name: "YouTube Premium", icon: "play.rectangle.fill", color: "red"),
+            SubCategoryModel(name: "Amazon Prime", icon: "cart.fill", color: "cyan"),
+            SubCategoryModel(name: "BluTV", icon: "play.circle.fill", color: "indigo"),
+            SubCategoryModel(name: "MUBI", icon: "film.stack.fill", color: "black"),
+            SubCategoryModel(name: "Gain / Exxen", icon: "tv.fill", color: "yellow"),
+            SubCategoryModel(name: "Spotify", icon: "music.note.house.fill", color: "green"),
+            SubCategoryModel(name: "Apple Music", icon: "apple.logo", color: "pink"),
+            SubCategoryModel(name: "Tidal / Deezer", icon: "waveform", color: "cyan"),
+            SubCategoryModel(name: "PlayStation Plus", icon: "playstation.logo", color: "blue"),
+            SubCategoryModel(name: "Xbox Game Pass", icon: "xbox.logo", color: "green"),
+            SubCategoryModel(name: "Nintendo Online", icon: "gamecontroller.fill", color: "red"),
+            SubCategoryModel(name: "EA Play", icon: "logo.xbox", color: "orange"),
+            SubCategoryModel(name: "Gemini Advanced", icon: "brain.head.profile", color: "purple"),
+            SubCategoryModel(name: "ChatGPT Plus", icon: "message.and.waveform.fill", color: "teal"),
+            SubCategoryModel(name: "Claude Pro", icon: "shimmer", color: "orange"),
+            SubCategoryModel(name: "GitHub Copilot", icon: "terminal.fill", color: "black"),
+            SubCategoryModel(name: "Midjourney", icon: "paintpalette.fill", color: "indigo"),
+            SubCategoryModel(name: "Cursor IDE", icon: "chevron.left.forwardslash.chevron.right", color: "blue"),
+            SubCategoryModel(name: "Adobe Creative Cloud", icon: "paintbrush.fill", color: "red"),
+            SubCategoryModel(name: "Figma Pro", icon: "square.grid.2x2.fill", color: "purple"),
+            SubCategoryModel(name: "Canva Pro", icon: "wand.and.stars", color: "blue"),
+            SubCategoryModel(name: "Notion", icon: "doc.text.fill", color: "black"),
+            SubCategoryModel(name: "iCloud+", icon: "icloud.fill", color: "blue"),
+            SubCategoryModel(name: "Google One", icon: "g.circle.fill", color: "red"),
+            SubCategoryModel(name: "Dropbox", icon: "archivebox.fill", color: "blue"),
+            SubCategoryModel(name: "Vercel / Supabase", icon: "triangle.fill", color: "black")
+        ]),
+        
+        CategoryModel(type: .expense, name: "Banka & Finans", icon: "building.columns.fill", color: "gray", subCategories: [
+            SubCategoryModel(name: "Kredi Kartı Ödemesi", icon: "creditcard.fill", color: "blue"),
+            SubCategoryModel(name: "İhtiyaç Kredisi", icon: "banknote.fill", color: "red"),
+            SubCategoryModel(name: "Araç / Konut Kredisi", icon: "house.and.flag.fill", color: "indigo"),
+            SubCategoryModel(name: "KMH / Artı Para", icon: "plus.circle.fill", color: "orange"),
+            SubCategoryModel(name: "EFT / Havale Ücreti", icon: "arrow.right.arrow.left", color: "teal"),
+            SubCategoryModel(name: "Banka Aidatı", icon: "percent", color: "gray")
+        ]),
+        
+        CategoryModel(type: .expense, name: "Araba & Ulaşım", icon: "car.fill", color: "orange", subCategories: [
+            SubCategoryModel(name: "Akaryakıt / LPG", icon: "fuelpump.fill", color: "orange"),
+            SubCategoryModel(name: "Periyodik Bakım & Servis", icon: "wrench.and.screwdriver.fill", color: "blue"),
+            SubCategoryModel(name: "Trafik Sigortası & Kasko", icon: "shield.checkerboard", color: "red"),
+            SubCategoryModel(name: "Otopark & HGS", icon: "parkingsign.circle.fill", color: "gray"),
+            SubCategoryModel(name: "Oto Yıkama", icon: "bubbles.and.sparkles.fill", color: "cyan"),
+            SubCategoryModel(name: "Taksi & Toplu Taşıma", icon: "bus.fill", color: "green")
+        ]),
+        
+        CategoryModel(type: .expense, name: "Konut & Faturalar", icon: "house.fill", color: "indigo", subCategories: [
+            SubCategoryModel(name: "Kira", icon: "key.fill", color: "indigo"),
+            SubCategoryModel(name: "Elektrik", icon: "bolt.fill", color: "yellow"),
+            SubCategoryModel(name: "Su", icon: "drop.circle.fill", color: "blue"),
+            SubCategoryModel(name: "Doğalgaz / Isınma", icon: "flame.fill", color: "orange"),
+            SubCategoryModel(name: "İnternet", icon: "wifi", color: "cyan"),
+            SubCategoryModel(name: "Telefon Faturası", icon: "iphone", color: "green"),
+            SubCategoryModel(name: "Aidat", icon: "building.2.fill", color: "gray")
+        ]),
+        
+        CategoryModel(type: .expense, name: "Market & Mutfak", icon: "cart.fill", color: "blue", subCategories: [
+            SubCategoryModel(name: "Süpermarket", icon: "basket.fill", color: "blue"),
+            SubCategoryModel(name: "Kasap & Manav", icon: "leaf.fill", color: "green"),
+            SubCategoryModel(name: "Damacana Su", icon: "drop.fill", color: "cyan"),
+            SubCategoryModel(name: "Temizlik Malzemeleri", icon: "bubbles.and.sparkles.fill", color: "teal"),
+            SubCategoryModel(name: "Tekel & Atıştırmalık", icon: "wineglass.fill", color: "purple")
+        ]),
+        
+        CategoryModel(type: .expense, name: "Yeme İçme & Sosyal", icon: "cup.and.saucer.fill", color: "brown", subCategories: [
+            SubCategoryModel(name: "Restoran & Yemek", icon: "fork.knife.circle.fill", color: "orange"),
+            SubCategoryModel(name: "Kahve & Çay", icon: "mug.fill", color: "brown"),
+            SubCategoryModel(name: "Fast Food", icon: "hamburger.fill", color: "yellow"),
+            SubCategoryModel(name: "Dışarıda Eğlence & Bar", icon: "party.popper.fill", color: "indigo")
+        ]),
+        
+        CategoryModel(type: .expense, name: "Teknoloji & Yazılım", icon: "laptopcomputer", color: "black", subCategories: [
+            SubCategoryModel(name: "Uygulama İçi Satın Alma", icon: "app.badge.fill", color: "blue"),
+            SubCategoryModel(name: "Domain & Hosting (Yıllık)", icon: "globe", color: "cyan"),
+            SubCategoryModel(name: "Asset & Plugin Alımı", icon: "puzzlepiece.fill", color: "purple"),
+            SubCategoryModel(name: "Elektronik Cihaz", icon: "desktopcomputer", color: "gray")
+        ]),
+        
+        CategoryModel(type: .expense, name: "Oyun & Donanım", icon: "gamecontroller.fill", color: "indigo", subCategories: [
+            SubCategoryModel(name: "Konsol Oyunu Satın Alma", icon: "dpad.fill", color: "blue"),
+            SubCategoryModel(name: "Steam / Epic Alışverişi", icon: "desktopcomputer", color: "gray"),
+            SubCategoryModel(name: "Oyun İçi Satın Alma", icon: "cart.badge.plus", color: "orange"),
+            SubCategoryModel(name: "Aksesuar (Kol, Kulaklık)", icon: "headset", color: "purple")
+        ]),
 
-                // MARK: - GELİR KATEGORİLERİ (INCOMES)
-                
-                // 1. İş ve Maaş
-                CategoryModel(type: .income, name: "Maaş ve İş", icon: "briefcase.fill", color: .green, subCategories: [
-                    SubCategoryModel(name: "Ana Maaş", icon: "banknote.fill", color: .green),
-                    SubCategoryModel(name: "Prim & İkramiye", icon: "gift.fill", color: .orange),
-                    SubCategoryModel(name: "Freelance Proje", icon: "laptopcomputer", color: .purple),
-                    SubCategoryModel(name: "Yemek Kartı Yüklemesi", icon: "creditcard.fill", color: .blue)
-                ]),
-                
-                // 2. Yatırım Getirileri
-                CategoryModel(type: .income, name: "Yatırım Getirisi", icon: "chart.line.uptrend.xyaxis", color: .teal, subCategories: [
-                    SubCategoryModel(name: "Borsa / Temettü", icon: "chart.line.uptrend.xyaxis", color: .green),
-                    SubCategoryModel(name: "Kripto Kar Satışı", icon: "bitcoinsign.circle.fill", color: .orange),
-                    SubCategoryModel(name: "Faiz Getirisi", icon: "percent", color: .teal),
-                    SubCategoryModel(name: "Döviz Kuru Farkı", icon: "eurosign.arrow.circlepath", color: .blue)
-                ]),
-                
-                // 3. Pasif ve Diğer Gelirler
-                CategoryModel(type: .income, name: "Diğer Gelirler", icon: "plus.circle.fill", color: .mint, subCategories: [
-                    SubCategoryModel(name: "Kira Geliri", icon: "house.fill", color: .blue),
-                    SubCategoryModel(name: "Eşya Satışı (İkinci El)", icon: "tag.fill", color: .gray),
-                    SubCategoryModel(name: "Cashback & İadeler", icon: "arrow.uturn.left.circle.fill", color: .cyan),
-                    SubCategoryModel(name: "Hediye Geliri", icon: "heart.fill", color: .pink),
-                    SubCategoryModel(name: "Vergi İadesi", icon: "doc.text.magnifyingglass", color: .gray)
-                ])
+        CategoryModel(type: .expense, name: "Ev & Yaşam", icon: "sofa.fill", color: "teal", subCategories: [
+            SubCategoryModel(name: "Mobilya & Dekorasyon", icon: "lamp.floor.fill", color: "teal"),
+            SubCategoryModel(name: "Akıllı Ev Cihazları", icon: "homekit", color: "orange"),
+            SubCategoryModel(name: "Ev Tamirat & Tadilat", icon: "hammer.fill", color: "gray")
+        ]),
+
+        CategoryModel(type: .expense, name: "Sağlık & Bakım", icon: "heart.fill", color: "red", subCategories: [
+            SubCategoryModel(name: "Eczane & İlaç", icon: "pills.fill", color: "red"),
+            SubCategoryModel(name: "Hastane & Doktor", icon: "stethoscope", color: "teal"),
+            SubCategoryModel(name: "Kuaför & Berber", icon: "scissors", color: "brown"),
+            SubCategoryModel(name: "Kişisel Bakım & Kozmetik", icon: "face.smiling", color: "purple")
+        ]),
+        
+        CategoryModel(type: .expense, name: "Giyim & Aksesuar", icon: "tshirt.fill", color: "pink", subCategories: [
+            SubCategoryModel(name: "Kıyafet", icon: "tshirt.fill", color: "pink"),
+            SubCategoryModel(name: "Ayakkabı", icon: "shoeprints.fill", color: "orange"),
+            SubCategoryModel(name: "Çanta & Takı", icon: "bag.fill", color: "purple")
+        ]),
+        
+        CategoryModel(type: .expense, name: "Eğitim & Gelişim", icon: "graduationcap.fill", color: "indigo", subCategories: [
+            SubCategoryModel(name: "Kurs & Udemy", icon: "book.closed.fill", color: "indigo"),
+            SubCategoryModel(name: "Kitap & Dergi", icon: "book.fill", color: "brown"),
+            SubCategoryModel(name: "Seminer & Etkinlik", icon: "ticket.fill", color: "orange")
+        ]),
+        
+        CategoryModel(type: .expense, name: "Seyahat & Tatil", icon: "airplane", color: "blue", subCategories: [
+            SubCategoryModel(name: "Uçak / Otobüs Bileti", icon: "ticket.fill", color: "blue"),
+            SubCategoryModel(name: "Otel / Konaklama", icon: "bed.double.fill", color: "indigo"),
+            SubCategoryModel(name: "Vize & Pasaport", icon: "passport.fill", color: "brown"),
+            SubCategoryModel(name: "Yolculuk Harcamaları", icon: "map.fill", color: "green")
+        ]),
+        
+        CategoryModel(type: .expense, name: "Hobi & Müzik", icon: "guitars.fill", color: "orange", subCategories: [
+            SubCategoryModel(name: "Enstrüman Ekipmanı", icon: "guitars.fill", color: "orange"),
+            SubCategoryModel(name: "Konser & Etkinlik", icon: "music.mic", color: "purple"),
+            SubCategoryModel(name: "Diğer Hobiler", icon: "paintpalette.fill", color: "pink")
+        ]),
+        
+        CategoryModel(type: .expense, name: "Hediye & Bağış", icon: "heart.circle.fill", color: "pink", subCategories: [
+            SubCategoryModel(name: "Hediye Alımları", icon: "gift.fill", color: "pink"),
+            SubCategoryModel(name: "Bağış & Yardımlaşma", icon: "heart.fill", color: "red")
+        ]),
+
+        // MARK: - GELİR KATEGORİLERİ (INCOMES)
+        
+        CategoryModel(type: .income, name: "Maaş & Ana Gelir", icon: "banknote.fill", color: "green", subCategories: [
+            SubCategoryModel(name: "Maaş", icon: "dollarsign.circle.fill", color: "green"),
+            SubCategoryModel(name: "Prim / Bonus", icon: "gift.fill", color: "orange"),
+            SubCategoryModel(name: "Yol / Yemek Yardımı", icon: "creditcard.fill", color: "blue")
+        ]),
+        
+        CategoryModel(type: .income, name: "Freelance & Projeler", icon: "laptopcomputer", color: "purple", subCategories: [
+            SubCategoryModel(name: "App Store / IAP Geliri", icon: "app.badge.fill", color: "blue"),
+            SubCategoryModel(name: "Dış Proje / Web Tasarım", icon: "desktopcomputer", color: "purple"),
+            SubCategoryModel(name: "UI/UX Tasarım Satışı", icon: "fountainpen.tip", color: "pink")
+        ]),
+
+        CategoryModel(type: .income, name: "Pasif & Diğer", icon: "plus.circle.fill", color: "mint", subCategories: [
+            SubCategoryModel(name: "Cashback / İadeler", icon: "arrow.uturn.left", color: "cyan"),
+            SubCategoryModel(name: "İkinci El Satış", icon: "tag.fill", color: "gray"),
+            SubCategoryModel(name: "Hediye / Diğer", icon: "heart.fill", color: "pink")
+        ])
     ]
 }

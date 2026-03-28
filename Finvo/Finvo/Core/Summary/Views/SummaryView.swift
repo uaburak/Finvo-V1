@@ -21,12 +21,22 @@ struct SummaryView: View {
                     
                     // Gelir / Gider Alanı
                     HStack(spacing: 16) {
-                        NavigationLink(destination: TransactionsView(selectedType: .income)) {
+                        NavigationLink {
+                            TransactionsView(selectedType: .income)
+                                .environmentObject(walletManager)
+                                .environmentObject(authManager)
+                                .environmentObject(transactionManager)
+                        } label: {
                             IncomeExpenseCardView(title: "Gelir", amount: "₺\(transactionManager.totalIncome.formatted(.number.grouping(.automatic).precision(.fractionLength(2))))", isIncome: true)
                         }
                         .buttonStyle(.plain)
                         
-                        NavigationLink(destination: TransactionsView(selectedType: .expense)) {
+                        NavigationLink {
+                            TransactionsView(selectedType: .expense)
+                                .environmentObject(walletManager)
+                                .environmentObject(authManager)
+                                .environmentObject(transactionManager)
+                        } label: {
                             IncomeExpenseCardView(title: "Gider", amount: "₺\(transactionManager.totalExpense.formatted(.number.grouping(.automatic).precision(.fractionLength(2))))", isIncome: false)
                         }
                         .buttonStyle(.plain)
@@ -99,6 +109,17 @@ struct SummaryView: View {
                     transactionManager.stopListening()
                 }
             }
+            .navigationDestination(for: TransactionModel.self) { transaction in
+                TransactionDetailView(transaction: transaction)
+                    .environmentObject(walletManager)
+                    .environmentObject(authManager)
+            }
+            .navigationDestination(for: TransactionType.self) { type in
+                TransactionsView(selectedType: type)
+                    .environmentObject(walletManager)
+                    .environmentObject(authManager)
+                    .environmentObject(transactionManager)
+            }
         }
     }
     
@@ -106,7 +127,10 @@ struct SummaryView: View {
     private func summaryToolbar() -> some ToolbarContent {
         // Sol Bölüm (Bildirim / Notification)
         ToolbarItem(placement: .navigationBarLeading) {
-            NavigationLink(destination: NotificationsView()) {
+            NavigationLink(destination: NotificationsView()
+                .environmentObject(notificationManager)
+                .environmentObject(walletManager)
+            ) {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: "bell")
                         .font(.system(size: 16))
@@ -136,8 +160,10 @@ struct SummaryView: View {
     }
 }
 
-struct SummaryView_Previews: PreviewProvider {
-    static var previews: some View {
-        SummaryView()
-    }
+#Preview {
+    SummaryView()
+        .environment(\.theme, DefaultTheme())
+        .environmentObject(WalletManager())
+        .environmentObject(NotificationManager())
+        .environmentObject(TransactionManager())
 }

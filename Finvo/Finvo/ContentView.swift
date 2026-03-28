@@ -37,6 +37,8 @@ enum AppTab: String, CaseIterable {
 struct ContentView: View {
     @Environment(\.theme) var theme
     @Environment(\.colorScheme) var colorScheme
+    @EnvironmentObject var walletManager: WalletManager
+    @EnvironmentObject var transactionManager: TransactionManager
     @State private var selectedTab: AppTab = .home
     @State private var showAddSheet: Bool = false
 
@@ -98,6 +100,8 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showAddSheet) {
             AddTransactionsView()
+                .environmentObject(walletManager)
+                .environmentObject(transactionManager)
         }
         .environment(\.locale, Locale(identifier: appLanguage))
         .tint(theme.brandPrimary)

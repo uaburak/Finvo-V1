@@ -1,43 +1,54 @@
 import SwiftUI
-
-struct ScrollOffsetKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value += nextValue()
-    }
-}
+import FirebaseAuth
 
 struct CategoryDetailView: View {
     @Environment(\.theme) var theme
-    @State private var subCategoryToEdit: SubCategoryModel?
+    @EnvironmentObject var authManager: AuthenticationManager
+    @ObservedObject var categoryManager = CategoryManager.shared
+    
     @Binding var category: CategoryModel
+    @State private var subCategoryToEdit: SubCategoryModel?
+    @State private var showAddSubSheet = false
     
     var body: some View {
         ZStack(alignment: .top) {
             List {
-                ForEach($category.subCategories) { $sub in
-                    let isFirst = sub.id == category.subCategories.first?.id
+                ForEach(category.subCategories) { sub in
+                    let index = category.subCategories.firstIndex(where: { $0.id == sub.id }) ?? 0
+                    let isFirst = index == 0
+                    
                     ListItem(
                         icon: sub.icon,
-                        iconColor: sub.color,
-                        title: sub.name,
-                        subtitle: category.name, // Parent title
-                        isOn: $sub.isOn
+                        iconColor: sub.uiColor,
+                        title: sub.localizedName,
+                        subtitle: category.localizedName,
+                        isOn: Binding(
+                            get: { category.subCategories[index].isOn },
+                            set: { category.subCategories[index].isOn = $0; saveChanges() }
+                        )
                     )
                     .padding(.leading)
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         Button(role: .destructive) {
-                            // TODO: Alt kategori silme
+                            categoryManager.checkProAndExecute(authManager: authManager) {
+                                category.subCategories.remove(at: index)
+                                saveChanges()
+                            }
                         } label: {
                             Image(systemName: "trash")
                         }.tint(.red)
-                        Button { subCategoryToEdit = sub } label: {
+                        
+                        Button {
+                            categoryManager.checkProAndExecute(authManager: authManager) {
+                                subCategoryToEdit = sub
+                                showAddSubSheet = true
+                            }
+                        } label: {
                             Image(systemName: "pencil")
                         }.tint(.orange)
                     }
                     .listRowSeparator(.visible)
                     .listRowSeparator(isFirst ? .hidden : .visible, edges: .top)
-                    .listSectionSeparator(isFirst ? .hidden : .visible, edges: .top)
                     .listRowInsets(EdgeInsets(top: 12, leading: 0, bottom: 12, trailing: 20))
                 }
             }
@@ -50,12 +61,12 @@ struct CategoryDetailView: View {
             HStack(spacing: 14) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 16)
-                        .fill(category.color.opacity(0.2))
+                        .fill(category.uiColor.opacity(0.2))
                         .frame(width: 48, height: 48)
                     
                     Image(systemName: category.icon)
                         .font(.system(size: 24, weight: .semibold))
-                        .foregroundColor(category.color)
+                        .foregroundColor(category.uiColor)
                 }
                 
                 VStack(alignment: .leading, spacing: 4) {
@@ -72,6 +83,9 @@ struct CategoryDetailView: View {
                 
                 Toggle("", isOn: $category.isOn)
                     .labelsHidden()
+                    .onChange(of: category.isOn) { _ in
+                        saveChanges()
+                    }
             }
             .frame(maxWidth: .infinity)
             .padding(16)
@@ -83,18 +97,47 @@ struct CategoryDetailView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    // TODO: Alt kategori ekleme modalı eklenecek
+                    categoryManager.checkProAndExecute(authManager: authManager) {
+                        subCategoryToEdit = nil
+                        showAddSubSheet = true
+                    }
                 } label: {
-                    Image(systemName: "plus")
-                        .foregroundColor(.white)
+                    HStack(spacing: 4) {
+                        if authManager.currentUserProfile?.isPro != true {
+                            Image(systemName: "lock.fill")
+                                .font(.caption2)
+                        }
+                        Image(systemName: "plus")
+                    }
+                    .foregroundColor(theme.labelPrimary)
                 }
             }
+        }
+        .sheet(isPresented: $showAddSubSheet) {
+            AddSubCategorySheet(mainCategory: $category, subCategoryToEdit: subCategoryToEdit)
+                .presentationDetents([.medium, .large])
+                .presentationBackground(.clear)
+                .presentationDragIndicator(.hidden)
+        }
+        .alert("Pro Üyelik Gerekli", isPresented: $categoryManager.showProAlert) {
+            Button("Tamam", role: .cancel) { }
+            Button("Pro'ya Geç") {
+                // Ileride pro ekrani eklenecek
+            }
+        } message: {
+            Text("Alt kategori ekleme, silme ve düzenleme işlemleri sadece Pro üyelerimiz içindir.")
+        }
+    }
+    
+    private func saveChanges() {
+        guard let uid = authManager.user?.uid else { return }
+        Task {
+            try? await categoryManager.saveCategory(uid: uid, category: category)
         }
     }
 }
 
-#Preview {
-    NavigationStack {
-        CategoryDetailView(category: .constant(CategoriesMockData.data[0]))
-    }
-}
+// EnvironmentObject'ten AuthenticationManager'ı güvenli almak için sarmalayıcı gerekebilir
+// Mevcut yapıda authManager doğrudan AuthenticationManager tipinde enjekte ediliyor olabilir.
+// Önceki dosyalarda @EnvironmentObject var authManager: AuthenticationManager olarak görmüştüm.
+// Burayı ona göre düzelteyim.

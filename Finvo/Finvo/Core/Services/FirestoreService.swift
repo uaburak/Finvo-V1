@@ -138,4 +138,44 @@ class FirestoreService: ObservableObject {
     func deleteTransaction(walletId: String, transactionId: String) async throws {
         try await db.collection("wallets").document(walletId).collection("transactions").document(transactionId).delete()
     }
+    
+    // MARK: - Category Operations
+    func fetchCategories(uid: String) async throws -> [CategoryModel] {
+        let snapshot = try await db.collection("users").document(uid).collection("categories").getDocuments()
+        return snapshot.documents.compactMap { try? $0.data(as: CategoryModel.self) }
+    }
+    
+    func saveCategory(uid: String, category: CategoryModel) async throws {
+        let docRef: DocumentReference
+        if let fid = category.firestoreId {
+            docRef = db.collection("users").document(uid).collection("categories").document(fid)
+        } else {
+            // Eğer ID henüz yoksa (mock data), deterministik safeId kullan
+            docRef = db.collection("users").document(uid).collection("categories").document(category.safeId)
+        }
+        try docRef.setData(from: category, merge: true)
+    }
+    
+    func deleteCategory(uid: String, categoryId: String) async throws {
+        try await db.collection("users").document(uid).collection("categories").document(categoryId).delete()
+    }
+    
+    func deleteAllCategories(uid: String) async throws {
+        let snapshot = try await db.collection("users").document(uid).collection("categories").getDocuments()
+        let batch = db.batch()
+        for doc in snapshot.documents {
+            batch.deleteDocument(doc.reference)
+        }
+        try await batch.commit()
+    }
+    
+    func initializeDefaultCategories(uid: String, categories: [CategoryModel]) async throws {
+        let batch = db.batch()
+        for category in categories {
+            // İsim bazlı deterministik ID kullanımı (Duplicate önlemek için)
+            let docRef = db.collection("users").document(uid).collection("categories").document(category.safeId)
+            try batch.setData(from: category, forDocument: docRef)
+        }
+        try await batch.commit()
+    }
 }

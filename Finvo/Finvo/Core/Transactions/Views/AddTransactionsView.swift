@@ -11,11 +11,14 @@ struct AddTransactionsView: View {
     @EnvironmentObject var authManager: AuthenticationManager
     @EnvironmentObject var walletManager: WalletManager
 
+    let transactionToEdit: TransactionModel?
+
     @State private var selectedType: TransactionType = .expense
     @State private var selectedMainCategory: CategoryModel?
     @State private var selectedSubCategory: SubCategoryModel?
     @State private var selectedDate: Date = Date()
     @State private var amount: String = ""
+    @ObservedObject var categoryManager = CategoryManager.shared
     @State private var activeSheet: ActiveSheet?
     @State private var isDebt: Bool = false
     @State private var debtContact: String = ""
@@ -27,8 +30,44 @@ struct AddTransactionsView: View {
     @State private var hasRecurrenceEndDate: Bool = false
     @State private var recurrenceEndDate: Date = Date().addingTimeInterval(86400 * 30) // +1 Month default
     
-    @State private var currentStep: TransactionStep = .type
-    @State private var selectedDetent: PresentationDetent = .height(280)
+    @State private var currentStep: TransactionStep
+    @State private var selectedDetent: PresentationDetent
+    
+    init(transactionToEdit: TransactionModel? = nil) {
+        self.transactionToEdit = transactionToEdit
+        
+        let type = transactionToEdit?.type ?? .expense
+        _selectedType = State(initialValue: type)
+        _selectedDate = State(initialValue: transactionToEdit?.date ?? Date())
+        _amount = State(initialValue: transactionToEdit != nil ? String(format: "%.0f", transactionToEdit!.amount) : "")
+        
+        // Kategori eşleştirme (Artık dinamik kategorilerden aranmalı)
+        let categories = CategoryManager.shared.categories
+        let mainCat = (categories.isEmpty ? CategoriesMockData.data : categories).first { $0.name == transactionToEdit?.mainCategoryName }
+        _selectedMainCategory = State(initialValue: mainCat)
+        
+        let subCat = mainCat?.subCategories.first { $0.name == transactionToEdit?.subCategoryName }
+        _selectedSubCategory = State(initialValue: subCat)
+        
+        _isDebt = State(initialValue: transactionToEdit?.isDebt ?? false)
+        _debtContact = State(initialValue: transactionToEdit?.debtContact ?? "")
+        _installmentCount = State(initialValue: transactionToEdit?.totalInstallments != nil ? "\(transactionToEdit!.totalInstallments!)" : "")
+        _paidInstallments = State(initialValue: transactionToEdit?.paidInstallments != nil ? "\(transactionToEdit!.paidInstallments!)" : "")
+        _dueDay = State(initialValue: transactionToEdit?.dueDay ?? 1)
+        
+        _isRecurring = State(initialValue: transactionToEdit?.isRecurring ?? false)
+        _recurringFrequency = State(initialValue: transactionToEdit?.recurrenceInterval ?? .monthly)
+        _hasRecurrenceEndDate = State(initialValue: transactionToEdit?.recurrenceEndDate != nil)
+        _recurrenceEndDate = State(initialValue: transactionToEdit?.recurrenceEndDate ?? Date().addingTimeInterval(86400 * 30))
+        
+        if transactionToEdit != nil {
+            _currentStep = State(initialValue: .details)
+            _selectedDetent = State(initialValue: .height(650))
+        } else {
+            _currentStep = State(initialValue: .type)
+            _selectedDetent = State(initialValue: .height(280))
+        }
+    }
     
     @State private var isSaving = false
     @State private var showPermissionErrorAlert = false
@@ -54,7 +93,7 @@ struct AddTransactionsView: View {
         var id: Int { hashValue }
     }
 
-    private var categoryRowValue: LocalizedStringKey {
+    private var categoryRowValue: String {
         if let sub = selectedSubCategory { return sub.name }
         if let main = selectedMainCategory { return main.name }
         return "Seçin"
@@ -82,7 +121,7 @@ struct AddTransactionsView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
-                        if currentStep != .type {
+                        if currentStep != .type && transactionToEdit == nil {
                             Button {
                                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                                 if let prev = TransactionStep(rawValue: currentStep.rawValue - 1) {
@@ -173,9 +212,9 @@ struct AddTransactionsView: View {
 
     private var categorySelectionView: some View {
         LazyVGrid(columns: columns, spacing: 16) {
-            let filteredCategories = CategoriesMockData.data.filter { $0.type == selectedType }
+            let filteredCategories = CategoryManager.shared.categories.isEmpty ? CategoriesMockData.data.filter { $0.type == selectedType } : CategoryManager.shared.categories.filter { $0.type == selectedType }
             ForEach(filteredCategories) { category in
-                SelectionCard(title: category.name, icon: category.icon, color: category.color) {
+                SelectionCard(title: category.name, icon: category.icon, color: category.uiColor) {
                     selectedMainCategory = category
                     nextStep()
                 }
@@ -187,7 +226,7 @@ struct AddTransactionsView: View {
         LazyVGrid(columns: columns, spacing: 16) {
             if let subCategories = selectedMainCategory?.subCategories {
                 ForEach(subCategories) { sub in
-                    SelectionCard(title: sub.name, icon: sub.icon, color: sub.color) {
+                    SelectionCard(title: sub.name, icon: sub.icon, color: sub.uiColor) {
                         selectedSubCategory = sub
                         nextStep()
                     }
@@ -200,14 +239,14 @@ struct AddTransactionsView: View {
         VStack(spacing: 24) {
             // Selected Path Summary
             HStack {
-                summaryItem(icon: selectedMainCategory?.icon ?? "", color: selectedMainCategory?.color ?? .gray, text: selectedMainCategory?.name ?? "")
+                summaryItem(icon: selectedMainCategory?.icon ?? "", color: selectedMainCategory?.color, text: selectedMainCategory?.name ?? "")
                 Image(systemName: "chevron.right").font(.caption).foregroundStyle(theme.labelSecondary)
-                summaryItem(icon: selectedSubCategory?.icon ?? "", color: selectedSubCategory?.color ?? .gray, text: selectedSubCategory?.name ?? "")
+                summaryItem(icon: selectedSubCategory?.icon ?? "", color: selectedSubCategory?.color, text: selectedSubCategory?.name ?? "")
             }
             .padding(.vertical, 8)
 
             VStack(spacing: 0) {
-                formRow("turkishlirasign.circle", "Tutar", LocalizedStringKey(amount.isEmpty ? "0,00 ₺" : "₺\(amount)")) { activeSheet = .amount }
+                formRow("turkishlirasign.circle", "Tutar", amount.isEmpty ? "0,00 ₺" : "₺\(amount)") { activeSheet = .amount }
                 Divider().padding(.leading, 56)
                 
                 HStack(spacing: 16) {
@@ -353,17 +392,18 @@ struct AddTransactionsView: View {
         }
     }
 
-    private func summaryItem(icon: String, color: Color, text: LocalizedStringKey) -> some View {
-        HStack(spacing: 8) {
+    private func summaryItem(icon: String, color: String?, text: String) -> some View {
+        let resolvedColor = color != nil ? Color(hex: color!) : .gray
+        return HStack(spacing: 8) {
             Image(systemName: icon)
-                .foregroundStyle(color)
+                .foregroundStyle(resolvedColor)
             Text(text)
                 .font(.subheadline)
                 .foregroundStyle(theme.labelPrimary)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .background(color.opacity(0.1))
+        .background(resolvedColor.opacity(0.1))
         .clipShape(Capsule())
     }
 
@@ -379,7 +419,7 @@ struct AddTransactionsView: View {
         }
     }
 
-    private func formRow(_ icon: String, _ title: String, _ value: LocalizedStringKey, action: @escaping () -> Void) -> some View {
+    private func formRow(_ icon: String, _ title: String, _ value: String, action: @escaping () -> Void) -> some View {
         Button {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
             action()
@@ -438,14 +478,16 @@ struct AddTransactionsView: View {
         
         isSaving = true
         
+        let categoryColorHex = selectedSubCategory?.color ?? selectedMainCategory?.color
+        
         let newTransaction = TransactionModel(
             walletId: activeWallet.id ?? "",
             type: selectedType,
             amount: parsedAmount,
-            mainCategoryName: selectedMainCategory?.name.stringValue ?? "Bilinmeyen",
-            subCategoryName: selectedSubCategory?.name.stringValue,
-            categoryIcon: selectedMainCategory?.icon ?? "questionmark",
-            categoryColor: "blue", // Gelecekte kategori rengi string'e çekilebilir
+            mainCategoryName: selectedMainCategory?.name ?? "Bilinmeyen",
+            subCategoryName: selectedSubCategory?.name,
+            categoryIcon: selectedSubCategory?.icon ?? selectedMainCategory?.icon ?? "questionmark",
+            categoryColor: categoryColorHex,
             date: selectedDate,
             note: nil,
             createdBy: currentUser,
@@ -463,7 +505,14 @@ struct AddTransactionsView: View {
         
         Task {
             do {
-                try await FirestoreService.shared.createTransaction(newTransaction)
+                if let editing = transactionToEdit, let id = editing.id {
+                    var updated = newTransaction
+                    updated.id = id
+                    try await FirestoreService.shared.updateTransaction(updated)
+                } else {
+                    try await FirestoreService.shared.createTransaction(newTransaction)
+                }
+                
                 await MainActor.run {
                     isSaving = false
                     dismiss()
@@ -474,6 +523,25 @@ struct AddTransactionsView: View {
                     print("Error saving: \(error)")
                 }
             }
+        }
+    }
+    
+    private func colorName(for color: Color) -> String {
+        switch color {
+        case .blue: return "blue"
+        case .green: return "green"
+        case .red: return "red"
+        case .orange: return "orange"
+        case .purple: return "purple"
+        case .pink: return "pink"
+        case .teal: return "teal"
+        case .indigo: return "indigo"
+        case .brown: return "brown"
+        case .cyan: return "cyan"
+        case .yellow: return "yellow"
+        case .gray: return "gray"
+        case .mint: return "mint"
+        default: return "blue"
         }
     }
 }
@@ -492,7 +560,7 @@ extension LocalizedStringKey {
 
 struct SelectionCard: View {
     @Environment(\.theme) var theme
-    let title: LocalizedStringKey
+    let title: String
     let icon: String
     let color: Color
     let action: () -> Void

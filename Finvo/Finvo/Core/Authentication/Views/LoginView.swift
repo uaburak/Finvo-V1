@@ -56,7 +56,9 @@ struct LoginView: View {
                     SignInWithAppleButton(.signIn) { request in
                         authManager.currentNonce = authManager.randomNonceString()
                         request.requestedScopes = [.fullName, .email]
-                        request.nonce = authManager.sha256(authManager.currentNonce!)
+                        if let nonce = authManager.currentNonce {
+                            request.nonce = authManager.sha256(nonce)
+                        }
                     } onCompletion: { result in
                         handleAppleLogin(result: result)
                     }
