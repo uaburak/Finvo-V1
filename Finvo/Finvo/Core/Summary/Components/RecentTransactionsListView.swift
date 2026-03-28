@@ -5,6 +5,7 @@ struct RecentTransactionsListView: View {
     @EnvironmentObject var walletManager: WalletManager
     @EnvironmentObject var transactionManager: TransactionManager
     @EnvironmentObject var authManager: AuthenticationManager
+    @ObservedObject var categoryManager = CategoryManager.shared
     
     var body: some View {
         VStack(spacing: 16) {
@@ -34,15 +35,43 @@ struct RecentTransactionsListView: View {
             .padding(.horizontal)
             
             // Liste Kartı
-            VStack(spacing: 8) {
-                Text("Henüz işlem bulunmuyor.")
-                    .font(.subheadline)
-                    .foregroundColor(theme.labelSecondary)
-                    .padding()
+            VStack(spacing: 0) {
+                let transactions = transactionManager.transactions.prefix(5)
+                
+                if transactions.isEmpty {
+                    Text("Henüz işlem bulunmuyor.")
+                        .font(.subheadline)
+                        .foregroundColor(theme.labelSecondary)
+                        .padding()
+                } else {
+                    ForEach(transactions) { transaction in
+                        let index = transactions.firstIndex(where: { $0.id == transaction.id }) ?? 0
+                        NavigationLink {
+                            TransactionDetailView(transaction: transaction)
+                                .environmentObject(walletManager)
+                                .environmentObject(authManager)
+                        } label: {
+                            ListItem(
+                                icon: transaction.resolvedIcon,
+                                iconColor: transaction.resolvedColor(),
+                                title: LocalizedStringKey(transaction.resolvedSubCategoryName ?? transaction.resolvedMainCategoryName),
+                                subtitle: LocalizedStringKey(transaction.date.formatted(date: .abbreviated, time: .shortened)),
+                                value: (transaction.isIncome ? "+₺" : "-₺") + transaction.amount.formatted(.number.grouping(.automatic).precision(.fractionLength(2))),
+                                valueColor: transaction.isIncome ? theme.income : theme.expense
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        
+                        if index < transactions.count - 1 {
+                            Divider().padding(.leading, 56)
+                        }
+                    }
+                }
             }
             .frame(maxWidth: .infinity)
-            .padding(16)
+            .padding(.vertical, 8)
             .glassEffect(in: .rect(cornerRadius: 24.0))
+            .padding(.horizontal)
         }
     }
 }

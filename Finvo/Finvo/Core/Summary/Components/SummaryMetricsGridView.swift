@@ -4,6 +4,7 @@ struct SummaryMetricsGridView: View {
     @Environment(\.theme) var theme
     @EnvironmentObject var transactionManager: TransactionManager
     @EnvironmentObject var walletManager: WalletManager
+    @ObservedObject var categoryManager = CategoryManager.shared
     
     // Düzenli 2 kolonlu yapı (Esnek)
     let columns = [
@@ -26,7 +27,10 @@ struct SummaryMetricsGridView: View {
         
         let limitProgress = limit > 0 ? (currentMonthExpenses / limit) : 0.0
         
-        let topCategory = transactionManager.topExpenseCategory
+        let topCategoryId = transactionManager.topExpenseCategoryId
+        let topCategoryName = transactionManager.topExpenseCategoryName
+        let resolvedTopCategory = CategoryManager.shared.categories.first(where: { $0.id == topCategoryId }) ?? 
+                                  CategoryManager.shared.categories.first(where: { $0.name == topCategoryName })
         
         let upcomingPayments = transactionManager.transactions.compactMap { $0.nextPayment(after: now) }
         let upcomingCount = upcomingPayments.count
@@ -42,7 +46,11 @@ struct SummaryMetricsGridView: View {
         return LazyVGrid(columns: columns, spacing: 16) {
             // Harcama Limiti
             MetricCardView(title: "Harcama Limiti", amount: "₺\(currentMonthExpenses.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))) / ₺\(limit.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))", iconName: "creditcard.fill", iconColor: theme.expense, progress: limitProgress)
-            MetricCardView(title: "En Çok Harcama", amount: LocalizedStringKey(topCategory), iconName: "cart.fill", iconColor: .blue, progress: 0.0)
+            MetricCardView(title: "En Çok Harcama", 
+                           amount: LocalizedStringKey(resolvedTopCategory?.name ?? topCategoryName), 
+                           iconName: resolvedTopCategory?.icon ?? "cart.fill", 
+                           iconColor: resolvedTopCategory?.uiColor ?? .blue, 
+                           progress: 0.0)
             
             NavigationLink(destination: PaymentCalendarDetailView(upcomingPayments: upcomingPayments)) {
                 MetricCardView(title: "Ödeme Takvimi", amount: LocalizedStringKey(paymentCalendarText), iconName: "calendar.badge.clock", iconColor: .orange, progress: upcomingCount > 0 ? 1.0 : nil)
@@ -195,11 +203,11 @@ struct PaymentCalendarDetailView: View {
                                 HStack(spacing: 16) {
                                     ZStack {
                                         Circle()
-                                            .fill(theme.expense.opacity(0.15))
+                                            .fill(tx.resolvedColor().opacity(0.15))
                                             .frame(width: 48, height: 48)
-                                        Image(systemName: tx.categoryIcon)
+                                        Image(systemName: tx.resolvedIcon)
                                             .font(.title3)
-                                            .foregroundColor(theme.expense)
+                                            .foregroundColor(tx.resolvedColor())
                                     }
                                     
                                     VStack(alignment: .leading, spacing: 4) {

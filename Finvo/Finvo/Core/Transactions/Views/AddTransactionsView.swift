@@ -30,6 +30,8 @@ struct AddTransactionsView: View {
     @State private var hasRecurrenceEndDate: Bool = false
     @State private var recurrenceEndDate: Date = Date().addingTimeInterval(86400 * 30) // +1 Month default
     
+    @State private var note: String = ""
+    
     @State private var currentStep: TransactionStep
     @State private var selectedDetent: PresentationDetent
     
@@ -41,13 +43,25 @@ struct AddTransactionsView: View {
         _selectedDate = State(initialValue: transactionToEdit?.date ?? Date())
         _amount = State(initialValue: transactionToEdit != nil ? String(format: "%.0f", transactionToEdit!.amount) : "")
         
-        // Kategori eşleştirme (Artık dinamik kategorilerden aranmalı)
-        let categories = CategoryManager.shared.categories
-        let mainCat = (categories.isEmpty ? CategoriesMockData.data : categories).first { $0.name == transactionToEdit?.mainCategoryName }
+        // Kategori eşleştirme (ID bazlı öncelik, isim fallback)
+        let categories = CategoryManager.shared.categories.isEmpty ? CategoriesMockData.data : CategoryManager.shared.categories
+        let mainCat = categories.first { cat in
+            if let targetId = transactionToEdit?.mainCategoryId {
+                return cat.id == targetId
+            }
+            return cat.name == transactionToEdit?.mainCategoryName
+        }
         _selectedMainCategory = State(initialValue: mainCat)
         
-        let subCat = mainCat?.subCategories.first { $0.name == transactionToEdit?.subCategoryName }
+        let subCat = mainCat?.subCategories.first { sub in
+            if let targetId = transactionToEdit?.subCategoryId {
+                return sub.id == targetId
+            }
+            return sub.name == transactionToEdit?.subCategoryName
+        }
         _selectedSubCategory = State(initialValue: subCat)
+        
+        _note = State(initialValue: transactionToEdit?.note ?? "")
         
         _isDebt = State(initialValue: transactionToEdit?.isDebt ?? false)
         _debtContact = State(initialValue: transactionToEdit?.debtContact ?? "")
@@ -166,7 +180,7 @@ struct AddTransactionsView: View {
                 switch sheet {
                 case .category:
                     CategorySelectionSheet(
-                        categories: CategoriesMockData.data.filter { $0.type == selectedType },
+                        categories: (categoryManager.categories.isEmpty ? CategoriesMockData.data : categoryManager.categories).filter { $0.type == selectedType },
                         selectedMainCategory: $selectedMainCategory,
                         selectedSubCategory: $selectedSubCategory
                     )
@@ -260,6 +274,22 @@ struct AddTransactionsView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 12)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 24))
+            .overlay(RoundedRectangle(cornerRadius: 24).stroke(theme.separator, lineWidth: 1))
+
+            // Not Alanı
+            VStack(spacing: 0) {
+                HStack(spacing: 16) {
+                    Image(systemName: "pencil.and.outline")
+                        .font(.system(size: 20))
+                        .foregroundStyle(theme.brandPrimary)
+                        .frame(width: 24)
+                    TextField("Not Ekle (İsteğe bağlı)", text: $note)
+                        .foregroundStyle(theme.labelPrimary)
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
             }
             .clipShape(RoundedRectangle(cornerRadius: 24))
             .overlay(RoundedRectangle(cornerRadius: 24).stroke(theme.separator, lineWidth: 1))
@@ -378,8 +408,10 @@ struct AddTransactionsView: View {
             .overlay(RoundedRectangle(cornerRadius: 24).stroke(theme.separator, lineWidth: 1))
 
             Button {
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                saveTransaction()
+                if validateForm() {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    saveTransaction()
+                }
             } label: {
                 Text(isSaving ? "Kaydediliyor..." : "Kaydet")
                     .font(.headline)
@@ -388,8 +420,21 @@ struct AddTransactionsView: View {
             }
             .buttonStyle(.glassProminent)
             .padding(.top, 8)
-            .disabled(isSaving)
+            .disabled(isSaving || !isFormValid)
         }
+    }
+
+    private var isFormValid: Bool {
+        if amount.isEmpty || selectedMainCategory == nil { return false }
+        if isDebt {
+            if debtContact.isEmpty || installmentCount.isEmpty { return false }
+        }
+        return true
+    }
+
+    private func validateForm() -> Bool {
+        if !isFormValid { return false }
+        return true
     }
 
     private func summaryItem(icon: String, color: String?, text: String) -> some View {
@@ -485,11 +530,13 @@ struct AddTransactionsView: View {
             type: selectedType,
             amount: parsedAmount,
             mainCategoryName: selectedMainCategory?.name ?? "Bilinmeyen",
+            mainCategoryId: selectedMainCategory?.id,
             subCategoryName: selectedSubCategory?.name,
+            subCategoryId: selectedSubCategory?.id,
             categoryIcon: selectedSubCategory?.icon ?? selectedMainCategory?.icon ?? "questionmark",
             categoryColor: categoryColorHex,
             date: selectedDate,
-            note: nil,
+            note: note.isEmpty ? nil : note,
             createdBy: currentUser,
             createdAt: Date(),
             isDebt: isDebt,

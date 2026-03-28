@@ -9,6 +9,7 @@
 //
 
 import SwiftUI
+import FirebaseAuth
 
 // MARK: - Tab tanımları
 enum AppTab: String, CaseIterable {
@@ -39,6 +40,7 @@ struct ContentView: View {
     @Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var walletManager: WalletManager
     @EnvironmentObject var transactionManager: TransactionManager
+    @EnvironmentObject var authManager: AuthenticationManager
     @State private var selectedTab: AppTab = .home
     @State private var showAddSheet: Bool = false
 
@@ -102,6 +104,11 @@ struct ContentView: View {
             AddTransactionsView()
                 .environmentObject(walletManager)
                 .environmentObject(transactionManager)
+        }
+        .task {
+            if let uid = authManager.user?.uid {
+                await CategoryManager.shared.loadCategories(uid: uid)
+            }
         }
         .environment(\.locale, Locale(identifier: appLanguage))
         .tint(theme.brandPrimary)

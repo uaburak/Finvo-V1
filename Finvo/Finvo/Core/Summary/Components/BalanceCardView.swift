@@ -123,7 +123,7 @@ struct BalanceCardView: View {
             if cards.count > 1 {
                 VStack(spacing: 6) {
                     ForEach(0..<cards.count, id: \.self) { indicatorIndex in
-                        let activeIndex = (scrolledID ?? 0) % cards.count
+                        let activeIndex = (cards.count > 0) ? ((scrolledID ?? 0) % cards.count) : 0
                         let isActive = (indicatorIndex == activeIndex)
                         
                         Circle()

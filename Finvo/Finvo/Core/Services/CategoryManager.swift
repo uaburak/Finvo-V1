@@ -24,15 +24,8 @@ class CategoryManager: ObservableObject {
                     self.categories = CategoriesMockData.data
                 }
             } else {
-                // DB'den gelenleri isim bazlı tekilleştir (Ghost dökümanlardan kurtulmak için)
-                var uniqueDict: [String: CategoryModel] = [:]
-                for cat in fetched {
-                    let key = cat.name.lowercased().trimmingCharacters(in: .whitespaces)
-                    if uniqueDict[key] == nil || cat.firestoreId == cat.safeId {
-                        uniqueDict[key] = cat
-                    }
-                }
-                self.categories = Array(uniqueDict.values).sorted(by: { $0.name < $1.name })
+                // DB'den gelenleri isimlerine göre sırala
+                self.categories = fetched.sorted(by: { $0.name < $1.name })
             }
         } catch {
             print("Kategoriler yüklenirken hata: \(error)")
@@ -72,13 +65,13 @@ class CategoryManager: ObservableObject {
         await loadCategories(uid: uid)
     }
     
-    func deleteCategory(uid: String, categoryId: String) async throws {
+    func deleteCategory(uid: String, walletId: String?, category: CategoryModel) async throws {
         if !isInitializing {
             let fetched = try await FirestoreService.shared.fetchCategories(uid: uid)
             if fetched.isEmpty {
                 isInitializing = true
                 do {
-                    let remaining = CategoriesMockData.data.filter { $0.id != categoryId }
+                    let remaining = CategoriesMockData.data.filter { $0.id != category.id }
                     try await FirestoreService.shared.initializeDefaultCategories(uid: uid, categories: remaining)
                     isInitializing = false
                 } catch {
@@ -86,7 +79,16 @@ class CategoryManager: ObservableObject {
                     throw error
                 }
             } else {
-                try await FirestoreService.shared.deleteCategory(uid: uid, categoryId: categoryId)
+                try await FirestoreService.shared.deleteCategory(uid: uid, categoryId: category.id)
+            }
+            
+            // Cascade Delete: Bu kategoriye ait işlemleride sil
+            if let wId = walletId {
+                try? await FirestoreService.shared.deleteTransactionsByCategory(
+                    walletId: wId, 
+                    categoryId: category.id, 
+                    categoryName: category.name
+                )
             }
         }
         await loadCategories(uid: uid)

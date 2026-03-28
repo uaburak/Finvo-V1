@@ -5,6 +5,7 @@ struct TransactionsView: View {
     @EnvironmentObject var transactionManager: TransactionManager
     @EnvironmentObject var walletManager: WalletManager
     @EnvironmentObject var authManager: AuthenticationManager
+    @ObservedObject var categoryManager = CategoryManager.shared
     
     @State var selectedType: TransactionType
 
@@ -32,8 +33,8 @@ struct TransactionsView: View {
                           (item.note ?? "").localizedCaseInsensitiveContains(searchText) else { return false }
                 }
                 
-                if let catName = selectedCategory {
-                    guard item.mainCategoryName == catName else { return false }
+                if let catId = selectedCategory {
+                    guard item.mainCategoryId == catId || item.mainCategoryName == catId else { return false }
                 }
                 
                 if useDateRange {
@@ -64,8 +65,8 @@ struct TransactionsView: View {
                 List {
                     ForEach(sortedItems) { transaction in
                         let isFirst = transaction.id == sortedItems.first?.id
-                        let mainTitle = transaction.subCategoryName ?? transaction.mainCategoryName
-                        let subtitleText = transaction.subCategoryName != nil ? "\(transaction.mainCategoryName) • @\(transaction.createdBy)" : "@\(transaction.createdBy)"
+                        let mainTitle = transaction.resolvedSubCategoryName ?? transaction.resolvedMainCategoryName
+                        let subtitleText = transaction.resolvedSubCategoryName != nil ? transaction.resolvedMainCategoryName : transaction.date.formatted(date: .abbreviated, time: .shortened)
 
                         ZStack {
                             NavigationLink(destination: TransactionDetailView(transaction: transaction)
@@ -76,8 +77,8 @@ struct TransactionsView: View {
                             .opacity(0)
 
                             ListItem(
-                                icon: transaction.categoryIcon,
-                                iconColor: transaction.resolvedColor,
+                                icon: transaction.resolvedIcon,
+                                iconColor: transaction.resolvedColor(),
                                 title: LocalizedStringKey(mainTitle),
                                 subtitle: LocalizedStringKey(subtitleText),
                                 value: (transaction.type == .income ? "+₺" : "-₺") + transaction.amount.formatted(.number.grouping(.automatic).precision(.fractionLength(2))),
@@ -161,7 +162,7 @@ struct TransactionsView: View {
                         Text("Tüm Kategoriler").tag(Optional<String>.none)
                         let availableCategories = CategoryManager.shared.categories.isEmpty ? CategoriesMockData.data : CategoryManager.shared.categories
                         ForEach(availableCategories.filter { $0.type == selectedType }) { cat in
-                            Label(cat.name, systemImage: cat.icon).tag(Optional(cat.name))
+                            Label(cat.name, systemImage: cat.icon).tag(Optional(cat.id))
                         }
                     }
 

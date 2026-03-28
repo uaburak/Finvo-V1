@@ -10,7 +10,8 @@ class TransactionManager: ObservableObject {
     
     @Published var totalIncome: Double = 0.0
     @Published var totalExpense: Double = 0.0
-    @Published var topExpenseCategory: String = "-"
+    @Published var topExpenseCategoryId: String? = nil
+    @Published var topExpenseCategoryName: String = "-"
     
     private var listener: ListenerRegistration?
     private let db = Firestore.firestore()
@@ -38,7 +39,8 @@ class TransactionManager: ObservableObject {
                     self.transactions = []
                     self.totalIncome = 0
                     self.totalExpense = 0
-                    self.topExpenseCategory = "-"
+                    self.topExpenseCategoryId = nil
+                    self.topExpenseCategoryName = "-"
                     return
                 }
                 
@@ -49,15 +51,19 @@ class TransactionManager: ObservableObject {
                     let income = parsed.filter { $0.type == .income && !$0.isDebt }.reduce(0) { $0 + $1.amount }
                     let expense = parsed.filter { $0.type == .expense && !$0.isDebt }.reduce(0) { $0 + $1.amount }
                     
-                    let expenseDict = Dictionary(grouping: parsed.filter { $0.type == .expense }, by: { $0.mainCategoryName })
-                    let topCat = expenseDict.max(by: { a, b in a.value.reduce(0) { $0 + $1.amount } < b.value.reduce(0) { $0 + $1.amount } })?.key ?? "-"
+                    let expenseOnly = parsed.filter { $0.type == .expense && !$0.isDebt }
+                    let expenseDict = Dictionary(grouping: expenseOnly, by: { $0.mainCategoryId ?? $0.mainCategoryName })
+                    let topEntry = expenseDict.max(by: { a, b in a.value.reduce(0) { $0 + $1.amount } < b.value.reduce(0) { $0 + $1.amount } })
+                    let topId = topEntry?.key
+                    let topName = topEntry?.value.first?.mainCategoryName ?? "-"
                     
                     // Sonuçları Main Thread'e (UI'a) yay!
                     await MainActor.run {
                         self.transactions = parsed
                         self.totalIncome = income
                         self.totalExpense = expense
-                        self.topExpenseCategory = topCat
+                        self.topExpenseCategoryId = topId
+                        self.topExpenseCategoryName = topName
                         self.hasLoaded = true
                     }
                 }
@@ -72,7 +78,8 @@ class TransactionManager: ObservableObject {
         transactions = []
         totalIncome = 0
         totalExpense = 0
-        topExpenseCategory = "-"
+        topExpenseCategoryId = nil
+        topExpenseCategoryName = "-"
     }
     
     // Borç ödeme operasyonu

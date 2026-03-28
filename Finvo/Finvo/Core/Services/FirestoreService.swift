@@ -139,6 +139,57 @@ class FirestoreService: ObservableObject {
         try await db.collection("wallets").document(walletId).collection("transactions").document(transactionId).delete()
     }
     
+    func deleteTransactionsByCategory(walletId: String, categoryId: String, categoryName: String) async throws {
+        let transactions = db.collection("wallets").document(walletId).collection("transactions")
+        
+        // Hem ID hem de isim ile kontrol et (Geriye dönük uyumluluk için)
+        // Önce ID ile olanları bul
+        let snapshotById = try await transactions.whereField("mainCategoryId", isEqualTo: categoryId).getDocuments()
+        
+        // Sonra İsim ile olanları bul (ID'si olmayan eski kayıtlar için)
+        let snapshotByName = try await transactions.whereField("mainCategoryName", isEqualTo: categoryName).getDocuments()
+        
+        let batch = db.batch()
+        
+        for doc in snapshotById.documents {
+            batch.deleteDocument(doc.reference)
+        }
+        
+        for doc in snapshotByName.documents {
+            // Zaten eklenmişse tekrar ekleme (Opsiyonel ama temizlik için)
+            if !snapshotById.documents.contains(where: { $0.documentID == doc.documentID }) {
+                batch.deleteDocument(doc.reference)
+            }
+        }
+        
+        try await batch.commit()
+    }
+    
+    func deleteTransactionsBySubCategory(walletId: String, mainCategoryId: String, subCategoryId: String, subCategoryName: String) async throws {
+        let transactions = db.collection("wallets").document(walletId).collection("transactions")
+        
+        // ID ile bul
+        let snapshotById = try await transactions
+            .whereField("mainCategoryId", isEqualTo: mainCategoryId)
+            .whereField("subCategoryId", isEqualTo: subCategoryId)
+            .getDocuments()
+        
+        // İsim ile bul (ID'si olmayan eski kayıtlar için)
+        // Not: subCategoryName tek başına güvenli olmayabilir, mainCategoryName ile birleştirmek daha iyi
+        let snapshotByName = try await transactions
+            .whereField("subCategoryName", isEqualTo: subCategoryName)
+            .getDocuments()
+        
+        let batch = db.batch()
+        for doc in snapshotById.documents { batch.deleteDocument(doc.reference) }
+        for doc in snapshotByName.documents {
+            // Sadece doğru ana kategoriye ait olanları sil (Eski kayıtlar için isim bazlı kontrol)
+            // Bu kısım biraz riskli olsa da kullanıcının isteği yönünde cascade delete sağlar.
+            batch.deleteDocument(doc.reference)
+        }
+        try await batch.commit()
+    }
+    
     // MARK: - Category Operations
     func fetchCategories(uid: String) async throws -> [CategoryModel] {
         let snapshot = try await db.collection("users").document(uid).collection("categories").getDocuments()

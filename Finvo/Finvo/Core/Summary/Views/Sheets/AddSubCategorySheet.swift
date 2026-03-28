@@ -13,8 +13,9 @@ struct AddSubCategorySheet: View {
     @State private var subCategoryName: String = ""
     @State private var selectedIcon: String = "tag.fill"
     @State private var selectedColor: Color = .blue
+    @State private var showDuplicateAlert: Bool = false
     
-    let icons = ["tag.fill", "cart.fill", "cup.and.saucer.fill", "house.fill", "car.fill", "bag.fill", "heart.fill", "graduationcap.fill", "airplane", "gift.fill", "gamecontroller.fill", "play.tv.fill", "music.note", "creditcard.fill", "banknote.fill", "bolt.fill"]
+    let icons = CategoryIconLibrary.icons
     let colors: [Color] = [.blue, .green, .orange, .red, .purple, .pink, .teal, .indigo, .brown, .mint, .cyan, .gray, .black]
     
     init(mainCategory: Binding<CategoryModel>, subCategoryToEdit: SubCategoryModel? = nil) {
@@ -133,6 +134,11 @@ struct AddSubCategorySheet: View {
             }
             .navigationTitle(subCategoryToEdit == nil ? "Yeni Alt Kategori" : "Alt Kategoriyi Düzenle")
             .navigationBarTitleDisplayMode(.inline)
+            .alert("Alt Kategori Mevcut", isPresented: $showDuplicateAlert) {
+                Button("Tamam", role: .cancel) { }
+            } message: {
+                Text("'\(subCategoryName)' adında bir alt kategori bu grupta zaten mevcut.")
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -153,6 +159,15 @@ struct AddSubCategorySheet: View {
         
         guard let uid = authManager.user?.uid else { return }
         
+        // Benzersizlik Kontrolü (Aynı ana kategori içinde)
+        let isDuplicate = mainCategory.subCategories.contains { sub in
+            sub.name.lowercased() == subCategoryName.lowercased() && sub.id != subCategoryToEdit?.id
+        }
+        
+        if isDuplicate {
+            showDuplicateAlert = true
+            return
+        }
         let newSubCategory = SubCategoryModel(
             id: subCategoryToEdit?.id ?? UUID().uuidString,
             name: subCategoryName,

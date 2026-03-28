@@ -10,6 +10,50 @@ struct SubCategoryModel: Identifiable, Equatable, Codable {
     var isOn: Bool = true // toggle state
 }
 
+struct CategoryIconLibrary {
+    static let icons = [
+        // Temel / Finans
+        "banknote.fill", "creditcard.fill", "dollarsign.circle.fill", "eurosign.circle.fill", "turkishlirasign.circle.fill",
+        "percent", "tag.fill", "tag.circle.fill", "gift.fill", "bag.fill", "bag.badge.plus", "cart.fill", "cart.badge.plus", "basket.fill", "shippingbox.fill",
+        
+        // Kişiler / Sosyal
+        "person.fill", "person.2.fill", "person.3.fill", "person.crop.circle.fill", "person.circle.fill", 
+        "person.and.background.dotted", "figure.2.handhold", "figure.child", "figure.stand", "figure.dress.line.vertical.figure",
+        "heart.fill", "heart.circle.fill", "party.popper.fill", "hand.thumbsup.fill", "hand.raised.fill",
+        
+        // Yaşam / Ev
+        "house.fill", "house.and.flag.fill", "building.2.fill", "building.columns.fill", "sofa.fill", 
+        "lamp.floor.fill", "homekit", "bolt.fill", "drop.fill", "drop.circle.fill", "flame.fill",
+        "leaf.fill", "bubbles.and.sparkles.fill", "wrench.and.screwdriver.fill", "hammer.fill", "key.fill", "lock.fill",
+        
+        // Ulaşım
+        "car.fill", "fuelpump.fill", "bus.fill", "airplane", "tram.fill", "bicycle", "figure.walk", 
+        "map.fill", "ticket.fill", "passport.fill", "parkingsign.circle.fill", "shield.checkerboard",
+        
+        // Teknoloji / İş
+        "laptopcomputer", "desktopcomputer", "iphone", "apple.logo", "g.circle.fill", "icloud.fill", 
+        "globe", "wifi", "terminal.fill", "chevron.left.forwardslash.chevron.right", "brain.head.profile", 
+        "message.and.waveform.fill", "waveform", "shimmer", "app.badge.fill", "puzzlepiece.fill",
+        "briefcase.fill", "doc.text.fill", "archivebox.fill", "triangle.fill", "camera.fill",
+        
+        // Eğlence / Hobi
+        "cup.and.saucer.fill", "fork.knife.circle.fill", "mug.fill", "hamburger.fill", "wineglass.fill", 
+        "music.note.house.fill", "music.mic", "play.tv.fill", "sparkles.tv.fill", 
+        "play.rectangle.fill", "play.circle.fill", "film.stack.fill", "tv.fill", "gamecontroller.fill", 
+        "dpad.fill", "playstation.logo", "xbox.logo", "headphones", "guitars.fill", "paintpalette.fill", 
+        "paintbrush.fill", "checkerboard.rectangle.fill", "teddybear.fill", "die.face.5.fill",
+        
+        // Sağlık / Kişisel
+        "pills.fill", "stethoscope", "scissors", "face.smiling", "cross.case.fill",
+        "tshirt.fill", "shoeprints.fill", "graduationcap.fill", "book.fill", "book.closed.fill", 
+        "square.grid.2x2.fill", "wand.and.stars", "fountainpen.tip",
+        
+        // Diğer / Doğa
+        "star.fill", "repeat.circle.fill", "arrow.uturn.left", "arrow.right.arrow.left", "bell.fill", 
+        "pawprint.fill", "circle.grid.3x3.fill", "cloud.fill", "umbrella.fill", "sun.max.fill", "moon.fill"
+    ]
+}
+
 struct CategoryModel: Identifiable, Equatable, Codable {
     @DocumentID var firestoreId: String?
     var id: String { firestoreId ?? safeId }
@@ -25,9 +69,20 @@ struct CategoryModel: Identifiable, Equatable, Codable {
 // Extending for UI Layer
 extension CategoryModel {
     var safeId: String {
-        return name.lowercased()
+        let turkishMap = [
+            "ç": "c", "ğ": "g", "ı": "i", "İ": "i", "ö": "o", "ş": "s", "ü": "u",
+            "Ç": "c", "Ğ": "g", "Ö": "o", "Ş": "s", "Ü": "u"
+        ]
+        
+        var result = name.lowercased()
+        for (char, replacement) in turkishMap {
+            result = result.replacingOccurrences(of: char, with: replacement)
+        }
+        
+        return result
             .replacingOccurrences(of: " ", with: "_")
             .replacingOccurrences(of: "&", with: "n")
+            .filter { "abcdefghijklmnopqrstuvwxyz0123456789_".contains($0) }
     }
     
     var uiColor: Color {
@@ -39,22 +94,7 @@ extension CategoryModel {
     }
 
     private func getColorFromName(_ name: String) -> Color {
-        switch name.lowercased() {
-        case "blue": return .blue
-        case "green": return .green
-        case "red": return .red
-        case "orange": return .orange
-        case "purple": return .purple
-        case "pink": return .pink
-        case "teal": return .teal
-        case "indigo": return .indigo
-        case "brown": return .brown
-        case "cyan": return .cyan
-        case "gray": return .gray
-        case "black": return .black
-        case "mint": return .mint
-        default: return .blue
-        }
+        return Color.fromStandardName(name)
     }
 }
 
@@ -68,22 +108,7 @@ extension SubCategoryModel {
     }
 
     private func getColorFromName(_ name: String) -> Color {
-        switch name.lowercased() {
-        case "blue": return .blue
-        case "green": return .green
-        case "red": return .red
-        case "orange": return .orange
-        case "purple": return .purple
-        case "pink": return .pink
-        case "teal": return .teal
-        case "indigo": return .indigo
-        case "brown": return .brown
-        case "cyan": return .cyan
-        case "gray": return .gray
-        case "black": return .black
-        case "mint": return .mint
-        default: return .blue
-        }
+        return Color.fromStandardName(name)
     }
 }
 

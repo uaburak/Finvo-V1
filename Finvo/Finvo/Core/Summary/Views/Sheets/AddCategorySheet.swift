@@ -12,8 +12,9 @@ struct AddCategorySheet: View {
     @State private var selectedType: TransactionType
     @State private var selectedIcon: String = "cart.fill"
     @State private var selectedColor: Color = .blue
+    @State private var showDuplicateAlert: Bool = false
     
-    let icons = ["cart.fill", "cup.and.saucer.fill", "house.fill", "doc.plaintext.fill", "car.fill", "bag.fill", "heart.fill", "graduationcap.fill", "pawprint.fill", "airplane", "briefcase.fill", "gift.fill", "star.fill", "gamecontroller.fill"]
+    let icons = CategoryIconLibrary.icons
     let colors: [Color] = [.blue, .green, .orange, .red, .purple, .pink, .teal, .indigo, .brown, .mint, .cyan, .gray, .black]
     
     init(type: TransactionType, categoryToEdit: CategoryModel? = nil) {
@@ -129,6 +130,11 @@ struct AddCategorySheet: View {
             }
             .navigationTitle(categoryToEdit == nil ? "Yeni Kategori" : "Kategoriyi Düzenle")
             .navigationBarTitleDisplayMode(.inline)
+            .alert("Kategori Mevcut", isPresented: $showDuplicateAlert) {
+                Button("Tamam", role: .cancel) { }
+            } message: {
+                Text("'\(categoryName)' adında bir kategori zaten mevcut. Lütfen farklı bir isim seçin.")
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -149,6 +155,15 @@ struct AddCategorySheet: View {
         
         guard let uid = authManager.user?.uid else { return }
         
+        // Benzersizlik Kontrolü
+        let isDuplicate = categoryManager.categories.contains { cat in
+            cat.name.lowercased() == categoryName.lowercased() && cat.id != categoryToEdit?.id && cat.type == selectedType
+        }
+        
+        if isDuplicate {
+            showDuplicateAlert = true
+            return
+        }
         let newCategory = CategoryModel(
             firestoreId: categoryToEdit?.firestoreId,
             type: selectedType,

@@ -5,6 +5,7 @@ struct TransactionDetailView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var walletManager: WalletManager
     @EnvironmentObject var authManager: AuthenticationManager
+    @ObservedObject var categoryManager = CategoryManager.shared
 
     let transaction: TransactionModel
 
@@ -63,20 +64,22 @@ struct TransactionDetailView: View {
                     .fill(transaction.isIncome ? theme.income : theme.expense)
                     .frame(width: 56, height: 56)
 
-                Image(systemName: transaction.categoryIcon)
+                Image(systemName: transaction.resolvedIcon)
                     .font(.system(size: 24, weight: .semibold))
                     .foregroundColor(.white)
             }
 
-            // Kategori
-            Text(transaction.mainCategoryName)
-                .font(.headline)
-                .foregroundColor(theme.labelPrimary)
-
-            if let sub = transaction.subCategoryName {
-                Text(sub)
-                    .font(.subheadline)
-                    .foregroundColor(theme.labelSecondary)
+            VStack(alignment: .center, spacing: 4) {
+                Text(transaction.resolvedSubCategoryName ?? transaction.resolvedMainCategoryName)
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(theme.labelPrimary)
+                
+                if transaction.resolvedSubCategoryName != nil {
+                    Text(transaction.resolvedMainCategoryName)
+                        .font(.subheadline)
+                        .foregroundColor(theme.labelSecondary)
+                }
             }
 
             // Tutar
@@ -220,7 +223,7 @@ struct TransactionDetailView: View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .medium))
-                .foregroundColor(transaction.resolvedColor)
+                .foregroundColor(transaction.resolvedColor())
                 .frame(width: 24)
 
             Text(title)

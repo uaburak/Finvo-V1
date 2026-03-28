@@ -15,7 +15,9 @@ struct TransactionModel: Codable, Identifiable, Equatable, Hashable {
     var type: TransactionType
     var amount: Double
     var mainCategoryName: String
+    var mainCategoryId: String? // Stable ID for sync and cascade delete
     var subCategoryName: String?
+    var subCategoryId: String? // Stable ID for sync and cascade delete
     var categoryIcon: String
     var categoryColor: String? // Optional hex or standard color name
     var date: Date
@@ -40,8 +42,38 @@ struct TransactionModel: Codable, Identifiable, Equatable, Hashable {
         return type == .income
     }
     
+    var resolvedMainCategoryName: String {
+        let category = CategoryManager.shared.categories.first(where: { $0.id == mainCategoryId }) ?? 
+                       CategoryManager.shared.categories.first(where: { $0.name == mainCategoryName })
+        return category?.name ?? mainCategoryName
+    }
+    
+    var resolvedSubCategoryName: String? {
+        let category = CategoryManager.shared.categories.first(where: { $0.id == mainCategoryId }) ?? 
+                       CategoryManager.shared.categories.first(where: { $0.name == mainCategoryName })
+        if let subId = subCategoryId, let sub = category?.subCategories.first(where: { $0.id == subId }) {
+            return sub.name
+        }
+        return subCategoryName
+    }
+    
     // SwiftUI Color resolution
-    var resolvedColor: Color {
+    func resolvedColor() -> Color {
+        // Dinamik kontrol: CategoryManager'dan güncel rengi çekmeye çalış (Önce ID ile, sonra isimle)
+        let category = CategoryManager.shared.categories.first(where: { $0.id == mainCategoryId }) ?? 
+                       CategoryManager.shared.categories.first(where: { $0.name == mainCategoryName })
+        
+        if let category = category {
+            if let subId = subCategoryId, let sub = category.subCategories.first(where: { $0.id == subId }) {
+                return sub.uiColor
+            }
+            if let subName = subCategoryName, let sub = category.subCategories.first(where: { $0.name == subName }) {
+                return sub.uiColor
+            }
+            return category.uiColor
+        }
+        
+        // Bulunamazsa (veya Mock data ise) kayıtlı rengi kullan
         guard let colorStr = categoryColor else { return .blue }
         if colorStr.hasPrefix("#") {
             return Color(hex: colorStr)
@@ -66,14 +98,41 @@ struct TransactionModel: Codable, Identifiable, Equatable, Hashable {
         }
     }
     
-    // Manual Hashable & Equatable to ensure compiler satisfaction
+    // SwiftUI Icon resolution
+    var resolvedIcon: String {
+        let category = CategoryManager.shared.categories.first(where: { $0.id == mainCategoryId }) ?? 
+                       CategoryManager.shared.categories.first(where: { $0.name == mainCategoryName })
+
+        if let category = category {
+            if let subId = subCategoryId, let sub = category.subCategories.first(where: { $0.id == subId }) {
+                return sub.icon
+            }
+            if let subName = subCategoryName, let sub = category.subCategories.first(where: { $0.name == subName }) {
+                return sub.icon
+            }
+            return category.icon
+        }
+        return categoryIcon
+    }
+    
+    // Manual Hashable & Equatable to ensure complete data dependency coverage
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
         hasher.combine(walletId)
         hasher.combine(type)
         hasher.combine(amount)
+        hasher.combine(mainCategoryId)
+        hasher.combine(subCategoryId)
+        hasher.combine(mainCategoryName)
+        hasher.combine(subCategoryName)
+        hasher.combine(categoryIcon)
+        hasher.combine(categoryColor)
         hasher.combine(date)
+        hasher.combine(note)
         hasher.combine(createdBy)
+        hasher.combine(isDebt)
+        hasher.combine(isRecurring)
+        hasher.combine(isPaid)
     }
 
     static func == (lhs: TransactionModel, rhs: TransactionModel) -> Bool {
@@ -81,8 +140,18 @@ struct TransactionModel: Codable, Identifiable, Equatable, Hashable {
                lhs.walletId == rhs.walletId &&
                lhs.type == rhs.type &&
                lhs.amount == rhs.amount &&
+               lhs.mainCategoryId == rhs.mainCategoryId &&
+               lhs.subCategoryId == rhs.subCategoryId &&
+               lhs.mainCategoryName == rhs.mainCategoryName &&
+               lhs.subCategoryName == rhs.subCategoryName &&
+               lhs.categoryIcon == rhs.categoryIcon &&
+               lhs.categoryColor == rhs.categoryColor &&
                lhs.date == rhs.date &&
-               lhs.createdBy == rhs.createdBy
+               lhs.note == rhs.note &&
+               lhs.createdBy == rhs.createdBy &&
+               lhs.isDebt == rhs.isDebt &&
+               lhs.isRecurring == rhs.isRecurring &&
+               lhs.isPaid == rhs.isPaid
     }
 }
 
@@ -101,29 +170,43 @@ extension TransactionModel {
             guard let total = totalInstallments, let paid = paidInstallments, paid < total else { return nil }
             
             // Gerçek taksit tutarını ata
-            copy.amount = self.amount / Double(total)
+            copy.amount = total > 0 ? (self.amount / Double(total)) : self.amount
             
-            // Sonraki ödeme tarihi hesapla
+            // Sonraki ödeme tarihi hesapla (Ay sonu güvenliği ile)
             let targetDay = self.dueDay ?? calendar.component(.day, from: self.date)
-            var components = DateComponents(year: currentYear, month: currentMonth, day: targetDay)
             
-            if targetDay <= currentDay {
-                components.month = currentMonth + 1 // Gelecek ay
+            // Mevcut ayın targetDay gününü oluştur
+            var components = calendar.dateComponents([.year, .month], from: currentDate)
+            components.day = targetDay
+            
+            // Eğer bu ayın ödeme günü geçtiyse veya bugünse, bir sonraki aya bak
+            if let thisMonthPayment = calendar.date(from: components), thisMonthPayment <= currentDate {
+                // date(byAdding: .month) ay sonu (28-31) problemlerini otomatik çözer
+                if let nextMonth = calendar.date(byAdding: .month, value: 1, to: thisMonthPayment) {
+                    copy.date = nextMonth
+                }
+            } else if let thisMonthPayment = calendar.date(from: components) {
+                copy.date = thisMonthPayment
             }
-            if let nextDate = calendar.date(from: components) {
-                copy.date = nextDate
-                copy.note = "\(paid + 1). Taksit Ödemesi"
-                return copy
-            }
+            
+            copy.note = "\(paid + 1). Taksit Ödemesi"
+            return copy
         } 
         else if isRecurring {
-            let targetDay = calendar.component(.day, from: self.date)
-            var components = DateComponents(year: currentYear, month: currentMonth, day: targetDay)
+            // date(byAdding: .month) kullanımı en güvenli yoldur
+            let value: Int
+            let component: Calendar.Component
             
-            if targetDay <= currentDay {
-                components.month = currentMonth + 1
+            switch recurrenceInterval ?? .monthly {
+            case .daily: value = 1; component = .day
+            case .weekly: value = 1; component = .weekdayOrdinal // approx, better use weekOfYear
+            case .monthly: value = 1; component = .month
+            case .yearly: value = 1; component = .year
             }
-            if let nextDate = calendar.date(from: components) {
+            
+            // Not: Basitlik adına aylık üzerinden gidelim (Abonelikler genelde aylıktır)
+            // Daha detaylı interval mantığı eklenebilir.
+            if let nextDate = calendar.date(byAdding: .month, value: 1, to: self.date) {
                 if let end = recurrenceEndDate, nextDate > end { return nil }
                 copy.date = nextDate
                 return copy

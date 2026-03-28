@@ -4,6 +4,7 @@ import FirebaseAuth
 struct CategoriesListView: View {
     @Environment(\.theme) var theme
     @EnvironmentObject var authManager: AuthenticationManager
+    @EnvironmentObject var walletManager: WalletManager
     @ObservedObject var categoryManager = CategoryManager.shared
     
     @State private var categoryToEdit: CategoryModel?
@@ -128,9 +129,9 @@ struct CategoriesListView: View {
     
     private func handleDelete(_ category: CategoryModel) {
         guard let uid = authManager.user?.uid else { return }
-        let id = category.id
+        let walletId = walletManager.activeWallet?.id
         Task {
-            try? await categoryManager.deleteCategory(uid: uid, categoryId: id)
+            try? await categoryManager.deleteCategory(uid: uid, walletId: walletId, category: category)
         }
     }
 }

@@ -36,4 +36,24 @@ extension Color {
         let hexString = String.init(format: "#%02lX%02lX%02lX", lroundf(Float(r * 255)), lroundf(Float(g * 255)), lroundf(Float(b * 255)))
         return hexString
     }
+    
+    static func fromStandardName(_ name: String) -> Color {
+        switch name.lowercased() {
+        case "blue": return .blue
+        case "green": return .green
+        case "red": return .red
+        case "orange": return .orange
+        case "purple": return .purple
+        case "pink": return .pink
+        case "teal": return .teal
+        case "indigo": return .indigo
+        case "brown": return .brown
+        case "cyan": return .cyan
+        case "gray": return .gray
+        case "black": return .black
+        case "mint": return .mint
+        case "yellow": return .yellow
+        default: return .blue
+        }
+    }
 }

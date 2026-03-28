@@ -4,6 +4,7 @@ import FirebaseAuth
 struct CategoryDetailView: View {
     @Environment(\.theme) var theme
     @EnvironmentObject var authManager: AuthenticationManager
+    @EnvironmentObject var walletManager: WalletManager
     @ObservedObject var categoryManager = CategoryManager.shared
     
     @Binding var category: CategoryModel
@@ -31,8 +32,21 @@ struct CategoryDetailView: View {
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         Button(role: .destructive) {
                             categoryManager.checkProAndExecute(authManager: authManager) {
+                                let subToDelete = category.subCategories[index]
                                 category.subCategories.remove(at: index)
                                 saveChanges()
+                                
+                                // Cascade Delete: Bu alt kategoriye ait işlemleride sil
+                                if let wId = walletManager.activeWallet?.id {
+                                    Task {
+                                        try? await FirestoreService.shared.deleteTransactionsBySubCategory(
+                                            walletId: wId,
+                                            mainCategoryId: category.id,
+                                            subCategoryId: subToDelete.id,
+                                            subCategoryName: subToDelete.name
+                                        )
+                                    }
+                                }
                             }
                         } label: {
                             Image(systemName: "trash")
