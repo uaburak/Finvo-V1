@@ -45,7 +45,7 @@ class NotificationManager: ObservableObject {
         notifications = []
     }
     
-    func sendRoleRequest(walletId: String, walletName: String, ownerUsername: String) {
+    func sendRoleRequest(walletId: String, walletName: String, ownerUsername: String, requestedRole: WalletRole = .admin) {
         guard let myUsername = AuthenticationManager.shared.currentUserProfile?.username else { return }
         
         let notification = NotificationModel(
@@ -54,6 +54,26 @@ class NotificationManager: ObservableObject {
             receiverUsername: ownerUsername,
             walletId: walletId,
             walletName: walletName,
+            requestedRole: requestedRole,
+            status: .pending,
+            createdAt: Date()
+        )
+        
+        Task {
+            try? await FirestoreService.shared.sendNotification(notification)
+        }
+    }
+    
+    func sendInvitation(walletId: String, walletName: String, receiverUsername: String, role: WalletRole = .member) {
+        guard let myUsername = AuthenticationManager.shared.currentUserProfile?.username else { return }
+        
+        let notification = NotificationModel(
+            type: .invitation,
+            senderUsername: myUsername,
+            receiverUsername: receiverUsername,
+            walletId: walletId,
+            walletName: walletName,
+            requestedRole: role,
             status: .pending,
             createdAt: Date()
         )
@@ -65,8 +85,16 @@ class NotificationManager: ObservableObject {
     
     func approveRequest(_ notification: NotificationModel) {
         Task {
-            // Cüzdan Yetkisini Güncelle (.member)
-            try? await FirestoreService.shared.addMember(walletId: notification.walletId, userId: notification.senderUsername, role: .member)
+            if notification.type == .invitation {
+                // Davet Kabul Edildi: Rolü .pending'den davet edilen role çevir
+                let role = notification.requestedRole ?? .member
+                try? await FirestoreService.shared.addMember(walletId: notification.walletId, userId: notification.receiverUsername, role: role)
+            } else {
+                // Yetki İsteği Onaylandı: Talep edilen role çevir
+                let role = notification.requestedRole ?? .member
+                try? await FirestoreService.shared.addMember(walletId: notification.walletId, userId: notification.senderUsername, role: role)
+            }
+            
             // Bildirimi Onaylandı Olarak İşaretle
             if let id = notification.id {
                 try? await FirestoreService.shared.updateNotificationStatus(id: id, status: .approved)
@@ -76,6 +104,11 @@ class NotificationManager: ObservableObject {
     
     func rejectRequest(_ notification: NotificationModel) {
         Task {
+            if notification.type == .invitation {
+                // Davet Reddedildi: Kullanıcıyı cüzdandan tamamen çıkar
+                try? await FirestoreService.shared.removeMember(walletId: notification.walletId, userId: notification.receiverUsername)
+            }
+            
             if let id = notification.id {
                 try? await FirestoreService.shared.updateNotificationStatus(id: id, status: .rejected)
             }

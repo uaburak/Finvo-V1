@@ -42,6 +42,7 @@ struct ContentView: View {
     @EnvironmentObject var transactionManager: TransactionManager
     @EnvironmentObject var authManager: AuthenticationManager
     @State private var selectedTab: AppTab = .home
+    @State private var previousTab: AppTab = .home
     @State private var showAddSheet: Bool = false
 
     // Haptic generator'lar her çağrıda yeniden oluşturulmasın
@@ -53,7 +54,6 @@ struct ContentView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-
             Tab(value: AppTab.home) {
                 SummaryView()
             } label: {
@@ -67,7 +67,28 @@ struct ContentView: View {
             }
 
             Tab(value: AppTab.add) {
-                EmptyView()
+                // Ekleme sayfası için basit bir placeholder
+                VStack(spacing: 20) {
+                    Spacer().frame(height: 100)
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 80))
+                        .foregroundStyle(theme.brandPrimary.gradient)
+                    
+                    VStack(spacing: 8) {
+                        Text("Yeni İşlem")
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(theme.labelPrimary)
+                        
+                        Text("Harcamalarınızı veya gelirlerinizi\nhızlıca ekleyin.")
+                            .font(.subheadline)
+                            .foregroundStyle(theme.labelSecondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(theme.background1.ignoresSafeArea())
             } label: {
                 tabLabel(for: .add)
             }
@@ -85,31 +106,32 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            // UITabBarItem'lara selectedImage (fill) ve image (outline) set et
             TabBarConfigurator.configure(tabs: AppTab.allCases)
         }
         .onChange(of: colorScheme) { _, _ in
             TabBarConfigurator.configure(tabs: AppTab.allCases)
         }
         .onChange(of: selectedTab) { oldTab, newTab in
-            guard newTab == .add else { return }
-            
-            // Delay the tab restoration to allow the TabView to handle the selection state correctly
-            // and avoid race conditions with the NavigationStack safe area calculations.
-            DispatchQueue.main.async {
-                selectedTab = oldTab
+            if newTab == .add {
+                previousTab = oldTab
+                hapticMedium.impactOccurred()
+                showAddSheet = true
             }
-            
-            hapticMedium.impactOccurred()
-            showAddSheet = true
         }
         .onChange(of: showAddSheet) { _, newValue in
-            if !newValue { hapticLight.impactOccurred() }
+            if !newValue { 
+                hapticLight.impactOccurred()
+                // Sheet kapandığında eski sekmeye güvenli bir şekilde dön
+                if selectedTab == .add {
+                    selectedTab = previousTab
+                }
+            }
         }
         .sheet(isPresented: $showAddSheet) {
             AddTransactionsView()
                 .environmentObject(walletManager)
                 .environmentObject(transactionManager)
+                .environmentObject(authManager)
         }
         .task {
             if let walletId = walletManager.activeWallet?.id {

@@ -32,9 +32,9 @@ struct AddCategorySheet: View {
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 20) {
                     
-                    VStack(spacing: 24) {
+                    VStack(spacing: 20) {
                         
                         TextField("Kategori Adı", text: $categoryName)
                             .padding(.horizontal, 20)
@@ -106,7 +106,7 @@ struct AddCategorySheet: View {
                             }
                         }
                     }
-                    .padding(.top, 10)
+                    .padding(.top, 4)
 
                     Button {
                         handleSave()
@@ -126,7 +126,7 @@ struct AddCategorySheet: View {
                     .disabled(categoryName.isEmpty || categoryManager.isLoading)
                     .opacity(categoryName.isEmpty ? 0.6 : 1.0)
                 }
-                .padding(.top, 20)
+                .padding(.top, 12)
                 .padding(.horizontal, 24)
             }
             .navigationTitle(categoryToEdit == nil ? "Yeni Kategori" : "Kategoriyi Düzenle")

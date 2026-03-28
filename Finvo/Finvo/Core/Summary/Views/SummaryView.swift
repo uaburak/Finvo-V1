@@ -9,10 +9,9 @@ struct SummaryView: View {
     @EnvironmentObject var transactionManager: TransactionManager
     @State private var showCreateWalletSheet = false
     @State private var showSettings = false
-    @State private var navigationPath = NavigationPath()
     
     var body: some View {
-        NavigationStack(path: $navigationPath) {
+        NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 24) {
                     
@@ -22,12 +21,22 @@ struct SummaryView: View {
                     
                     // Gelir / Gider Alanı
                     HStack(spacing: 16) {
-                        NavigationLink(value: TransactionType.income) {
+                        NavigationLink {
+                            TransactionsView(selectedType: .income)
+                                .environmentObject(walletManager)
+                                .environmentObject(authManager)
+                                .environmentObject(transactionManager)
+                        } label: {
                             IncomeExpenseCardView(title: "Gelir", amount: "₺\(transactionManager.totalIncome.formatted(.number.grouping(.automatic).precision(.fractionLength(2))))", isIncome: true)
                         }
                         .buttonStyle(.plain)
                         
-                        NavigationLink(value: TransactionType.expense) {
+                        NavigationLink {
+                            TransactionsView(selectedType: .expense)
+                                .environmentObject(walletManager)
+                                .environmentObject(authManager)
+                                .environmentObject(transactionManager)
+                        } label: {
                             IncomeExpenseCardView(title: "Gider", amount: "₺\(transactionManager.totalExpense.formatted(.number.grouping(.automatic).precision(.fractionLength(2))))", isIncome: false)
                         }
                         .buttonStyle(.plain)
@@ -44,11 +53,8 @@ struct SummaryView: View {
                 // Mavi kart ve Gelir/Gider HStack'i için padding'i doğrudan içeri taşıdık,
                 // Hızlı butonların ekran kenarına kadar kayabilmesi için VStack'deki yatay paddingi kaldırıyoruz.
             }
-            .safeAreaInset(edge: .top) {
-                Color.clear.frame(height: 1) // Küçük bir boşluk bırakarak toolbar ile çakışmayı önlüyoruz
-            }
-            .safeAreaPadding(.bottom, 40) // Reduced from 120
-            // .scrollEdgeEffectStyle(.soft, for: .all) // Temporarily disabled for stability
+            .safeAreaPadding(.bottom, 120)
+            .scrollEdgeEffectStyle(.soft, for: .all)
             .scrollBounceBehavior(.always, axes: .vertical)
             .navigationTitle(walletManager.activeWallet?.name ?? "Cüzdan Seç")
             .navigationBarTitleDisplayMode(.inline)
@@ -106,13 +112,6 @@ struct SummaryView: View {
                     CategoryManager.shared.stopListening()
                 }
             }
-            .navigationDestination(for: QuickDataType.self) { type in
-                SummaryDestinationView(type: type)
-                    .environmentObject(walletManager)
-                    .environmentObject(authManager)
-                    .environmentObject(transactionManager)
-                    .environmentObject(notificationManager)
-            }
             .navigationDestination(for: TransactionModel.self) { transaction in
                 TransactionDetailView(transaction: transaction)
                     .environmentObject(walletManager)
@@ -160,31 +159,6 @@ struct SummaryView: View {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
                     showSettings = true
                 }
-        }
-    }
-}
-
-// Helper to resolve Quick Action destinations centrally
-struct SummaryDestinationView: View {
-    let type: QuickDataType
-    @EnvironmentObject var walletManager: WalletManager
-    @EnvironmentObject var authManager: AuthenticationManager
-    @EnvironmentObject var transactionManager: TransactionManager
-    
-    var body: some View {
-        switch type {
-        case .categories: 
-            CategoriesListView()
-        case .debts: 
-            DebtsView()
-        case .wallets: 
-            WalletsView()
-        case .limits: 
-            LimitsView()
-        case .savings: 
-            SavingsView()
-        case .recurring: 
-            RecurringTransactionsView()
         }
     }
 }

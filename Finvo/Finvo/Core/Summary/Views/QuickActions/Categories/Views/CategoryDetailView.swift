@@ -5,6 +5,7 @@ struct CategoryDetailView: View {
     @Environment(\.theme) var theme
     @EnvironmentObject var authManager: AuthenticationManager
     @EnvironmentObject var walletManager: WalletManager
+    @EnvironmentObject var notificationManager: NotificationManager
     @EnvironmentObject var transactionManager: TransactionManager
     @ObservedObject var categoryManager = CategoryManager.shared
     
@@ -13,7 +14,12 @@ struct CategoryDetailView: View {
     @State private var showAddSubSheet = false
     @State private var subCategoryToDelete: SubCategoryModel?
     @State private var showDeleteConfirmation = false
+    @State private var showPermissionAlert = false
+    @State private var showRoleRequestSentAlert = false
     @State private var impactSummary: String = ""
+    
+    private let hapticMedium = UIImpactFeedbackGenerator(style: .medium)
+    private let hapticNotification = UINotificationFeedbackGenerator()
     
     var body: some View {
         ZStack(alignment: .top) {
@@ -41,17 +47,27 @@ struct CategoryDetailView: View {
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         if categoryManager.checkPermission(authManager: authManager, walletManager: walletManager) {
                             Button(role: .destructive) {
-                                let impact = transactionManager.getImpact(mainCategoryId: category.id, subCategoryId: sub.id)
-                                impactSummary = "\(impact.transactionCount) işlem girişi ve \(impact.recurringCount) tekrarlayan işleminiz silinecek."
-                                subCategoryToDelete = sub
-                                showDeleteConfirmation = true
+                                if authManager.currentUserProfile?.isPro == true {
+                                    let impact = transactionManager.getImpact(mainCategoryId: category.id, subCategoryId: sub.id)
+                                    impactSummary = "\(impact.transactionCount) işlem girişi ve \(impact.recurringCount) tekrarlayan işleminiz silinecek."
+                                    subCategoryToDelete = sub
+                                    showDeleteConfirmation = true
+                                } else {
+                                    categoryManager.showProAlert = true
+                                }
                             } label: {
                                 Image(systemName: "trash")
                             }.tint(.red)
                             
                             Button {
-                                subCategoryToEdit = sub
-                                showAddSubSheet = true
+                                if authManager.currentUserProfile?.isPro == true {
+                                    hapticMedium.impactOccurred()
+                                    subCategoryToEdit = sub
+                                    showAddSubSheet = true
+                                } else {
+                                    hapticNotification.notificationOccurred(.warning)
+                                    categoryManager.showProAlert = true
+                                }
                             } label: {
                                 Image(systemName: "pencil")
                             }.tint(.orange)
@@ -106,11 +122,25 @@ struct CategoryDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                if categoryManager.checkPermission(authManager: authManager, walletManager: walletManager) {
-                    Button {
+                Button {
+                    if authManager.currentUserProfile?.isPro == false {
+                        hapticNotification.notificationOccurred(.warning)
+                        categoryManager.showProAlert = true
+                    } else if !categoryManager.checkPermission(authManager: authManager, walletManager: walletManager) {
+                        hapticNotification.notificationOccurred(.warning)
+                        showPermissionAlert = true
+                    } else {
+                        hapticMedium.impactOccurred()
                         subCategoryToEdit = nil
                         showAddSubSheet = true
-                    } label: {
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        if authManager.currentUserProfile?.isPro == false {
+                            Image(systemName: "lock.fill")
+                                .font(.system(size: 10))
+                                .foregroundColor(theme.labelSecondary)
+                        }
                         Image(systemName: "plus")
                             .foregroundColor(theme.labelPrimary)
                     }
@@ -119,7 +149,7 @@ struct CategoryDetailView: View {
         }
         .sheet(isPresented: $showAddSubSheet) {
             AddSubCategorySheet(mainCategory: $category, subCategoryToEdit: subCategoryToEdit)
-                .presentationDetents([.medium, .large])
+                .presentationDetents([.height(450)])
                 .presentationBackground(.clear)
                 .presentationDragIndicator(.hidden)
         }
@@ -130,6 +160,23 @@ struct CategoryDetailView: View {
             }
         } message: {
             Text("Alt kategori ekleme, silme ve düzenleme işlemleri sadece Pro üyelerimiz içindir.")
+        }
+        .alert("Yetki Gerekli", isPresented: $showPermissionAlert) {
+            Button("Vazgeç", role: .cancel) { }
+            Button("Yetki İste (Admin)") {
+                if let activeWallet = walletManager.activeWallet, let walletId = activeWallet.id {
+                    notificationManager.sendRoleRequest(walletId: walletId, walletName: activeWallet.name, ownerUsername: activeWallet.ownerId, requestedRole: .admin)
+                    hapticNotification.notificationOccurred(.success)
+                    showRoleRequestSentAlert = true
+                }
+            }
+        } message: {
+            Text("Alt kategori eklemek için bu cüzdanda 'Admin' veya 'Kurucu' yetkisine sahip olmanız gerekmektedir.")
+        }
+        .alert("İstek Gönderildi", isPresented: $showRoleRequestSentAlert) {
+            Button("Tamam", role: .cancel) { }
+        } message: {
+            Text("Yönetici yetkisi isteğiniz cüzdan sahibine iletildi.")
         }
         .alert("Alt Kategoriyi Sil?", isPresented: $showDeleteConfirmation) {
             Button("Vazgeç", role: .cancel) { }

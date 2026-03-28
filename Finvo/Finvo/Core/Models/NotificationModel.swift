@@ -4,6 +4,7 @@ import FirebaseFirestore
 enum NotificationType: String, Codable {
     case roleRequest = "role_request"
     case system = "system"
+    case invitation = "invitation"
 }
 
 enum NotificationStatus: String, Codable {
@@ -19,6 +20,7 @@ struct NotificationModel: Identifiable, Codable {
     var receiverUsername: String
     var walletId: String
     var walletName: String
+    var requestedRole: WalletRole? // Talep edilen veya davet edilen rol
     var status: NotificationStatus
     var createdAt: Date
 }

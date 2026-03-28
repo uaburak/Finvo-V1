@@ -83,9 +83,10 @@ struct WalletDetailView: View {
                                         
                                         if let roleString = activeWallet.permissions[memberId],
                                            let role = WalletRole(rawValue: roleString) {
-                                            Text(role == .owner ? "Kurucu" : (role == .admin ? "Admin" : (role == .member ? "Üye" : "Görüntüleyici")))
+                                            Text(role == .owner ? "Kurucu" : (role == .admin ? "Admin" : (role == .member ? "Üye" : (role == .viewer ? "Görüntüleyici" : "Davet Edildi"))))
                                                 .font(.caption)
-                                                .foregroundStyle(theme.labelSecondary)
+                                                .italic(role == .pending)
+                                                .foregroundStyle(role == .pending ? theme.brandPrimary : theme.labelSecondary)
                                         }
                                     }
                                     

@@ -33,9 +33,9 @@ struct AddSubCategorySheet: View {
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 20) {
                     
-                    VStack(spacing: 24) {
+                    VStack(spacing: 20) {
                         TextField("Alt Kategori Adı", text: $subCategoryName)
                             .padding(.horizontal, 20)
                             .padding(.vertical, 16)
@@ -45,16 +45,6 @@ struct AddSubCategorySheet: View {
                                 Capsule().stroke(theme.separator, lineWidth: 1)
                             )
                         
-                        HStack {
-                            Text("Ana Kategori:")
-                                .font(.subheadline)
-                                .foregroundColor(theme.labelSecondary)
-                            Text(mainCategory.name)
-                                .font(.subheadline.bold())
-                                .foregroundColor(mainCategory.uiColor)
-                            Spacer()
-                        }
-                        .padding(.horizontal, 8)
                         
                         // İkon Seçimi
                         VStack(alignment: .leading, spacing: 12) {
@@ -110,7 +100,7 @@ struct AddSubCategorySheet: View {
                             }
                         }
                     }
-                    .padding(.top, 10)
+                    .padding(.top, 4)
 
                     Button {
                         handleSave()
@@ -130,7 +120,7 @@ struct AddSubCategorySheet: View {
                     .disabled(subCategoryName.isEmpty || categoryManager.isLoading)
                     .opacity(subCategoryName.isEmpty ? 0.6 : 1.0)
                 }
-                .padding(.top, 20)
+                .padding(.top, 12)
                 .padding(.horizontal, 24)
             }
             .navigationTitle(subCategoryToEdit == nil ? "Yeni Alt Kategori" : "Alt Kategoriyi Düzenle")

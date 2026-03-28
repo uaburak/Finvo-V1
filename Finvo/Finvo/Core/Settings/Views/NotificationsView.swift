@@ -44,10 +44,17 @@ struct NotificationsView: View {
                         .font(.headline)
                         .foregroundStyle(theme.labelPrimary)
                     
-                    Text("**\(notification.walletName)** cüzdanı için işlem yetkisi (üye) istiyor.")
-                        .font(.subheadline)
-                        .foregroundStyle(theme.labelSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    if notification.type == .invitation {
+                        Text("seni **\(notification.walletName)** cüzdanına **(\(notification.requestedRole?.displayName ?? "Üye"))** olarak davet etti.")
+                            .font(.subheadline)
+                            .foregroundStyle(theme.labelSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        Text("**\(notification.walletName)** cüzdanı için **\(notification.requestedRole?.displayName ?? "Yönetici")** yetkisi istiyor.")
+                            .font(.subheadline)
+                            .foregroundStyle(theme.labelSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
             

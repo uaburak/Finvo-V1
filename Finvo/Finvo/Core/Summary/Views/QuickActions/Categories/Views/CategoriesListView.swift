@@ -5,16 +5,22 @@ struct CategoriesListView: View {
     @Environment(\.theme) var theme
     @EnvironmentObject var authManager: AuthenticationManager
     @EnvironmentObject var walletManager: WalletManager
+    @EnvironmentObject var notificationManager: NotificationManager
     @ObservedObject var categoryManager = CategoryManager.shared
     
     @State private var categoryToEdit: CategoryModel?
     @State private var selectedType: TransactionType = .expense
     @State private var showAddSheet = false
+    @State private var showPermissionAlert = false
+    @State private var showRoleRequestSentAlert = false
     
     @State private var categoryToDelete: CategoryModel?
     @State private var showDeleteConfirmation = false
     @State private var impactSummary: String = ""
     @EnvironmentObject var transactionManager: TransactionManager
+    
+    private let hapticMedium = UIImpactFeedbackGenerator(style: .medium)
+    private let hapticNotification = UINotificationFeedbackGenerator()
     
     var filteredCategories: [CategoryModel] {
         categoryManager.categories.filter { $0.type == selectedType }
@@ -46,10 +52,24 @@ struct CategoriesListView: View {
             }
             
             ToolbarItem(placement: .topBarTrailing) {
-                if categoryManager.checkPermission(authManager: authManager, walletManager: walletManager) {
-                    Button {
+                Button {
+                    if authManager.currentUserProfile?.isPro == false {
+                        hapticNotification.notificationOccurred(.warning)
+                        categoryManager.showProAlert = true
+                    } else if !categoryManager.checkPermission(authManager: authManager, walletManager: walletManager) {
+                        hapticNotification.notificationOccurred(.warning)
+                        showPermissionAlert = true
+                    } else {
+                        hapticMedium.impactOccurred()
                         showAddSheet = true
-                    } label: {
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        if authManager.currentUserProfile?.isPro == false {
+                            Image(systemName: "lock.fill")
+                                .font(.system(size: 10))
+                                .foregroundColor(theme.labelSecondary)
+                        }
                         Image(systemName: "plus")
                             .foregroundColor(theme.labelPrimary)
                     }
@@ -63,13 +83,13 @@ struct CategoriesListView: View {
         }
         .sheet(isPresented: $showAddSheet) {
             AddCategorySheet(type: selectedType)
-                .presentationDetents([.height(550)])
+                .presentationDetents([.height(520)])
                 .presentationDragIndicator(.hidden)
                 .presentationBackground(.clear)
         }
         .sheet(item: $categoryToEdit) { category in
             AddCategorySheet(type: selectedType, categoryToEdit: category)
-                .presentationDetents([.height(550)])
+                .presentationDetents([.height(520)])
                 .presentationDragIndicator(.hidden)
                 .presentationBackground(.clear)
         }
@@ -80,6 +100,23 @@ struct CategoriesListView: View {
             }
         } message: {
             Text("Kategori ekleme, silme ve düzenleme işlemleri sadece Pro üyelerimiz içindir.")
+        }
+        .alert("Yetki Gerekli", isPresented: $showPermissionAlert) {
+            Button("Vazgeç", role: .cancel) { }
+            Button("Yetki İste (Admin)") {
+                if let activeWallet = walletManager.activeWallet, let walletId = activeWallet.id {
+                    notificationManager.sendRoleRequest(walletId: walletId, walletName: activeWallet.name, ownerUsername: activeWallet.ownerId, requestedRole: .admin)
+                    hapticNotification.notificationOccurred(.success)
+                    showRoleRequestSentAlert = true
+                }
+            }
+        } message: {
+            Text("Kategori eklemek için bu cüzdanda 'Admin' veya 'Kurucu' yetkisine sahip olmanız gerekmektedir.")
+        }
+        .alert("İstek Gönderildi", isPresented: $showRoleRequestSentAlert) {
+            Button("Tamam", role: .cancel) { }
+        } message: {
+            Text("Yönetici yetkisi isteğiniz cüzdan sahibine iletildi.")
         }
         .alert("Kategoriyi Sil?", isPresented: $showDeleteConfirmation) {
             Button("Vazgeç", role: .cancel) { }
@@ -117,16 +154,26 @@ struct CategoriesListView: View {
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if categoryManager.checkPermission(authManager: authManager, walletManager: walletManager) {
                 Button(role: .destructive) {
-                    let impact = transactionManager.getImpact(mainCategoryId: category.id)
-                    impactSummary = "\(impact.transactionCount) işlem girişi ve \(impact.recurringCount) tekrarlayan işleminiz silinecek."
-                    categoryToDelete = category
-                    showDeleteConfirmation = true
+                    if authManager.currentUserProfile?.isPro == true {
+                        let impact = transactionManager.getImpact(mainCategoryId: category.id)
+                        impactSummary = "\(impact.transactionCount) işlem girişi ve \(impact.recurringCount) tekrarlayan işleminiz silinecek."
+                        categoryToDelete = category
+                        showDeleteConfirmation = true
+                    } else {
+                        categoryManager.showProAlert = true
+                    }
                 } label: {
                     Image(systemName: "trash")
                 }.tint(.red)
                 
                 Button {
-                    categoryToEdit = category
+                    if authManager.currentUserProfile?.isPro == true {
+                        hapticMedium.impactOccurred()
+                        categoryToEdit = category
+                    } else {
+                        hapticNotification.notificationOccurred(.warning)
+                        categoryManager.showProAlert = true
+                    }
                 } label: {
                     Image(systemName: "pencil")
                 }.tint(.orange)

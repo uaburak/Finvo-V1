@@ -31,6 +31,7 @@ class FirestoreService: ObservableObject {
                 }
                 
                 self.wallets = documents.compactMap { try? $0.data(as: WalletModel.self) }
+                    .filter { $0.permissions[identifier] != WalletRole.pending.rawValue }
             }
     }
     

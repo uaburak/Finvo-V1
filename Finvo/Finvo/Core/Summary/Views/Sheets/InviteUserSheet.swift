@@ -6,6 +6,7 @@ struct InviteUserSheet: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var walletManager: WalletManager
     @EnvironmentObject var authManager: AuthenticationManager
+    @EnvironmentObject var notificationManager: NotificationManager
     
     let walletId: String
     
@@ -116,8 +117,12 @@ struct InviteUserSheet: View {
                 let feedback = UIImpactFeedbackGenerator(style: .medium)
                 feedback.prepare()
                 
-                // Cüzdana yeni üyeyi Ekle (Viewer yetkisinde)
-                walletManager.addMember(to: walletId, memberId: user.username, role: .viewer)
+                // 1. Cüzdana yeni üyeyi .pending (Davet Bekliyor) durumunda ekle
+                walletManager.addMember(to: walletId, memberId: user.username, role: .pending)
+                
+                // 2. Kullanıcıya bildirim gönder
+                let walletName = walletManager.wallets.first(where: { $0.id == walletId })?.name ?? "Yeni Cüzdan"
+                notificationManager.sendInvitation(walletId: walletId, walletName: walletName, receiverUsername: user.username)
                 
                 feedback.impactOccurred()
                 dismiss()

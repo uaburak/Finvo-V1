@@ -32,6 +32,17 @@ enum WalletRole: String, Codable {
     case admin = "admin"     // Kurucu ile aynı yetkiler
     case member = "member"   // İşlem ekleme/silme (Sadece kendi işlemleri)
     case viewer = "viewer"   // Sadece okuma yetkisi
+    case pending = "pending" // Davet bekleyen kullanıcı
+    
+    var displayName: String {
+        switch self {
+        case .owner: return "Kurucu"
+        case .admin: return "Yönetici"
+        case .member: return "Üye"
+        case .viewer: return "Görüntüleyici"
+        case .pending: return "Davet Bekleniyor"
+        }
+    }
 }
 
 struct SavingsAccountModel: Identifiable, Codable, Equatable {
