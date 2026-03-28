@@ -22,7 +22,7 @@ struct TransactionsView: View {
     @State private var transactionToDelete: TransactionModel? = nil
 
     var body: some View {
-        VStack {
+        Group {
             let allItems: [TransactionModel] = transactionManager.transactions
             let filteredItems: [TransactionModel] = allItems.filter { item in
                 guard item.type == selectedType else { return false }
@@ -68,14 +68,7 @@ struct TransactionsView: View {
                         let mainTitle = transaction.resolvedSubCategoryName ?? transaction.resolvedMainCategoryName
                         let subtitleText = transaction.resolvedSubCategoryName != nil ? transaction.resolvedMainCategoryName : transaction.date.formatted(date: .abbreviated, time: .shortened)
 
-                        ZStack {
-                            NavigationLink(destination: TransactionDetailView(transaction: transaction)
-                                .environmentObject(walletManager)
-                                .environmentObject(authManager)) {
-                                EmptyView()
-                            }
-                            .opacity(0)
-
+                        NavigationLink(value: transaction) {
                             ListItem(
                                 icon: transaction.resolvedIcon,
                                 iconColor: transaction.resolvedColor(),
@@ -87,6 +80,7 @@ struct TransactionsView: View {
                             )
                             .padding(.leading)
                         }
+                        .buttonStyle(.plain)
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             
                             let currentUser = authManager.currentUserProfile?.username ?? ""
@@ -122,6 +116,10 @@ struct TransactionsView: View {
                     }
                 }
                 .listStyle(.plain)
+                .safeAreaInset(edge: .top) {
+                    Color.clear.frame(height: 8) // Küçük bir boşluk bırakarak tepedeki overlap'i önlüyoruz
+                }
+                .safeAreaPadding(.bottom, 40)
                 .sheet(item: $transactionToEdit) { transaction in
                     AddTransactionsView(transactionToEdit: transaction)
                         .environmentObject(walletManager)
@@ -130,7 +128,7 @@ struct TransactionsView: View {
                 }
             }
         }
-        .navigationTitle("")
+        .navigationTitle(selectedType == .income ? "Gelir" : "Gider")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {

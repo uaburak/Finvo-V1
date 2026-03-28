@@ -31,9 +31,7 @@ struct QuickActionRowView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 12) {
                 ForEach(QuickDataType.allCases, id: \.self) { type in
-                    NavigationLink {
-                        destinationView(for: type)
-                    } label: {
+                    NavigationLink(value: type) {
                         actionContent(icon: type.icon, title: LocalizedStringKey(type.rawValue))
                     }
                     .buttonStyle(.plain)
@@ -42,21 +40,6 @@ struct QuickActionRowView: View {
             .padding(.horizontal)
         }
         .scrollClipDisabled()
-    }
-    
-    @ViewBuilder
-    private func destinationView(for type: QuickDataType) -> some View {
-        switch type {
-        case .categories: CategoriesListView()
-            .environmentObject(walletManager)
-            .environmentObject(authManager)
-            .environmentObject(transactionManager)
-        case .debts: DebtsView().environmentObject(walletManager).environmentObject(authManager).environmentObject(transactionManager)
-        case .wallets: WalletsView().environmentObject(walletManager).environmentObject(authManager)
-        case .limits: LimitsView().environmentObject(walletManager).environmentObject(authManager)
-        case .savings: SavingsView().environmentObject(walletManager).environmentObject(authManager).environmentObject(transactionManager)
-        case .recurring: RecurringTransactionsView().environmentObject(walletManager).environmentObject(authManager).environmentObject(transactionManager)
-        }
     }
     
     @ViewBuilder

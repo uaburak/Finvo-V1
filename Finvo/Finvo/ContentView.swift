@@ -93,7 +93,13 @@ struct ContentView: View {
         }
         .onChange(of: selectedTab) { oldTab, newTab in
             guard newTab == .add else { return }
-            selectedTab = oldTab
+            
+            // Delay the tab restoration to allow the TabView to handle the selection state correctly
+            // and avoid race conditions with the NavigationStack safe area calculations.
+            DispatchQueue.main.async {
+                selectedTab = oldTab
+            }
+            
             hapticMedium.impactOccurred()
             showAddSheet = true
         }
