@@ -5,6 +5,7 @@ struct AddSubCategorySheet: View {
     @Environment(\.theme) var theme
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authManager: AuthenticationManager
+    @EnvironmentObject var walletManager: WalletManager
     @ObservedObject var categoryManager = CategoryManager.shared
     
     @Binding var mainCategory: CategoryModel
@@ -157,7 +158,7 @@ struct AddSubCategorySheet: View {
         let feedback = UIImpactFeedbackGenerator(style: .medium)
         feedback.prepare()
         
-        guard let uid = authManager.user?.uid else { return }
+        guard let walletId = walletManager.activeWallet?.id else { return }
         
         // Benzersizlik Kontrolü (Aynı ana kategori içinde)
         let isDuplicate = mainCategory.subCategories.contains { sub in
@@ -184,7 +185,7 @@ struct AddSubCategorySheet: View {
         
         Task {
             do {
-                try await categoryManager.saveCategory(uid: uid, category: mainCategory)
+                try await categoryManager.saveCategory(walletId: walletId, category: mainCategory)
                 feedback.impactOccurred()
                 dismiss()
             } catch {

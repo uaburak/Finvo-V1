@@ -47,7 +47,10 @@ struct QuickActionRowView: View {
     @ViewBuilder
     private func destinationView(for type: QuickDataType) -> some View {
         switch type {
-        case .categories: CategoriesListView().environmentObject(walletManager).environmentObject(authManager)
+        case .categories: CategoriesListView()
+            .environmentObject(walletManager)
+            .environmentObject(authManager)
+            .environmentObject(transactionManager)
         case .debts: DebtsView().environmentObject(walletManager).environmentObject(authManager).environmentObject(transactionManager)
         case .wallets: WalletsView().environmentObject(walletManager).environmentObject(authManager)
         case .limits: LimitsView().environmentObject(walletManager).environmentObject(authManager)

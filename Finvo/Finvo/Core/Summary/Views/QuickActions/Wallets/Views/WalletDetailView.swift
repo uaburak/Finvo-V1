@@ -83,7 +83,7 @@ struct WalletDetailView: View {
                                         
                                         if let roleString = activeWallet.permissions[memberId],
                                            let role = WalletRole(rawValue: roleString) {
-                                            Text(role == .owner ? "Kurucu" : (role == .member ? "Üye" : "Görüntüleyici"))
+                                            Text(role == .owner ? "Kurucu" : (role == .admin ? "Admin" : (role == .member ? "Üye" : "Görüntüleyici")))
                                                 .font(.caption)
                                                 .foregroundStyle(theme.labelSecondary)
                                         }
@@ -114,10 +114,13 @@ struct WalletDetailView: View {
                                     
                                     if activeWallet.ownerId == currentUsername && memberId != currentUsername {
                                         Menu {
-                                            Button("Rolü Değiştir (Üye)") {
+                                            Button("Admin") {
+                                                walletManager.addMember(to: walletId, memberId: memberId, role: .admin)
+                                            }
+                                            Button("Üye") {
                                                 walletManager.addMember(to: walletId, memberId: memberId, role: .member)
                                             }
-                                            Button("Rolü Değiştir (İzleyici)") {
+                                            Button("İzleyici") {
                                                 walletManager.addMember(to: walletId, memberId: memberId, role: .viewer)
                                             }
                                             Divider()
@@ -137,7 +140,7 @@ struct WalletDetailView: View {
                             }
                             
                             // Yeni Üye Ekle Butonu
-                            if activeWallet.ownerId == currentUsername || activeWallet.permissions[currentUsername] == WalletRole.member.rawValue {
+                            if activeWallet.ownerId == currentUsername || activeWallet.permissions[currentUsername] == WalletRole.admin.rawValue {
                                 Button {
                                     showInviteSheet = true
                                 } label: {

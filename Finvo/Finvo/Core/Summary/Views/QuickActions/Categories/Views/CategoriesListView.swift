@@ -11,6 +11,11 @@ struct CategoriesListView: View {
     @State private var selectedType: TransactionType = .expense
     @State private var showAddSheet = false
     
+    @State private var categoryToDelete: CategoryModel?
+    @State private var showDeleteConfirmation = false
+    @State private var impactSummary: String = ""
+    @EnvironmentObject var transactionManager: TransactionManager
+    
     var filteredCategories: [CategoryModel] {
         categoryManager.categories.filter { $0.type == selectedType }
     }
@@ -41,25 +46,19 @@ struct CategoriesListView: View {
             }
             
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    categoryManager.checkProAndExecute(authManager: authManager) {
+                if categoryManager.checkPermission(authManager: authManager, walletManager: walletManager) {
+                    Button {
                         showAddSheet = true
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        if authManager.currentUserProfile?.isPro != true {
-                            Image(systemName: "lock.fill")
-                                .font(.caption2)
-                        }
+                    } label: {
                         Image(systemName: "plus")
+                            .foregroundColor(theme.labelPrimary)
                     }
-                    .foregroundColor(theme.labelPrimary)
                 }
             }
         }
         .task {
-            if let uid = authManager.user?.uid {
-                await categoryManager.loadCategories(uid: uid)
+            if let walletId = walletManager.activeWallet?.id {
+                await categoryManager.loadCategories(walletId: walletId)
             }
         }
         .sheet(isPresented: $showAddSheet) {
@@ -81,6 +80,16 @@ struct CategoriesListView: View {
             }
         } message: {
             Text("Kategori ekleme, silme ve düzenleme işlemleri sadece Pro üyelerimiz içindir.")
+        }
+        .alert("Kategoriyi Sil?", isPresented: $showDeleteConfirmation) {
+            Button("Vazgeç", role: .cancel) { }
+            Button("Sil", role: .destructive) {
+                if let cat = categoryToDelete {
+                    confirmDelete(cat)
+                }
+            }
+        } message: {
+            Text("'\(categoryToDelete?.name ?? "")' kategorisini ve ona bağlı tüm verileri silmek istediğinizden emin misiniz?\n\n\(impactSummary)")
         }
     }
     
@@ -106,32 +115,32 @@ struct CategoriesListView: View {
             .padding(.leading, 16)
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button(role: .destructive) {
-                categoryManager.checkProAndExecute(authManager: authManager) {
-                    handleDelete(category)
-                }
-            } label: {
-                Image(systemName: "trash")
-            }.tint(.red)
-            
-            Button {
-                categoryManager.checkProAndExecute(authManager: authManager) {
+            if categoryManager.checkPermission(authManager: authManager, walletManager: walletManager) {
+                Button(role: .destructive) {
+                    let impact = transactionManager.getImpact(mainCategoryId: category.id)
+                    impactSummary = "\(impact.transactionCount) işlem girişi ve \(impact.recurringCount) tekrarlayan işleminiz silinecek."
+                    categoryToDelete = category
+                    showDeleteConfirmation = true
+                } label: {
+                    Image(systemName: "trash")
+                }.tint(.red)
+                
+                Button {
                     categoryToEdit = category
-                }
-            } label: {
-                Image(systemName: "pencil")
-            }.tint(.orange)
+                } label: {
+                    Image(systemName: "pencil")
+                }.tint(.orange)
+            }
         }
         .listRowSeparator(.visible)
         .listRowSeparator(isFirst ? .hidden : .visible, edges: .top)
         .listRowInsets(EdgeInsets(top: 12, leading: 0, bottom: 12, trailing: 20))
     }
     
-    private func handleDelete(_ category: CategoryModel) {
-        guard let uid = authManager.user?.uid else { return }
-        let walletId = walletManager.activeWallet?.id
+    private func confirmDelete(_ category: CategoryModel) {
+        guard let walletId = walletManager.activeWallet?.id else { return }
         Task {
-            try? await categoryManager.deleteCategory(uid: uid, walletId: walletId, category: category)
+            try? await categoryManager.deleteCategory(walletId: walletId, category: category)
         }
     }
 }

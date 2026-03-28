@@ -100,13 +100,16 @@ struct SummaryView: View {
             .onAppear {
                 if let walletId = walletManager.activeWallet?.id {
                     transactionManager.startListening(walletId: walletId)
+                    CategoryManager.shared.startListening(walletId: walletId)
                 }
             }
-            .onChange(of: walletManager.activeWallet) { oldValue, newValue in
+            .onChange(of: walletManager.activeWallet) { _, newValue in
                 if let walletId = newValue?.id {
                     transactionManager.startListening(walletId: walletId)
+                    CategoryManager.shared.startListening(walletId: walletId)
                 } else {
                     transactionManager.stopListening()
+                    CategoryManager.shared.stopListening()
                 }
             }
             .navigationDestination(for: TransactionModel.self) { transaction in

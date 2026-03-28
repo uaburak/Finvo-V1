@@ -138,4 +138,20 @@ class TransactionManager: ObservableObject {
         
         _ = try await (step1, step2)
     }
+    
+    // Deletion Impact Assessment
+    func getImpact(mainCategoryId: String, subCategoryId: String? = nil) -> (transactionCount: Int, recurringCount: Int) {
+        let filtered: [TransactionModel]
+        
+        if let subId = subCategoryId {
+            filtered = transactions.filter { $0.mainCategoryId == mainCategoryId && $0.subCategoryId == subId }
+        } else {
+            filtered = transactions.filter { $0.mainCategoryId == mainCategoryId }
+        }
+        
+        let txCount = filtered.count
+        let recurringCount = filtered.filter { $0.isRecurring }.count
+        
+        return (txCount, recurringCount)
+    }
 }

@@ -29,8 +29,9 @@ enum WalletContext: String, Codable, CaseIterable {
 
 enum WalletRole: String, Codable {
     case owner = "owner"
-    case member = "member"   // İşlem ekleme/silme yetkisi
-case viewer = "viewer"   // Sadece okuma yetkisi
+    case admin = "admin"     // Kurucu ile aynı yetkiler
+    case member = "member"   // İşlem ekleme/silme (Sadece kendi işlemleri)
+    case viewer = "viewer"   // Sadece okuma yetkisi
 }
 
 struct SavingsAccountModel: Identifiable, Codable, Equatable {

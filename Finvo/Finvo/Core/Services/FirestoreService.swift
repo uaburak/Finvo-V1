@@ -191,28 +191,28 @@ class FirestoreService: ObservableObject {
     }
     
     // MARK: - Category Operations
-    func fetchCategories(uid: String) async throws -> [CategoryModel] {
-        let snapshot = try await db.collection("users").document(uid).collection("categories").getDocuments()
+    func fetchCategories(walletId: String) async throws -> [CategoryModel] {
+        let snapshot = try await db.collection("wallets").document(walletId).collection("categories").getDocuments()
         return snapshot.documents.compactMap { try? $0.data(as: CategoryModel.self) }
     }
     
-    func saveCategory(uid: String, category: CategoryModel) async throws {
+    func saveCategory(walletId: String, category: CategoryModel) async throws {
         let docRef: DocumentReference
         if let fid = category.firestoreId {
-            docRef = db.collection("users").document(uid).collection("categories").document(fid)
+            docRef = db.collection("wallets").document(walletId).collection("categories").document(fid)
         } else {
             // Eğer ID henüz yoksa (mock data), deterministik safeId kullan
-            docRef = db.collection("users").document(uid).collection("categories").document(category.safeId)
+            docRef = db.collection("wallets").document(walletId).collection("categories").document(category.safeId)
         }
         try docRef.setData(from: category, merge: true)
     }
     
-    func deleteCategory(uid: String, categoryId: String) async throws {
-        try await db.collection("users").document(uid).collection("categories").document(categoryId).delete()
+    func deleteCategory(walletId: String, categoryId: String) async throws {
+        try await db.collection("wallets").document(walletId).collection("categories").document(categoryId).delete()
     }
     
-    func deleteAllCategories(uid: String) async throws {
-        let snapshot = try await db.collection("users").document(uid).collection("categories").getDocuments()
+    func deleteAllCategories(walletId: String) async throws {
+        let snapshot = try await db.collection("wallets").document(walletId).collection("categories").getDocuments()
         let batch = db.batch()
         for doc in snapshot.documents {
             batch.deleteDocument(doc.reference)
@@ -220,11 +220,11 @@ class FirestoreService: ObservableObject {
         try await batch.commit()
     }
     
-    func initializeDefaultCategories(uid: String, categories: [CategoryModel]) async throws {
+    func initializeDefaultCategories(walletId: String, categories: [CategoryModel]) async throws {
         let batch = db.batch()
         for category in categories {
             // İsim bazlı deterministik ID kullanımı (Duplicate önlemek için)
-            let docRef = db.collection("users").document(uid).collection("categories").document(category.safeId)
+            let docRef = db.collection("wallets").document(walletId).collection("categories").document(category.safeId)
             try batch.setData(from: category, forDocument: docRef)
         }
         try await batch.commit()

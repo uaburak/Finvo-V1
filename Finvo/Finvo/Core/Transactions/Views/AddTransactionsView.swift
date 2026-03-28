@@ -499,6 +499,11 @@ struct AddTransactionsView: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
+        .alert("Yetki Hatası", isPresented: $showPermissionErrorAlert) {
+            Button("Tamam", role: .cancel) { }
+        } message: {
+            Text("Bu işlemi düzenleme yetkiniz bulunmamaktadır. Sadece kendi eklediğiniz işlemleri düzenleyebilirsiniz.")
+        }
     }
     
     // MARK: - Save Logic
@@ -526,7 +531,7 @@ struct AddTransactionsView: View {
         let categoryColorHex = selectedSubCategory?.color ?? selectedMainCategory?.color
         
         let newTransaction = TransactionModel(
-            walletId: activeWallet.id ?? "",
+            walletId: walletId,
             type: selectedType,
             amount: parsedAmount,
             mainCategoryName: selectedMainCategory?.name ?? "Bilinmeyen",
@@ -537,8 +542,8 @@ struct AddTransactionsView: View {
             categoryColor: categoryColorHex,
             date: selectedDate,
             note: note.isEmpty ? nil : note,
-            createdBy: currentUser,
-            createdAt: Date(),
+            createdBy: transactionToEdit?.createdBy ?? currentUser,
+            createdAt: transactionToEdit?.createdAt ?? Date(),
             isDebt: isDebt,
             debtContact: isDebt ? debtContact : nil,
             totalInstallments: isDebt ? Int(installmentCount) : nil,

@@ -106,8 +106,8 @@ struct ContentView: View {
                 .environmentObject(transactionManager)
         }
         .task {
-            if let uid = authManager.user?.uid {
-                await CategoryManager.shared.loadCategories(uid: uid)
+            if let walletId = walletManager.activeWallet?.id {
+                CategoryManager.shared.startListening(walletId: walletId)
             }
         }
         .environment(\.locale, Locale(identifier: appLanguage))

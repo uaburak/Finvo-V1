@@ -5,11 +5,15 @@ struct CategoryDetailView: View {
     @Environment(\.theme) var theme
     @EnvironmentObject var authManager: AuthenticationManager
     @EnvironmentObject var walletManager: WalletManager
+    @EnvironmentObject var transactionManager: TransactionManager
     @ObservedObject var categoryManager = CategoryManager.shared
     
     @Binding var category: CategoryModel
     @State private var subCategoryToEdit: SubCategoryModel?
     @State private var showAddSubSheet = false
+    @State private var subCategoryToDelete: SubCategoryModel?
+    @State private var showDeleteConfirmation = false
+    @State private var impactSummary: String = ""
     
     var body: some View {
         ZStack(alignment: .top) {
@@ -24,42 +28,34 @@ struct CategoryDetailView: View {
                         title: sub.localizedName,
                         subtitle: category.localizedName,
                         isOn: Binding(
-                            get: { category.subCategories[index].isOn },
-                            set: { category.subCategories[index].isOn = $0; saveChanges() }
+                            get: { category.subCategories.first(where: { $0.id == sub.id })?.isOn ?? false },
+                            set: { newValue in
+                                if let idx = category.subCategories.firstIndex(where: { $0.id == sub.id }) {
+                                    category.subCategories[idx].isOn = newValue
+                                    saveChanges()
+                                }
+                            }
                         )
                     )
                     .padding(.leading)
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button(role: .destructive) {
-                            categoryManager.checkProAndExecute(authManager: authManager) {
-                                let subToDelete = category.subCategories[index]
-                                category.subCategories.remove(at: index)
-                                saveChanges()
-                                
-                                // Cascade Delete: Bu alt kategoriye ait işlemleride sil
-                                if let wId = walletManager.activeWallet?.id {
-                                    Task {
-                                        try? await FirestoreService.shared.deleteTransactionsBySubCategory(
-                                            walletId: wId,
-                                            mainCategoryId: category.id,
-                                            subCategoryId: subToDelete.id,
-                                            subCategoryName: subToDelete.name
-                                        )
-                                    }
-                                }
-                            }
-                        } label: {
-                            Image(systemName: "trash")
-                        }.tint(.red)
-                        
-                        Button {
-                            categoryManager.checkProAndExecute(authManager: authManager) {
+                        if categoryManager.checkPermission(authManager: authManager, walletManager: walletManager) {
+                            Button(role: .destructive) {
+                                let impact = transactionManager.getImpact(mainCategoryId: category.id, subCategoryId: sub.id)
+                                impactSummary = "\(impact.transactionCount) işlem girişi ve \(impact.recurringCount) tekrarlayan işleminiz silinecek."
+                                subCategoryToDelete = sub
+                                showDeleteConfirmation = true
+                            } label: {
+                                Image(systemName: "trash")
+                            }.tint(.red)
+                            
+                            Button {
                                 subCategoryToEdit = sub
                                 showAddSubSheet = true
-                            }
-                        } label: {
-                            Image(systemName: "pencil")
-                        }.tint(.orange)
+                            } label: {
+                                Image(systemName: "pencil")
+                            }.tint(.orange)
+                        }
                     }
                     .listRowSeparator(.visible)
                     .listRowSeparator(isFirst ? .hidden : .visible, edges: .top)
@@ -110,20 +106,14 @@ struct CategoryDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    categoryManager.checkProAndExecute(authManager: authManager) {
+                if categoryManager.checkPermission(authManager: authManager, walletManager: walletManager) {
+                    Button {
                         subCategoryToEdit = nil
                         showAddSubSheet = true
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        if authManager.currentUserProfile?.isPro != true {
-                            Image(systemName: "lock.fill")
-                                .font(.caption2)
-                        }
+                    } label: {
                         Image(systemName: "plus")
+                            .foregroundColor(theme.labelPrimary)
                     }
-                    .foregroundColor(theme.labelPrimary)
                 }
             }
         }
@@ -141,12 +131,52 @@ struct CategoryDetailView: View {
         } message: {
             Text("Alt kategori ekleme, silme ve düzenleme işlemleri sadece Pro üyelerimiz içindir.")
         }
+        .alert("Alt Kategoriyi Sil?", isPresented: $showDeleteConfirmation) {
+            Button("Vazgeç", role: .cancel) { }
+            Button("Sil", role: .destructive) {
+                if let sub = subCategoryToDelete {
+                    performDelete(sub)
+                }
+            }
+        } message: {
+            Text("'\(subCategoryToDelete?.name ?? "")' alt kategorisini ve ona bağlı tüm verileri silmek istediğinizden emin misiniz?\n\n\(impactSummary)")
+        }
+    }
+    
+    private func performDelete(_ sub: SubCategoryModel) {
+        guard let walletId = walletManager.activeWallet?.id else { return }
+        
+        let subId = sub.id
+        let subName = sub.name
+        
+        if let index = category.subCategories.firstIndex(where: { $0.id == subId }) {
+            withAnimation {
+                category.subCategories.remove(at: index)
+            }
+            
+            Task {
+                do {
+                    // Veritabanını güncelle
+                    try await categoryManager.saveCategory(walletId: walletId, category: category)
+                    
+                    // Cascade Delete: Bu alt kategoriye ait işlemleride sil
+                    try await FirestoreService.shared.deleteTransactionsBySubCategory(
+                        walletId: walletId,
+                        mainCategoryId: category.id,
+                        subCategoryId: subId,
+                        subCategoryName: subName
+                    )
+                } catch {
+                    print("Error during subcategory deletion: \(error)")
+                }
+            }
+        }
     }
     
     private func saveChanges() {
-        guard let uid = authManager.user?.uid else { return }
+        guard let walletId = walletManager.activeWallet?.id else { return }
         Task {
-            try? await categoryManager.saveCategory(uid: uid, category: category)
+            try? await categoryManager.saveCategory(walletId: walletId, category: category)
         }
     }
 }

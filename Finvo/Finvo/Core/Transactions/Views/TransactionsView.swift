@@ -89,12 +89,16 @@ struct TransactionsView: View {
                         }
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             
-                            let isOwner = walletManager.activeWallet?.ownerId == authManager.currentUserProfile?.username
-                            let role = walletManager.activeWallet?.permissions[authManager.currentUserProfile?.username ?? ""]
-                            let isCreator = transaction.createdBy == authManager.currentUserProfile?.username
-                            let canDelete = isOwner || (role == WalletRole.member.rawValue && isCreator)
+                            let currentUser = authManager.currentUserProfile?.username ?? ""
+                            let roleRaw = walletManager.activeWallet?.permissions[currentUser] ?? WalletRole.member.rawValue
+                            let role = WalletRole(rawValue: roleRaw) ?? .member
+                            let isOwner = walletManager.activeWallet?.ownerId == currentUser
                             
-                            if canDelete {
+                            let isAdminOrOwner = isOwner || role == .admin
+                            let isCreator = transaction.createdBy == currentUser
+                            let canManage = isAdminOrOwner || (role == .member && isCreator)
+                            
+                            if canManage {
                                 Button(role: .destructive) {
                                     transactionToDelete = transaction
                                     showDeleteConfirmation = true

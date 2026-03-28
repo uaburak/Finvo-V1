@@ -242,20 +242,20 @@ struct SettingsView: View {
     }
     
     private func resetCategories() {
-        guard let uid = authManager.user?.uid else { return }
+        guard let walletId = walletManager.activeWallet?.id else { return }
         Task {
             do {
                 // 1. Her şeyi sil (Raw delete)
-                try await FirestoreService.shared.deleteAllCategories(uid: uid)
+                try await FirestoreService.shared.deleteAllCategories(walletId: walletId)
                 
                 // 2. Varsayılanları deterministik ID ve koruma ile yükle
                 // initializeDefaultCategories direkt çağrılmalı ki CategoryManager'ın load'uyla çakışmasın
-                try await FirestoreService.shared.initializeDefaultCategories(uid: uid, categories: CategoriesMockData.data)
+                try await FirestoreService.shared.initializeDefaultCategories(walletId: walletId, categories: CategoriesMockData.data)
                 
                 // 3. Manager'ı güncelle
-                await CategoryManager.shared.loadCategories(uid: uid)
+                CategoryManager.shared.startListening(walletId: walletId)
                 
-                print("DEBUG: Categories successfully reset and re-initialized.")
+                print("DEBUG: Categories successfully reset and re-initialized for wallet \(walletId)")
             } catch {
                 print("DEBUG: Error resetting categories: \(error)")
             }

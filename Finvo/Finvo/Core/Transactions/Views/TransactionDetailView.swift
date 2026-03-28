@@ -9,13 +9,20 @@ struct TransactionDetailView: View {
 
     let transaction: TransactionModel
 
+    @State private var showEditSheet = false
+    
     // Yetki kontrolü
     private var canEdit: Bool {
         let username = authManager.currentUserProfile?.username ?? ""
-        let isOwner = walletManager.activeWallet?.ownerId == username
-        let role = walletManager.activeWallet?.permissions[username]
+        let wallet = walletManager.activeWallet
+        let roleRaw = wallet?.permissions[username] ?? WalletRole.member.rawValue
+        let role = WalletRole(rawValue: roleRaw) ?? .member
+        
+        let isOwner = wallet?.ownerId == username
+        let isAdmin = role == .admin
         let isCreator = transaction.createdBy == username
-        return isOwner || (role == WalletRole.member.rawValue && isCreator)
+        
+        return isOwner || isAdmin || (role == .member && isCreator)
     }
 
     var body: some View {
@@ -53,6 +60,22 @@ struct TransactionDetailView: View {
         .safeAreaPadding(.bottom, 20)
         .navigationTitle("İşlem Detayı")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if canEdit {
+                    Button {
+                        showEditSheet = true
+                    } label: {
+                        Text("Düzenle")
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showEditSheet) {
+            AddTransactionsView(transactionToEdit: transaction)
+                .environmentObject(walletManager)
+                .environmentObject(authManager)
+        }
     }
 
     // MARK: - Tutar Kartı
