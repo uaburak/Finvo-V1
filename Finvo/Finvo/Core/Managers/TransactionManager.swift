@@ -44,8 +44,8 @@ class TransactionManager: ObservableObject {
                     return
                 }
                 
-                // Arkaplan Thread'inde (Detached) ağır parsing ve hesaplamaları yap
-                Task.detached {
+                // Swift 6 hatasını önlemek için Main Actor üzerinde çalıştır (Parsing MainActor-isolated olabilir)
+                Task {
                     let parsed = documents.compactMap { try? $0.data(as: TransactionModel.self) }
                     
                     let income = parsed.filter { $0.type == .income && !$0.isDebt }.reduce(0) { $0 + $1.amount }
@@ -57,15 +57,13 @@ class TransactionManager: ObservableObject {
                     let topId = topEntry?.key
                     let topName = topEntry?.value.first?.mainCategoryName ?? "-"
                     
-                    // Sonuçları Main Thread'e (UI'a) yay!
-                    await MainActor.run {
-                        self.transactions = parsed
-                        self.totalIncome = income
-                        self.totalExpense = expense
-                        self.topExpenseCategoryId = topId
-                        self.topExpenseCategoryName = topName
-                        self.hasLoaded = true
-                    }
+                    // Verileri güncelle
+                    self.transactions = parsed
+                    self.totalIncome = income
+                    self.totalExpense = expense
+                    self.topExpenseCategoryId = topId
+                    self.topExpenseCategoryName = topName
+                    self.hasLoaded = true
                 }
             }
     }

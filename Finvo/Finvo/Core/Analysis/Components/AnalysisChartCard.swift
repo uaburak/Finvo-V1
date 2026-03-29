@@ -112,7 +112,7 @@ struct AnalysisChartCard: View {
                                 .gesture(
                                     DragGesture(minimumDistance: 0)
                                         .onChanged { value in
-                                            let locationX = max(0, min(value.location.x, proxy.plotAreaSize.width))
+                                            let locationX = max(0, min(value.location.x, proxy.plotSize.width))
                                             if let date: Date = proxy.value(atX: locationX) {
                                                 if let closest = findClosestItem(to: date) {
                                                     if self.currentActiveItem?.date != closest.date {

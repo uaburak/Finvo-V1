@@ -162,10 +162,6 @@ extension TransactionModel {
         let calendar = Calendar.current
         var copy = self
         
-        let currentDay = calendar.component(.day, from: currentDate)
-        let currentMonth = calendar.component(.month, from: currentDate)
-        let currentYear = calendar.component(.year, from: currentDate)
-        
         if isDebt {
             guard let total = totalInstallments, let paid = paidInstallments, paid < total else { return nil }
             
@@ -193,20 +189,17 @@ extension TransactionModel {
             return copy
         } 
         else if isRecurring {
-            // date(byAdding: .month) kullanımı en güvenli yoldur
             let value: Int
             let component: Calendar.Component
             
             switch recurrenceInterval ?? .monthly {
             case .daily: value = 1; component = .day
-            case .weekly: value = 1; component = .weekdayOrdinal // approx, better use weekOfYear
+            case .weekly: value = 1; component = .weekOfYear
             case .monthly: value = 1; component = .month
             case .yearly: value = 1; component = .year
             }
             
-            // Not: Basitlik adına aylık üzerinden gidelim (Abonelikler genelde aylıktır)
-            // Daha detaylı interval mantığı eklenebilir.
-            if let nextDate = calendar.date(byAdding: .month, value: 1, to: self.date) {
+            if let nextDate = calendar.date(byAdding: component, value: value, to: self.date) {
                 if let end = recurrenceEndDate, nextDate > end { return nil }
                 copy.date = nextDate
                 return copy

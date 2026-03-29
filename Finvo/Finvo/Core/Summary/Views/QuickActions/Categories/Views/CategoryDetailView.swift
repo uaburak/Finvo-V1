@@ -109,7 +109,7 @@ struct CategoryDetailView: View {
                 
                 Toggle("", isOn: $category.isOn)
                     .labelsHidden()
-                    .onChange(of: category.isOn) { _ in
+                    .onChange(of: category.isOn) {
                         saveChanges()
                     }
             }
@@ -198,7 +198,7 @@ struct CategoryDetailView: View {
         
         if let index = category.subCategories.firstIndex(where: { $0.id == subId }) {
             withAnimation {
-                category.subCategories.remove(at: index)
+                _ = category.subCategories.remove(at: index)
             }
             
             Task {
