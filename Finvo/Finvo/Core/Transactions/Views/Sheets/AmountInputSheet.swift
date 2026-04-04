@@ -91,7 +91,7 @@ struct AmountInputSheet: View {
             } label: {
                 Text("Tamam")
                     .font(.headline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.black)
                     .frame(maxWidth: .infinity, minHeight: 48)
             }
             .buttonStyle(.glassProminent)

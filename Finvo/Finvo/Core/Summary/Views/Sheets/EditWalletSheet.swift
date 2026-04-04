@@ -74,7 +74,7 @@ struct EditWalletSheet: View {
                     } label: {
                         Text("Kaydet")
                             .font(.headline)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(.black)
                             .frame(maxWidth: .infinity, minHeight: 48)
                     }
                     .buttonStyle(.glassProminent)

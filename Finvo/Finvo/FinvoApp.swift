@@ -28,6 +28,16 @@ struct FinvoApp: App {
     init() {
         // Konsoldaki gereksiz AutoLayout ve klavye uyarılarını gizlemek için
         UserDefaults.standard.set(false, forKey: "_UIConstraintBasedLayoutLogUnsatisfiable")
+        
+        // Segment Control: Seçili segmentin rengi neon green, metin siyah okunaklı olsun.
+        let brandColor = UIColor(Color(hex: "AEFF23"))
+        UISegmentedControl.appearance().selectedSegmentTintColor = brandColor
+        UISegmentedControl.appearance().setTitleTextAttributes(
+            [.foregroundColor: UIColor.black], for: .selected
+        )
+        UISegmentedControl.appearance().setTitleTextAttributes(
+            [.foregroundColor: UIColor.label], for: .normal
+        )
     }
     
     var body: some Scene {

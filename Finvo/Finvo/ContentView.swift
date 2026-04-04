@@ -94,7 +94,7 @@ struct ContentView: View {
             }
 
             Tab(value: AppTab.family) {
-                Text("Aile Sayfası").frame(maxWidth: .infinity, maxHeight: .infinity)
+                FamilyView()
             } label: {
                 tabLabel(for: .family)
             }

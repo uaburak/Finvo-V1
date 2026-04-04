@@ -23,7 +23,7 @@ struct TransactionDatePickerSheet: View {
             } label: {
                 Text("Tamam")
                     .font(.headline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.black)
                     .frame(maxWidth: .infinity)
                     .frame(height: 50)
                     .background(theme.brandPrimary)

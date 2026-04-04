@@ -30,7 +30,7 @@ protocol AppTheme {
 // MARK: - Default Theme (Figma Tasarımı)
 struct DefaultTheme: AppTheme {
     // Tasarımdaki canlı mavi (#007AFF / #0084FF vb.)
-    let brandPrimary = Color(red: 0.0, green: 0.52, blue: 1.0)
+    let brandPrimary = Color(hex: "AEFF23")
     
     // Background 1 (Native system background, Light: White, Dark: Black)
     let background1 = Color(uiColor: .systemBackground)

@@ -117,7 +117,7 @@ struct AddCategorySheet: View {
                         } else {
                             Text(categoryToEdit == nil ? "Oluştur" : "Güncelle")
                                 .font(.headline)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(.black)
                                 .frame(maxWidth: .infinity, minHeight: 48)
                         }
                     }

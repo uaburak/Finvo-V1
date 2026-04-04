@@ -204,6 +204,11 @@ struct TransactionsView: View {
         } message: {
             Text("Bu işlemi silmek istediğinize emin misiniz? Bu işlem geri alınamaz.")
         }
+        .onAppear {
+            let brandColor = UIColor(Color(hex: "AEFF23"))
+            UISegmentedControl.appearance().selectedSegmentTintColor = brandColor
+            UISegmentedControl.appearance().setTitleTextAttributes([.foregroundColor: UIColor.black], for: .selected)
+        }
     }
 }
 

@@ -161,7 +161,7 @@ struct BalanceCardView: View {
         } label: {
             Image(systemName: "gearshape.fill")
                 .font(.system(size: 18, weight: .bold))
-                .foregroundColor(.white)
+                .foregroundColor(theme.brandPrimary == DefaultTheme().brandPrimary ? .black : .white)
         }
     }
     
@@ -185,7 +185,7 @@ struct BalanceCardView: View {
             HStack {
                 Text("Toplam Bakiye")
                     .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.8))
+                    .foregroundColor(.black.opacity(0.8))
                 
                 Spacer()
                 
@@ -200,7 +200,7 @@ struct BalanceCardView: View {
             HStack {
                 Text("₺\(balance.formatted(.number.grouping(.automatic).precision(.fractionLength(2))))")
                     .font(.system(size: 32, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
+                    .foregroundColor(.black)
                     .contentTransition(.numericText())
                 
                 Spacer()
@@ -216,7 +216,7 @@ struct BalanceCardView: View {
                     Text(": +₺\(profit.formatted(.number.grouping(.automatic).precision(.fractionLength(2))))")
                 }
                 .font(.footnote)
-                .foregroundColor(.white.opacity(0.8))
+                .foregroundColor(.black.opacity(0.8))
                 
                 Spacer()
                 
@@ -225,7 +225,7 @@ struct BalanceCardView: View {
                     Text(": ₺\(pending.formatted(.number.grouping(.automatic).precision(.fractionLength(2))))")
                 }
                 .font(.footnote)
-                .foregroundColor(.white.opacity(0.8))
+                .foregroundColor(.black.opacity(0.8))
             }
             .padding(.bottom, 16)
             .padding(.horizontal, 20)
@@ -435,7 +435,7 @@ struct SetSavingsGoalSheet: View {
             } label: {
                 Text("Kaydet")
                     .font(.headline.bold())
-                    .foregroundColor(.white)
+                    .foregroundColor(.black)
                     .frame(maxWidth: .infinity)
                     .padding()
                     .background(theme.brandPrimary)
@@ -523,7 +523,7 @@ struct SetSpendingLimitSheet: View {
             } label: {
                 Text("Gönder")
                     .font(.headline.bold())
-                    .foregroundColor(.white)
+                    .foregroundColor(.black)
                     .frame(maxWidth: .infinity)
                     .padding()
                     .background(theme.expense)

@@ -172,9 +172,8 @@ struct AddTransactionsView: View {
             // Bütün steplerde hiçbir arka plan rengi yok (Tamamen Şeffaf)
             .presentationBackground(.clear) 
             .onAppear {
-                UISegmentedControl.appearance().selectedSegmentTintColor = UIColor(theme.brandPrimary)
-                UISegmentedControl.appearance().setTitleTextAttributes([.foregroundColor: UIColor.white], for: .selected)
-                UISegmentedControl.appearance().setTitleTextAttributes([.foregroundColor: UIColor(theme.labelSecondary)], for: .normal)
+                // Görünüm göründüğünde ek bir şey gerekmiyor.
+                // Global UISegmentedControl renkleri FinvoApp.swift'te merkezi olarak ayarlandı.
             }
             .sheet(item: $activeSheet) { sheet in
                 switch sheet {
@@ -415,7 +414,7 @@ struct AddTransactionsView: View {
             } label: {
                 Text(isSaving ? "Kaydediliyor..." : "Kaydet")
                     .font(.headline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.black)
                     .frame(maxWidth: .infinity, minHeight: 48)
             }
             .buttonStyle(.glassProminent)

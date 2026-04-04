@@ -1,64 +1,52 @@
 {
   "color-space-for-untagged-svg-colors" : "display-p3",
-  "fill" : {
-    "automatic-gradient" : "display-p3:0.27909,0.64280,0.60250,1.00000"
-  },
+  "fill-specializations" : [
+    {
+      "value" : {
+        "automatic-gradient" : "srgb:0.74902,1.00000,0.44314,1.00000"
+      }
+    },
+    {
+      "appearance" : "dark",
+      "value" : {
+        "automatic-gradient" : "extended-gray:0.00000,1.00000"
+      }
+    }
+  ],
   "groups" : [
     {
+      "blur-material" : 0.5,
       "layers" : [
         {
           "fill-specializations" : [
             {
+              "appearance" : "dark",
               "value" : {
-                "automatic-gradient" : "extended-gray:0.50000,1.00000"
+                "automatic-gradient" : "srgb:0.74902,1.00000,0.44314,1.00000"
               }
             },
             {
-              "appearance" : "dark",
+              "appearance" : "tinted",
               "value" : {
-                "automatic-gradient" : "extended-gray:0.75000,1.00000"
+                "solid" : "extended-gray:1.00000,1.00000"
               }
             }
           ],
-          "glass" : false,
-          "image-name" : "arrows.svg",
-          "name" : "arrows",
-          "position" : {
-            "scale" : 1.2,
-            "translation-in-points" : [
-              -245.18749966497796,
-              130.47695960658848
-            ]
-          }
-        },
-        {
-          "fill-specializations" : [
-            {
-              "value" : {
-                "automatic-gradient" : "extended-gray:0.25000,1.00000"
-              }
-            },
-            {
-              "appearance" : "dark",
-              "value" : {
-                "automatic-gradient" : "display-p3:0.27090,0.25586,0.24576,1.00000"
-              }
-            }
-          ],
-          "image-name" : "bottom-front.svg",
-          "name" : "bottom-front",
+          "glass" : true,
+          "image-name" : "wallet.svg",
+          "name" : "wallet",
           "position" : {
             "scale" : 4,
             "translation-in-points" : [
               0,
-              130.47696072061444
+              -30.475490253986834
             ]
           }
         }
       ],
       "lighting" : "individual",
       "position" : {
-        "scale" : 1,
+        "scale" : 1.1,
         "translation-in-points" : [
           0,
           33.523039279385614
@@ -66,212 +54,12 @@
       },
       "shadow" : {
         "kind" : "neutral",
-        "opacity" : 0.5
+        "opacity" : 1
       },
       "specular" : true,
       "translucency" : {
         "enabled" : true,
         "value" : 0.36
-      }
-    },
-    {
-      "blur-material" : null,
-      "layers" : [
-        {
-          "fill-specializations" : [
-            {
-              "value" : {
-                "automatic-gradient" : "extended-srgb:0.00000,0.78431,0.70196,1.00000"
-              }
-            },
-            {
-              "appearance" : "dark",
-              "value" : {
-                "automatic-gradient" : "extended-srgb:0.00000,0.78431,0.70196,1.00000"
-              }
-            }
-          ],
-          "image-name" : "money-front 3.svg",
-          "name" : "money-front 3",
-          "position" : {
-            "scale" : 4,
-            "translation-in-points" : [
-              0,
-              20.751331753648913
-            ]
-          }
-        },
-        {
-          "fill-specializations" : [
-            {
-              "value" : {
-                "automatic-gradient" : "display-p3:0.27909,0.64280,0.60250,1.00000"
-              }
-            },
-            {
-              "appearance" : "dark",
-              "value" : {
-                "automatic-gradient" : "display-p3:0.27909,0.64280,0.60250,1.00000"
-              }
-            }
-          ],
-          "image-name" : "money-back 3.svg",
-          "name" : "money-back 3",
-          "position" : {
-            "scale" : 4,
-            "translation-in-points" : [
-              0,
-              20.751331753648913
-            ]
-          }
-        }
-      ],
-      "position" : {
-        "scale" : 1,
-        "translation-in-points" : [
-          0,
-          33.523039279385614
-        ]
-      },
-      "shadow" : {
-        "kind" : "layer-color",
-        "opacity" : 1
-      },
-      "translucency" : {
-        "enabled" : true,
-        "value" : 0.5
-      }
-    },
-    {
-      "hidden" : false,
-      "layers" : [
-        {
-          "fill-specializations" : [
-            {
-              "value" : {
-                "automatic-gradient" : "extended-srgb:0.00000,0.78431,0.70196,1.00000"
-              }
-            },
-            {
-              "appearance" : "dark",
-              "value" : {
-                "automatic-gradient" : "extended-srgb:0.00000,0.78431,0.70196,1.00000",
-                "orientation" : {
-                  "start" : {
-                    "x" : 0.5,
-                    "y" : 0
-                  },
-                  "stop" : {
-                    "x" : 0.5,
-                    "y" : 0.7
-                  }
-                }
-              }
-            }
-          ],
-          "image-name" : "money-back 2.svg",
-          "name" : "money-back 2",
-          "position" : {
-            "scale" : 4,
-            "translation-in-points" : [
-              0,
-              -33.52303927938556
-            ]
-          }
-        },
-        {
-          "fill-specializations" : [
-            {
-              "value" : {
-                "automatic-gradient" : "extended-srgb:0.00000,0.78431,0.70196,1.00000"
-              }
-            },
-            {
-              "appearance" : "dark",
-              "value" : {
-                "automatic-gradient" : "extended-srgb:0.00000,0.78431,0.70196,1.00000",
-                "orientation" : {
-                  "start" : {
-                    "x" : 0.5,
-                    "y" : 0
-                  },
-                  "stop" : {
-                    "x" : 0.5,
-                    "y" : 0.7
-                  }
-                }
-              }
-            }
-          ],
-          "image-name" : "money-back 3.svg",
-          "name" : "money-back 3",
-          "position" : {
-            "scale" : 4,
-            "translation-in-points" : [
-              0,
-              -87.86784430262298
-            ]
-          }
-        }
-      ],
-      "position" : {
-        "scale" : 1,
-        "translation-in-points" : [
-          0,
-          33.523039279385614
-        ]
-      },
-      "shadow" : {
-        "kind" : "neutral",
-        "opacity" : 0.5
-      },
-      "translucency" : {
-        "enabled" : true,
-        "value" : 0.5
-      }
-    },
-    {
-      "layers" : [
-        {
-          "blend-mode" : "normal",
-          "fill-specializations" : [
-            {
-              "value" : {
-                "automatic-gradient" : "extended-gray:0.25000,1.00000"
-              }
-            },
-            {
-              "appearance" : "dark",
-              "value" : {
-                "automatic-gradient" : "display-p3:0.27090,0.25586,0.24576,1.00000"
-              }
-            }
-          ],
-          "image-name" : "bg.svg",
-          "name" : "bg",
-          "position" : {
-            "scale" : 4,
-            "translation-in-points" : [
-              0,
-              -33.52303927938556
-            ]
-          }
-        }
-      ],
-      "position" : {
-        "scale" : 1,
-        "translation-in-points" : [
-          0,
-          33.523039279385614
-        ]
-      },
-      "shadow" : {
-        "kind" : "neutral",
-        "opacity" : 0.5
-      },
-      "translucency" : {
-        "enabled" : true,
-        "value" : 0.5
       }
     }
   ],

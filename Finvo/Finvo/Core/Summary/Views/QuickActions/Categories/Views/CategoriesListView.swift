@@ -128,6 +128,11 @@ struct CategoriesListView: View {
         } message: {
             Text("'\(categoryToDelete?.name ?? "")' kategorisini ve ona bağlı tüm verileri silmek istediğinizden emin misiniz?\n\n\(impactSummary)")
         }
+        .onAppear {
+            let brandColor = UIColor(Color(hex: "AEFF23"))
+            UISegmentedControl.appearance().selectedSegmentTintColor = brandColor
+            UISegmentedControl.appearance().setTitleTextAttributes([.foregroundColor: UIColor.black], for: .selected)
+        }
     }
     
     @ViewBuilder
