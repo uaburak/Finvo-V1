@@ -7,14 +7,30 @@ struct SavingsAccountDetailView: View {
     @EnvironmentObject var authManager: AuthenticationManager
     @EnvironmentObject var transactionManager: TransactionManager
     
+    @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
+    
     let account: SavingsAccountModel
     
     @State private var showAmountSheet = false
     @State private var showEditSheet = false
     @State private var isAdding = true
     @State private var amountInput: String = ""
+    @State private var selectedCurrency: CurrencyType = .tryCurrency
     @State private var showDeleteConfirm = false
     @State private var isProcessing = false
+    
+    // Uygulama para birimi (TL vs) cinsinden toplam sepet değeri
+    private var totalBalanceInAppCurrency: Double {
+        var total: Double = 0
+        if let assets = account.assets {
+            for (key, qty) in assets {
+                if let type = CurrencyType(rawValue: key) {
+                    total += ExchangeRateManager.shared.convert(amount: qty, from: type, to: appCurrency)
+                }
+            }
+        }
+        return total
+    }
     
     private func getSwiftColor(from stringRaw: String) -> Color {
         switch stringRaw.lowercased() {
@@ -54,7 +70,7 @@ struct SavingsAccountDetailView: View {
                                 .font(.title.bold())
                                 .foregroundColor(theme.labelPrimary)
                             
-                            Text("Hedef: ₺\(account.goalAmount.formatted(.number.precision(.fractionLength(0))))")
+                            Text("Hedef: \(appCurrency.symbol)\(account.goalAmount.formatted(.number.precision(.fractionLength(0))))")
                                 .font(.headline)
                                 .foregroundColor(theme.labelSecondary)
                         }
@@ -68,30 +84,62 @@ struct SavingsAccountDetailView: View {
                                 Text("Biriken Tutar")
                                     .font(.subheadline)
                                     .foregroundColor(theme.labelSecondary)
-                                Text("₺\(account.currentAmount.formatted(.number.precision(.fractionLength(0))))")
+                                    
+                                Text("\(appCurrency.symbol)\(totalBalanceInAppCurrency.formatted(.number.precision(.fractionLength(0))))")
                                     .font(.title2.bold())
                                     .foregroundColor(cardColor)
                             }
                             Spacer()
                             
-                            let percentage = (account.currentAmount / account.goalAmount) * 100
+                            let percentage: Double = {
+                                return account.goalAmount > 0 ? (totalBalanceInAppCurrency / account.goalAmount) * 100 : 0
+                            }()
+                            
                             Text("%\(percentage.formatted(.number.precision(.fractionLength(0))))")
                                 .font(.title3.bold())
                                 .foregroundColor(theme.labelPrimary)
                         }
                         
+                        // Alt varlıkların detayları (örn: 15 Gr Altın, 100 USD)
+                        if let assets = account.assets, !assets.isEmpty {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 12) {
+                                    ForEach(Array(assets.keys).sorted(), id: \.self) { key in
+                                        if let qty = assets[key], qty > 0, let type = CurrencyType(rawValue: key) {
+                                            HStack(spacing: 4) {
+                                                Text(type.symbol)
+                                                    .font(.caption2.bold())
+                                                    .foregroundColor(theme.labelSecondary)
+                                                Text("\(qty.formatted(.number.precision(.fractionLength(type == .tryCurrency ? 0 : 2))))")
+                                                    .font(.caption.bold())
+                                                    .foregroundColor(theme.labelPrimary)
+                                            }
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 6)
+                                            .background(theme.background2)
+                                            .clipShape(Capsule())
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
                         GeometryReader { geo in
                             ZStack(alignment: .leading) {
                                 Capsule().fill(theme.separatorSecondary)
+                                let progress = account.goalAmount > 0 ? (totalBalanceInAppCurrency / account.goalAmount) : 0
                                 Capsule().fill(cardColor)
-                                    .frame(width: max(0, min(CGFloat(account.currentAmount / account.goalAmount) * geo.size.width, geo.size.width)))
+                                    .frame(width: max(0, min(CGFloat(progress) * geo.size.width, geo.size.width)))
                             }
                         }
                         .frame(height: 12)
                         
-                        let remaining = account.goalAmount - account.currentAmount
+                        let remaining: Double = {
+                            return account.goalAmount - totalBalanceInAppCurrency
+                        }()
+                        
                         if remaining > 0 {
-                            Text("Hedefe ₺\(remaining.formatted(.number.precision(.fractionLength(0)))) kaldı")
+                            Text("Hedefe \(appCurrency.symbol)\(remaining.formatted(.number.precision(.fractionLength(0)))) kaldı")
                                 .font(.subheadline)
                                 .foregroundColor(theme.labelSecondary)
                                 .frame(maxWidth: .infinity, alignment: .trailing)
@@ -124,8 +172,8 @@ struct SavingsAccountDetailView: View {
                             .padding(.vertical, 20)
                             .glassEffect(in: .rect(cornerRadius: 24))
                         }
-                        .disabled(account.currentAmount <= 0)
-                        .opacity(account.currentAmount <= 0 ? 0.5 : 1.0)
+                        .disabled(totalBalanceInAppCurrency <= 0)
+                        .opacity(totalBalanceInAppCurrency <= 0 ? 0.5 : 1.0)
                         
                         Button {
                             isAdding = true
@@ -177,7 +225,7 @@ struct SavingsAccountDetailView: View {
                                         iconColor: transaction.type == .income ? theme.expense : .blue,
                                         title: LocalizedStringKey(transaction.type == .income ? "Para Çıkarıldı" : "Para Eklendi"),
                                         subtitle: LocalizedStringKey(transaction.date.formatted(date: .abbreviated, time: .shortened)),
-                                        value: (transaction.type == .income ? "+₺" : "-₺") + transaction.amount.formatted(.number.grouping(.automatic).precision(.fractionLength(0))),
+                                        value: (transaction.type == .income ? "+\(transaction.currency?.symbol ?? appCurrency.symbol)" : "-\(transaction.currency?.symbol ?? appCurrency.symbol)") + transaction.amount.formatted(.number.grouping(.automatic).precision(.fractionLength(0))),
                                         valueColor: transaction.type == .income ? theme.expense : theme.income
                                     )
                                     .padding(.vertical, 12)
@@ -224,14 +272,11 @@ struct SavingsAccountDetailView: View {
                 .presentationBackground(.clear)
         }
         .sheet(isPresented: $showAmountSheet) {
-            AmountInputSheet(amount: $amountInput)
-                .presentationDetents([.height(400)])
-                .presentationDragIndicator(.visible)
-                .onDisappear {
-                    if !amountInput.isEmpty {
-                        handleTransaction(adding: isAdding)
-                    }
-                }
+            SavingsDepositSheet(isAdding: isAdding) { amountStr, currency in
+                amountInput = amountStr
+                selectedCurrency = currency
+                handleTransaction(adding: isAdding)
+            }
         }
         .alert("Hesabı Sil", isPresented: $showDeleteConfirm) {
             Button("İptal", role: .cancel) { }
@@ -248,13 +293,20 @@ struct SavingsAccountDetailView: View {
         
         isProcessing = true
         
-        let txType: TransactionType = adding ? .expense : .income
-        let txMsg = adding ? "\(account.name) fonuna aktarıldı." : "\(account.name) fonundan çekildi."
+        let txType: TransactionType = adding ? .expense : .income // Mevduattan para çıkıyor (Gider)
+        
+        var qtyString = ""
+        if selectedCurrency != .tryCurrency {
+            qtyString = " (\(validAmount.formatted(.number.precision(.fractionLength(0)))) \(selectedCurrency.symbol))"
+        }
+        
+        let txMsg = adding ? "\(account.name) fonuna eklendi\(qtyString)." : "\(account.name) fonundan çekildi\(qtyString)."
         
         let tx = TransactionModel(
             walletId: wallet.id ?? "",
             type: txType,
-            amount: validAmount,
+            amount: validAmount, // Gerçek birim
+            currency: selectedCurrency, // Native para birimini transaction'a işle!
             mainCategoryName: "Birikim İşlemleri",
             subCategoryName: account.name,
             categoryIcon: "lanyardcard.fill",
@@ -274,11 +326,17 @@ struct SavingsAccountDetailView: View {
                     var updatedWallet = wallet
                     if var accounts = updatedWallet.savingsAccounts,
                        let idx = accounts.firstIndex(where: { $0.id == account.id }) {
+                        
+                        var updatedAssets = accounts[idx].assets ?? [:]
+                        let currentQty = updatedAssets[selectedCurrency.rawValue] ?? 0
+                        
                         if adding {
-                            accounts[idx].currentAmount += validAmount
+                            updatedAssets[selectedCurrency.rawValue] = currentQty + validAmount
                         } else {
-                            accounts[idx].currentAmount -= validAmount
+                            updatedAssets[selectedCurrency.rawValue] = max(0, currentQty - validAmount)
                         }
+                        
+                        accounts[idx].assets = updatedAssets
                         updatedWallet.savingsAccounts = accounts
                         walletManager.updateWallet(updatedWallet)
                     }

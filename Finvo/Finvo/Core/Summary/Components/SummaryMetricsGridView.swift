@@ -6,6 +6,8 @@ struct SummaryMetricsGridView: View {
     @EnvironmentObject var walletManager: WalletManager
     @ObservedObject var categoryManager = CategoryManager.shared
     
+    @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
+    
     // Düzenli 2 kolonlu yapı (Esnek)
     let columns = [
         GridItem(.flexible(), spacing: 16),
@@ -23,7 +25,9 @@ struct SummaryMetricsGridView: View {
             !$0.isDebt && $0.type == .expense &&
             calendar.isDate($0.date, equalTo: now, toGranularity: .month) &&
             calendar.isDate($0.date, equalTo: now, toGranularity: .year)
-        }.reduce(0) { $0 + $1.amount }
+        }.reduce(0) { total, tx in
+            total + ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: appCurrency)
+        }
         
         let limitProgress = limit > 0 ? (currentMonthExpenses / limit) : 0.0
         
@@ -32,20 +36,22 @@ struct SummaryMetricsGridView: View {
         let resolvedTopCategory = CategoryManager.shared.categories.first(where: { $0.id == topCategoryId }) ?? 
                                   CategoryManager.shared.categories.first(where: { $0.name == topCategoryName })
         
-        let upcomingPayments = transactionManager.transactions.compactMap { $0.nextPayment(after: now) }
+        let upcomingPayments = transactionManager.transactions.filter { $0.type == .expense || $0.isDebt }.compactMap { $0.nextPayment(after: now) }
         let upcomingCount = upcomingPayments.count
-        let upcomingTotal = upcomingPayments.reduce(0) { $0 + $1.amount }
+        let upcomingTotal = upcomingPayments.reduce(0) { total, tx in
+            total + ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: appCurrency)
+        }
         
         let paymentCalendarText: String
         if upcomingCount > 0 {
-            paymentCalendarText = "\(upcomingCount) Ödeme (₺\(upcomingTotal.formatted(.number.precision(.fractionLength(0)))))"
+            paymentCalendarText = "\(upcomingCount) Ödeme (\(appCurrency.symbol)\(upcomingTotal.formatted(.number.precision(.fractionLength(0)))))"
         } else {
             paymentCalendarText = "Yaklaşan Yok"
         }
 
         return LazyVGrid(columns: columns, spacing: 16) {
             // Harcama Limiti
-            MetricCardView(title: "Harcama Limiti", amount: "₺\(currentMonthExpenses.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))) / ₺\(limit.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))", iconName: "creditcard.fill", iconColor: theme.expense, progress: limitProgress)
+            MetricCardView(title: "Harcama Limiti", amount: "\(appCurrency.symbol)\(currentMonthExpenses.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))) / \(appCurrency.symbol)\(limit.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))", iconName: "creditcard.fill", iconColor: theme.expense, progress: limitProgress)
             MetricCardView(title: "En Çok Harcama", 
                            amount: LocalizedStringKey(resolvedTopCategory?.name ?? topCategoryName), 
                            iconName: resolvedTopCategory?.icon ?? "cart.fill", 
@@ -146,6 +152,8 @@ struct PaymentCalendarDetailView: View {
     
     let upcomingPayments: [TransactionModel]
     
+    @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
+    
     var body: some View {
         ZStack {
             theme.background1.ignoresSafeArea()
@@ -171,12 +179,14 @@ struct PaymentCalendarDetailView: View {
                     VStack(spacing: 24) {
                         
                         // Top Header
-                        let total = upcomingPayments.reduce(0) { $0 + $1.amount }
+                        let total = upcomingPayments.reduce(0) { total, tx in
+                            total + ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: appCurrency)
+                        }
                         VStack(spacing: 8) {
                             Text("Yaklaşan Toplam Yükümlülük")
                                 .font(.subheadline)
                                 .foregroundColor(theme.labelSecondary)
-                            Text("₺\(total.formatted(.number.precision(.fractionLength(0))))")
+                            Text("\(appCurrency.symbol)\(total.formatted(.number.precision(.fractionLength(0))))")
                                 .font(.system(size: 40, weight: .bold, design: .rounded))
                                 .foregroundColor(theme.expense)
                                 .contentTransition(.numericText())
@@ -235,7 +245,8 @@ struct PaymentCalendarDetailView: View {
                                     Spacer()
                                     
                                     VStack(alignment: .trailing, spacing: 4) {
-                                        Text("-₺\(tx.amount.formatted(.number.precision(.fractionLength(0))))")
+                                        let converted = ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: appCurrency)
+                                        Text("-\(appCurrency.symbol)\(converted.formatted(.number.precision(.fractionLength(0))))")
                                             .font(.headline.bold())
                                             .foregroundColor(theme.labelPrimary)
                                         

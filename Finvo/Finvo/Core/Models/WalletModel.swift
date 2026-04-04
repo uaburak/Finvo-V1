@@ -49,7 +49,9 @@ struct SavingsAccountModel: Identifiable, Codable, Equatable {
     var id: String = UUID().uuidString
     var name: String
     var goalAmount: Double
-    var currentAmount: Double = 0.0
+    var goalCurrency: String? // Hangi para biriminde hedefleniyor
+    var currentAmount: Double = 0.0 // Geriye dönük uyumluluk veya son hesaplanan limit cache için.
+    var assets: [String: Double]? // [CurrencyType.rawValue: Double] formatında
     var color: String // e.g. "blue", "green", "purple"
     var createdAt: Date = Date()
 }
@@ -63,6 +65,8 @@ struct WalletModel: Identifiable, Codable, Equatable {
     var members: [String]
     var permissions: [String: String] // UID -> WalletRole (e.g. "owner")
     var monthlyLimit: Double?
+    var monthlyLimitCurrency: String? // Limitin ana para birimi
+    var categoryLimits: [String: Double]? // Kategori ID -> Limit Tutarı eşleşmesi
     var savingsGoal: Double? // Eski tekil birikim hedefi (geriye dönük uyumluluk için tutulabilir)
     var savingsAccounts: [SavingsAccountModel]? // Yeni çoklu birikim hesapları listesi
     

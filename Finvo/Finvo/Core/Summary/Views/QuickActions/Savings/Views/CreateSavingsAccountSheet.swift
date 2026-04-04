@@ -11,6 +11,8 @@ struct CreateSavingsAccountSheet: View {
     @State private var goalAmount: String = ""
     @State private var selectedColor: String = "blue"
     
+    @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
+    
     let availableColors: [(name: String, value: Color, hex: String)] = [
         ("Mavi", .blue, "blue"),
         ("Yeşil", .green, "green"),
@@ -37,7 +39,7 @@ struct CreateSavingsAccountSheet: View {
                             )
                         
                         // Hedef Tutar - Capsule & Başlıksız
-                        TextField("Hedef Tutar (₺)", text: $goalAmount)
+                        TextField("Hedef Tutar (\(appCurrency.symbol))", text: $goalAmount)
                             .keyboardType(.decimalPad)
                             .padding(.horizontal, 20)
                             .padding(.vertical, 16)
@@ -46,8 +48,7 @@ struct CreateSavingsAccountSheet: View {
                             .overlay(
                                 Capsule().stroke(theme.separator, lineWidth: 1)
                             )
-                        
-                        // Renk Seçimi - Daha Sade
+                            
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Hesap Rengi")
                                 .font(.subheadline)
@@ -129,6 +130,7 @@ struct CreateSavingsAccountSheet: View {
         let newAccount = SavingsAccountModel(
             name: accountName,
             goalAmount: target,
+            goalCurrency: appCurrency.rawValue,
             color: selectedColor
         )
         

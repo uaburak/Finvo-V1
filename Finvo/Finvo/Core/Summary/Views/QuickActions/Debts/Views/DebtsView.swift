@@ -89,6 +89,7 @@ struct DebtsView: View {
                 .frame(width: 44, height: 44)
             }
             .padding(16)
+            .contentShape(Rectangle())
             .glassEffect(in: .rect(cornerRadius: 20))
             .shadow(color: Color.black.opacity(0.03), radius: 8, y: 4)
         }

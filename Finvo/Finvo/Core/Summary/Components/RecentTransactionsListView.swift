@@ -7,6 +7,8 @@ struct RecentTransactionsListView: View {
     @EnvironmentObject var authManager: AuthenticationManager
     @ObservedObject var categoryManager = CategoryManager.shared
     
+    @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
+    
     var body: some View {
         VStack(spacing: 16) {
             
@@ -56,7 +58,7 @@ struct RecentTransactionsListView: View {
                                 iconColor: transaction.resolvedColor(),
                                 title: LocalizedStringKey(transaction.resolvedSubCategoryName ?? transaction.resolvedMainCategoryName),
                                 subtitle: LocalizedStringKey(transaction.date.formatted(date: .abbreviated, time: .shortened)),
-                                value: (transaction.isIncome ? "+₺" : "-₺") + transaction.amount.formatted(.number.grouping(.automatic).precision(.fractionLength(2))),
+                                value: (transaction.isIncome ? "+\(transaction.currency?.symbol ?? appCurrency.symbol)" : "-\(transaction.currency?.symbol ?? appCurrency.symbol)") + transaction.amount.formatted(.number.grouping(.automatic).precision(.fractionLength(0))),
                                 valueColor: transaction.isIncome ? theme.income : theme.expense
                             )
                         }

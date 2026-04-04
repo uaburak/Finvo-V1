@@ -6,6 +6,8 @@ struct TransactionDetailView: View {
     @EnvironmentObject var walletManager: WalletManager
     @EnvironmentObject var authManager: AuthenticationManager
     @ObservedObject var categoryManager = CategoryManager.shared
+    
+    @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
 
     let transaction: TransactionModel
 
@@ -64,9 +66,12 @@ struct TransactionDetailView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 if canEdit {
                     Button {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         showEditSheet = true
                     } label: {
-                        Text("Düzenle")
+                        Image(systemName: "pencil")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(theme.labelPrimary)
                     }
                 }
             }
@@ -84,7 +89,7 @@ struct TransactionDetailView: View {
             // İkon
             ZStack {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(transaction.isIncome ? theme.income : theme.expense)
+                    .fill(transaction.resolvedColor())
                     .frame(width: 56, height: 56)
 
                 Image(systemName: transaction.resolvedIcon)
@@ -106,9 +111,17 @@ struct TransactionDetailView: View {
             }
 
             // Tutar
-            Text("\(transaction.isIncome ? "+" : "-")₺\(transaction.amount.formatted(.number.grouping(.automatic).precision(.fractionLength(2))))")
+            Text("\(transaction.isIncome ? "+" : "-")\(transaction.currency?.symbol ?? appCurrency.symbol)\(transaction.amount.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))")
                 .font(.system(size: 36, weight: .bold, design: .rounded))
-                .foregroundColor(transaction.isIncome ? theme.income : theme.expense)
+                .foregroundColor(transaction.resolvedColor())
+            
+            let txCurrency = transaction.currency ?? .tryCurrency
+            if txCurrency.code != appCurrency.code {
+                let converted = ExchangeRateManager.shared.convert(amount: transaction.amount, from: txCurrency, to: appCurrency)
+                Text("≈ \(appCurrency.symbol)\(converted.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))")
+                    .font(.title3.weight(.medium))
+                    .foregroundStyle(theme.labelSecondary)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)
@@ -220,12 +233,10 @@ struct TransactionDetailView: View {
     // MARK: - Sil Butonu
     private var deleteButton: some View {
         Button(role: .destructive) {
-            Task {
-                if let id = transaction.id {
-                    try? await FirestoreService.shared.deleteTransaction(
-                        walletId: transaction.walletId, transactionId: id)
-                    dismiss()
-                }
+            if let id = transaction.id {
+                FirestoreService.shared.deleteTransaction(
+                    walletId: transaction.walletId, transactionId: id)
+                dismiss()
             }
         } label: {
             HStack {
@@ -233,12 +244,10 @@ struct TransactionDetailView: View {
                 Text("İşlemi Sil")
             }
             .font(.headline)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .foregroundStyle(Color.red)
         }
-        .buttonStyle(.borderedProminent)
-        .tint(.red)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .buttonStyle(.glass)
     }
 
     // MARK: - Detay Satırı Helper

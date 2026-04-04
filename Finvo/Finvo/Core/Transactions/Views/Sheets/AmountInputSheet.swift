@@ -8,11 +8,30 @@ import SwiftUI
 struct AmountInputSheet: View {
     @Environment(\.theme) var theme
     @Environment(\.dismiss) var dismiss
+    @StateObject private var exchangeRateManager = ExchangeRateManager.shared
     @Binding var amount: String
+    var currencyBinding: Binding<CurrencyType>? = nil
     
     var body: some View {
         NavigationStack {
             VStack(spacing: 16) {
+                if let currencyBinding = currencyBinding {
+                    HStack {
+                        Text("Para Birimi")
+                            .foregroundStyle(theme.labelSecondary)
+                        Spacer()
+                        Picker("Para Birimi", selection: currencyBinding) {
+                            ForEach(exchangeRateManager.allCurrencies.filter { $0.assetType == "Döviz" }, id: \.self) { currency in
+                                Text(currency.code).tag(currency)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .tint(theme.brandPrimary)
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 8)
+                }
+                
                 VStack(spacing: 16) {
                 // Main Amount Row with +/- 100
                 HStack(spacing: 16) {
@@ -29,7 +48,7 @@ struct AmountInputSheet: View {
                     
                     ZStack {
                         // Animasyonun çalışması için sadece okunabilir Text ekliyoruz
-                        Text(amount.isEmpty ? "0,00" : amount)
+                        Text(formatAmountText())
                             .font(.system(size: 56, weight: .bold, design: .rounded))
                             .foregroundStyle(theme.labelPrimary)
                             .contentTransition(.numericText())
@@ -129,11 +148,30 @@ struct AmountInputSheet: View {
             
             if current == 0 {
                 amount = ""
-            } else if floor(current) == current {
-                amount = String(format: "%.0f", current)
             } else {
-                amount = current.formatted(.number.grouping(.automatic).precision(.fractionLength(2)))
+                amount = String(format: "%.0f", current)
             }
         }
+    }
+    
+    // Yardımcı fonksiyon: Klavyeden girilen metni anlık olarak binlik formatına çevirir
+    private func formatAmountText() -> String {
+        if amount.isEmpty { return "0" }
+        let normalized = amount.replacingOccurrences(of: ",", with: ".")
+        if let parsed = Double(normalized) {
+            let hasDecimal = amount.contains(",") || amount.contains(".")
+            if hasDecimal {
+                let parts = normalized.split(separator: ".", omittingEmptySubsequences: false)
+                let intPart = parts.first ?? ""
+                let decPart = parts.count > 1 ? parts[1] : ""
+                if let intVal = Double(intPart) {
+                    let formattedInt = intVal.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))
+                    return "\(formattedInt),\(decPart)"
+                }
+            } else {
+                return parsed.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))
+            }
+        }
+        return amount
     }
 }

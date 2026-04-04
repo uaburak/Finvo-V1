@@ -5,6 +5,7 @@ struct SettingsView: View {
     @Environment(\.theme) var theme
     @EnvironmentObject var authManager: AuthenticationManager
     @EnvironmentObject var walletManager: WalletManager
+    @StateObject private var exchangeRateManager = ExchangeRateManager.shared
     @State private var isGenerating = false
     
     // Seçilen dili cihazda System Defaults olarak saklar
@@ -16,6 +17,8 @@ struct SettingsView: View {
         ("de", "Deutsch 🇩🇪"),
         ("ru", "Русский 🇷🇺")
     ]
+    
+    @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
     
     var body: some View {
         NavigationStack {
@@ -45,6 +48,14 @@ struct SettingsView: View {
                         }
                     }
                     .pickerStyle(.navigationLink)
+                    
+                    Picker("Para Birimi", selection: $appCurrency) {
+                        let allowedFiatCodes = ["TRY", "USD", "EUR", "GBP", "CHF", "CAD", "RUB"]
+                        ForEach(exchangeRateManager.allCurrencies.filter { allowedFiatCodes.contains($0.code) }.sorted(by: { $0.code == "TRY" ? true : $0.name < $1.name }), id: \.self) { currency in
+                            Text("\(currency.symbol) \(currency.name)").tag(currency)
+                        }
+                    }
+                    .pickerStyle(.menu)
                 }
                 
                 Section {
@@ -65,6 +76,15 @@ struct SettingsView: View {
                 }
                 
                 Section(header: Text("Geliştirici Araçları")) {
+                    NavigationLink(destination: APITestView()) {
+                        HStack {
+                            Text("TCMB API Web İsteğini Test Et")
+                            Spacer()
+                            Image(systemName: "network")
+                        }
+                    }
+                    .foregroundStyle(theme.brandPrimary)
+                    
                     Button {
                         generateTestTransactions()
                     } label: {

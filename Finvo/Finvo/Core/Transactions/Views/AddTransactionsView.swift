@@ -10,6 +10,9 @@ struct AddTransactionsView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authManager: AuthenticationManager
     @EnvironmentObject var walletManager: WalletManager
+    @EnvironmentObject var transactionManager: TransactionManager
+    
+    @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
 
     let transactionToEdit: TransactionModel?
 
@@ -18,6 +21,7 @@ struct AddTransactionsView: View {
     @State private var selectedSubCategory: SubCategoryModel?
     @State private var selectedDate: Date = Date()
     @State private var amount: String = ""
+    @State private var selectedCurrency: CurrencyType = .tryCurrency
     @ObservedObject var categoryManager = CategoryManager.shared
     @State private var activeSheet: ActiveSheet?
     @State private var isDebt: Bool = false
@@ -42,6 +46,7 @@ struct AddTransactionsView: View {
         _selectedType = State(initialValue: type)
         _selectedDate = State(initialValue: transactionToEdit?.date ?? Date())
         _amount = State(initialValue: transactionToEdit != nil ? String(format: "%.0f", transactionToEdit!.amount) : "")
+        _selectedCurrency = State(initialValue: transactionToEdit?.currency ?? (UserDefaults.standard.string(forKey: "appCurrency").flatMap { CurrencyType(rawValue: $0) } ?? .tryCurrency))
         
         // Kategori eşleştirme (ID bazlı öncelik, isim fallback)
         let categories = CategoryManager.shared.categories.isEmpty ? CategoriesMockData.data : CategoryManager.shared.categories
@@ -103,7 +108,7 @@ struct AddTransactionsView: View {
     }
 
     enum ActiveSheet: Identifiable {
-        case category, amount
+        case category, amount, currency
         var id: Int { hashValue }
     }
 
@@ -187,6 +192,10 @@ struct AddTransactionsView: View {
                     AmountInputSheet(amount: $amount)
                         .presentationDetents([.height(300)])
                         .presentationBackground(.clear)
+                case .currency:
+                    CurrencySelectionSheet(selectedCurrency: $selectedCurrency)
+                        .presentationDetents([.large])
+                        .presentationDragIndicator(.visible)
                 }
             }
             .alert("Yetki İste", isPresented: $showPermissionErrorAlert) {
@@ -251,15 +260,46 @@ struct AddTransactionsView: View {
     private var detailsFormView: some View {
         VStack(spacing: 24) {
             // Selected Path Summary
-            HStack {
-                summaryItem(icon: selectedMainCategory?.icon ?? "", color: selectedMainCategory?.color, text: selectedMainCategory?.name ?? "")
-                Image(systemName: "chevron.right").font(.caption).foregroundStyle(theme.labelSecondary)
-                summaryItem(icon: selectedSubCategory?.icon ?? "", color: selectedSubCategory?.color, text: selectedSubCategory?.name ?? "")
+            VStack(spacing: 0) {
+                ListItem(
+                    icon: selectedSubCategory?.icon ?? selectedMainCategory?.icon ?? "questionmark",
+                    iconColor: selectedSubCategory?.uiColor ?? selectedMainCategory?.uiColor ?? Color.gray,
+                    title: LocalizedStringKey(selectedSubCategory?.name ?? selectedMainCategory?.name ?? "Kategori Seçilmedi"),
+                    subtitle: LocalizedStringKey(selectedMainCategory?.name ?? ""),
+                    iconForegroundColor: .white
+                )
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
             }
-            .padding(.vertical, 8)
+            .clipShape(RoundedRectangle(cornerRadius: 24))
+            .overlay(RoundedRectangle(cornerRadius: 24).stroke(theme.separator, lineWidth: 1))
 
             VStack(spacing: 0) {
-                formRow("turkishlirasign.circle", "Tutar", amount.isEmpty ? "0,00 ₺" : "₺\(amount)") { activeSheet = .amount }
+                formRow("turkishlirasign.circle", "Tutar", formatAmountText()) { activeSheet = .amount }
+                Divider().padding(.leading, 56)
+                
+                HStack(spacing: 16) {
+                    Image(systemName: "banknote")
+                        .font(.system(size: 20))
+                        .foregroundStyle(theme.brandPrimary)
+                        .frame(width: 24)
+                    Text("Para Birimi")
+                        .foregroundStyle(theme.labelPrimary)
+                    Spacer()
+                    Text(selectedCurrency.code)  // Show abbreviation here! "USD" 
+                        .foregroundStyle(theme.labelSecondary)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(theme.separatorSecondary)
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+                .contentShape(Rectangle()) // To make tapping it accurate
+                .onTapGesture {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    activeSheet = .currency
+                }
+                
                 Divider().padding(.leading, 56)
                 
                 HStack(spacing: 16) {
@@ -276,6 +316,8 @@ struct AddTransactionsView: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: 24))
             .overlay(RoundedRectangle(cornerRadius: 24).stroke(theme.separator, lineWidth: 1))
+            
+            budgetWarningView
 
             // Not Alanı
             VStack(spacing: 0) {
@@ -460,7 +502,34 @@ struct AddTransactionsView: View {
             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                 selectedDetent = next == .type ? .height(280) : .height(650)
             }
+            
+            // Otomatik Maaş Tekrarlayan Seçimi
+            if next == .details && selectedMainCategory?.name.lowercased() == "maaş" && transactionToEdit == nil {
+                isRecurring = true
+                recurringFrequency = .monthly
+            }
         }
+    }
+    
+    private func formatAmountText() -> String {
+        if amount.isEmpty { return "0,00 \(selectedCurrency.symbol)" }
+        let normalized = amount.replacingOccurrences(of: ",", with: ".")
+        if let parsed = Double(normalized) {
+            let hasDecimal = amount.contains(",") || amount.contains(".")
+            if hasDecimal {
+                let parts = normalized.split(separator: ".", omittingEmptySubsequences: false)
+                let intPart = parts.first ?? ""
+                let decPart = parts.count > 1 ? parts[1] : ""
+                if let intVal = Double(intPart) {
+                    let formattedInt = intVal.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))
+                    return "\(formattedInt),\(decPart) \(selectedCurrency.symbol)"
+                }
+            } else {
+                let formatted = parsed.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))
+                return "\(formatted) \(selectedCurrency.symbol)"
+            }
+        }
+        return "\(amount) \(selectedCurrency.symbol)"
     }
 
     private func formRow(_ icon: String, _ title: String, _ value: String, action: @escaping () -> Void) -> some View {
@@ -505,6 +574,35 @@ struct AddTransactionsView: View {
         }
     }
     
+    @ViewBuilder
+    private var budgetWarningView: some View {
+        if let limit = walletManager.activeWallet?.monthlyLimit, selectedType == .expense {
+            let thisMonthTransactions = transactionManager.transactions.filter {
+                $0.type == .expense &&
+                !$0.isDebt &&
+                Calendar.current.isDate($0.date, equalTo: Date(), toGranularity: .month)
+            }
+            let thisMonthExpense = thisMonthTransactions.reduce(0) { $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: appCurrency) }
+            
+            let cleanAmount = amount.replacingOccurrences(of: ".", with: "").replacingOccurrences(of: ",", with: ".")
+            let parsedAmount = Double(cleanAmount) ?? 0.0
+            let amountInBase = ExchangeRateManager.shared.convert(amount: parsedAmount, from: selectedCurrency, to: appCurrency)
+            
+            if thisMonthExpense + amountInBase > limit {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                    Text("Dikkat: Bu harcama, kalan aylık bütçenizi (\(appCurrency.symbol)\((limit - thisMonthExpense).formatted(.number.grouping(.automatic).precision(.fractionLength(0))))) aşmaktadır.")
+                        .font(.caption)
+                    Spacer(minLength: 0)
+                }
+                .foregroundColor(.white)
+                .padding(12)
+                .background(Color.orange)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+        }
+    }
+    
     // MARK: - Save Logic
     private func saveTransaction() {
         guard let activeWallet = walletManager.activeWallet, 
@@ -523,7 +621,13 @@ struct AddTransactionsView: View {
         
         // Parse Amount safely
         let cleanAmount = amount.replacingOccurrences(of: ".", with: "").replacingOccurrences(of: ",", with: ".")
-        let parsedAmount = Double(cleanAmount) ?? 0.0
+        var parsedAmount = Double(cleanAmount) ?? 0.0
+        
+        // Kullanıcı borç eklerken taksit tutarını (aylık ödeme) girer, sistem toplam borcu hesaplar
+        if isDebt {
+            let count = Double(installmentCount) ?? 1.0
+            parsedAmount = parsedAmount * count
+        }
         
         isSaving = true
         
@@ -533,6 +637,7 @@ struct AddTransactionsView: View {
             walletId: walletId,
             type: selectedType,
             amount: parsedAmount,
+            currency: selectedCurrency,
             mainCategoryName: selectedMainCategory?.name ?? "Bilinmeyen",
             mainCategoryId: selectedMainCategory?.id,
             subCategoryName: selectedSubCategory?.name,
@@ -559,9 +664,9 @@ struct AddTransactionsView: View {
                 if let editing = transactionToEdit, let id = editing.id {
                     var updated = newTransaction
                     updated.id = id
-                    try await FirestoreService.shared.updateTransaction(updated)
+                    try FirestoreService.shared.updateTransaction(updated)
                 } else {
-                    try await FirestoreService.shared.createTransaction(newTransaction)
+                    try FirestoreService.shared.createTransaction(newTransaction)
                 }
                 
                 await MainActor.run {

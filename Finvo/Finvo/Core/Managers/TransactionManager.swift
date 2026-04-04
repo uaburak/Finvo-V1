@@ -10,8 +10,11 @@ class TransactionManager: ObservableObject {
     
     @Published var totalIncome: Double = 0.0
     @Published var totalExpense: Double = 0.0
+    @Published var todaysProfit: Double = 0.0 // Yeni Eklenen
     @Published var topExpenseCategoryId: String? = nil
     @Published var topExpenseCategoryName: String = "-"
+    
+    private var isEvaluatingRecurring = false
     
     private var listener: ListenerRegistration?
     private let db = Firestore.firestore()
@@ -48,12 +51,33 @@ class TransactionManager: ObservableObject {
                 Task {
                     let parsed = documents.compactMap { try? $0.data(as: TransactionModel.self) }
                     
-                    let income = parsed.filter { $0.type == .income && !$0.isDebt }.reduce(0) { $0 + $1.amount }
-                    let expense = parsed.filter { $0.type == .expense && !$0.isDebt }.reduce(0) { $0 + $1.amount }
+                    let baseCurrency = UserDefaults.standard.string(forKey: "appCurrency").flatMap { CurrencyType(rawValue: $0) } ?? .tryCurrency
+                    
+                    let income = parsed.filter { $0.type == .income && !$0.isDebt }.reduce(0) { total, tx in
+                        total + ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: baseCurrency)
+                    }
+                    let expense = parsed.filter { $0.type == .expense && !$0.isDebt }.reduce(0) { total, tx in
+                        total + ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: baseCurrency)
+                    }
+                    
+                    let today = Date()
+                    let calendar = Calendar.current
+                    let todaysTx = parsed.filter { calendar.isDate($0.date, inSameDayAs: today) }
+                    
+                    let tIncome = todaysTx.filter { $0.type == .income && !$0.isDebt }.reduce(0) { total, tx in
+                        total + ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: baseCurrency)
+                    }
+                    let tExpense = todaysTx.filter { $0.type == .expense && !$0.isDebt }.reduce(0) { total, tx in
+                        total + ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: baseCurrency)
+                    }
+                    let profit = tIncome - tExpense
                     
                     let expenseOnly = parsed.filter { $0.type == .expense && !$0.isDebt }
                     let expenseDict = Dictionary(grouping: expenseOnly, by: { $0.mainCategoryId ?? $0.mainCategoryName })
-                    let topEntry = expenseDict.max(by: { a, b in a.value.reduce(0) { $0 + $1.amount } < b.value.reduce(0) { $0 + $1.amount } })
+                    let topEntry = expenseDict.max(by: { a, b in 
+                        a.value.reduce(0) { $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: baseCurrency) } < 
+                        b.value.reduce(0) { $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: baseCurrency) } 
+                    })
                     let topId = topEntry?.key
                     let topName = topEntry?.value.first?.mainCategoryName ?? "-"
                     
@@ -61,9 +85,12 @@ class TransactionManager: ObservableObject {
                     self.transactions = parsed
                     self.totalIncome = income
                     self.totalExpense = expense
+                    self.todaysProfit = profit
                     self.topExpenseCategoryId = topId
                     self.topExpenseCategoryName = topName
                     self.hasLoaded = true
+                    
+                    self.evaluateRecurringTransactions(parsed)
                 }
             }
     }
@@ -76,8 +103,61 @@ class TransactionManager: ObservableObject {
         transactions = []
         totalIncome = 0
         totalExpense = 0
-        topExpenseCategoryId = nil
         topExpenseCategoryName = "-"
+        isEvaluatingRecurring = false
+    }
+    
+    private func evaluateRecurringTransactions(_ parsed: [TransactionModel]) {
+        guard !isEvaluatingRecurring else { return }
+        
+        let now = Date()
+        let dueTransactions = parsed.filter { $0.isRecurring && $0.date <= now }
+        
+        guard !dueTransactions.isEmpty else { return }
+        
+        isEvaluatingRecurring = true
+        
+        Task {
+            let calendar = Calendar.current
+            
+            for tx in dueTransactions {
+                var currentTx = tx
+                
+                let value: Int
+                let component: Calendar.Component
+                switch currentTx.recurrenceInterval ?? .monthly {
+                case .daily: value = 1; component = .day
+                case .weekly: value = 1; component = .weekOfYear
+                case .monthly: value = 1; component = .month
+                case .yearly: value = 1; component = .year
+                }
+                
+                guard let nextDate = calendar.date(byAdding: component, value: value, to: currentTx.date) else { continue }
+                
+                if let end = currentTx.recurrenceEndDate, nextDate > end {
+                    var finishedTx = currentTx
+                    finishedTx.isRecurring = false
+                    try? FirestoreService.shared.updateTransaction(finishedTx)
+                    continue
+                }
+                
+                var oldTx = currentTx
+                oldTx.isRecurring = false
+                try? FirestoreService.shared.updateTransaction(oldTx)
+                
+                var nextTx = currentTx
+                nextTx.id = nil
+                nextTx.date = nextDate
+                nextTx.createdAt = Date()
+                
+                try? FirestoreService.shared.createTransaction(nextTx)
+            }
+            
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            await MainActor.run {
+                self.isEvaluatingRecurring = false
+            }
+        }
     }
     
     // Borç ödeme operasyonu

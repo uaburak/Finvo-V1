@@ -15,11 +15,13 @@ struct ListItem: View {
     var value: String? = nil
     var valueColor: Color = .primary
     var secondaryInfo: String? = nil
+    var secondaryInfoColor: Color = .gray // New property
     var isOn: Binding<Bool>? = nil // New: Toggle support
+    var iconForegroundColor: Color = .white // New: Icon color support
     
     // Init with defaults for new properties to keep backward compatibility if needed, 
     // or just update since I control all calls.
-    init(icon: String, iconColor: Color, title: LocalizedStringKey, subtitle: LocalizedStringKey, username: String? = nil, isRecurring: Bool = false, value: String? = nil, valueColor: Color = .primary, secondaryInfo: String? = nil, isOn: Binding<Bool>? = nil) {
+    init(icon: String, iconColor: Color, title: LocalizedStringKey, subtitle: LocalizedStringKey, username: String? = nil, isRecurring: Bool = false, value: String? = nil, valueColor: Color = .primary, secondaryInfo: String? = nil, secondaryInfoColor: Color = .gray, isOn: Binding<Bool>? = nil, iconForegroundColor: Color = .white) {
         self.icon = icon
         self.iconColor = iconColor
         self.title = title
@@ -29,7 +31,9 @@ struct ListItem: View {
         self.value = value
         self.valueColor = valueColor
         self.secondaryInfo = secondaryInfo
+        self.secondaryInfoColor = secondaryInfoColor
         self.isOn = isOn
+        self.iconForegroundColor = iconForegroundColor
     }
     
     var body: some View {
@@ -43,7 +47,7 @@ struct ListItem: View {
                     
                     Image(systemName: icon)
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(iconForegroundColor)
                 }
                 
                 if isRecurring {
@@ -97,7 +101,7 @@ struct ListItem: View {
                     if let info = secondaryInfo {
                         Text(info)
                             .font(.system(size: 11))
-                            .foregroundColor(.gray)
+                            .foregroundColor(secondaryInfoColor)
                     }
                 }
             }

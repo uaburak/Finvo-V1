@@ -4,6 +4,8 @@ struct RecurringTransactionsView: View {
     @Environment(\.theme) var theme
     @EnvironmentObject var transactionManager: TransactionManager
     
+    @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
+    
     var body: some View {
         ZStack {
             theme.background1.ignoresSafeArea()
@@ -28,65 +30,41 @@ struct RecurringTransactionsView: View {
                     Spacer()
                 }
             } else {
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 16) {
-                        ForEach(recurringTxs) { transaction in
+                let sortedRecurringTxs = recurringTxs.sorted(by: { $0.date > $1.date })
+                List {
+                    ForEach(sortedRecurringTxs) { transaction in
+                        let isFirst = transaction.id == sortedRecurringTxs.first?.id
+                        let displayTitle = (transaction.note?.isEmpty == false) ? transaction.note! : (transaction.resolvedSubCategoryName ?? transaction.resolvedMainCategoryName)
+                        let subtitleText = "\(transaction.recurrenceInterval?.rawValue ?? "") Tekrar • " + (transaction.resolvedSubCategoryName != nil ? transaction.resolvedMainCategoryName : transaction.date.formatted(date: .abbreviated, time: .shortened))
+
+                        ZStack {
                             NavigationLink(destination: TransactionDetailView(transaction: transaction)) {
-                                recurringCard(for: transaction)
+                                EmptyView()
                             }
-                            .buttonStyle(.plain)
+                            .opacity(0)
+                            
+                            ListItem(
+                                icon: transaction.resolvedIcon,
+                                iconColor: transaction.resolvedColor(),
+                                title: LocalizedStringKey(displayTitle),
+                                subtitle: LocalizedStringKey(subtitleText),
+                                value: (transaction.type == .income ? "+\(transaction.currency?.symbol ?? appCurrency.symbol)" : "-\(transaction.currency?.symbol ?? appCurrency.symbol)") + transaction.amount.formatted(.number.grouping(.automatic).precision(.fractionLength(0))),
+                                valueColor: transaction.type == .income ? theme.income : theme.expense, // özet ekranı uyumu için
+                                secondaryInfo: transaction.date.formatted(date: .abbreviated, time: .shortened)
+                            )
+                            .padding(.leading)
                         }
+                        .listRowInsets(EdgeInsets(top: 12, leading: 0, bottom: 12, trailing: 20))
+                        .listRowSeparator(.visible)
+                        .listRowSeparator(isFirst ? .hidden : .visible, edges: .top)
+                        .listSectionSeparator(isFirst ? .hidden : .visible, edges: .top)
                     }
-                    .padding()
-                    .safeAreaPadding(.bottom, 40)
                 }
+                .listStyle(.plain)
             }
         }
         .navigationTitle("Tekrarlayan İşlemler")
         .navigationBarTitleDisplayMode(.inline)
-    }
-    
-    @ViewBuilder
-    private func recurringCard(for transaction: TransactionModel) -> some View {
-        HStack(spacing: 16) {
-            ZStack {
-                Circle()
-                    .fill(transaction.type == .income ? theme.income.opacity(0.15) : theme.expense.opacity(0.15))
-                    .frame(width: 50, height: 50)
-                
-                Image(systemName: transaction.categoryIcon)
-                    .foregroundColor(transaction.type == .income ? theme.income : theme.expense)
-                    .font(.title3)
-            }
-            
-            VStack(alignment: .leading, spacing: 4) {
-                let displayTitle = (transaction.note?.isEmpty == false) ? transaction.note! : transaction.mainCategoryName
-                Text(displayTitle)
-                    .font(.headline)
-                    .foregroundColor(theme.labelPrimary)
-                    .lineLimit(1)
-                
-                if let interval = transaction.recurrenceInterval {
-                    HStack(spacing: 4) {
-                        Image(systemName: "repeat")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(.orange)
-                        Text("\(interval.rawValue) Tekrar")
-                            .font(.caption)
-                            .foregroundColor(theme.labelSecondary)
-                    }
-                }
-            }
-            
-            Spacer()
-            
-            Text((transaction.type == .income ? "+₺" : "-₺") + transaction.amount.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))
-                .font(.headline.bold())
-                .foregroundColor(theme.labelPrimary) // Tutarı label rengi yaptık özet ekranındaki gibi tutarlılık açısından
-        }
-        .padding(16)
-        .glassEffect(in: .rect(cornerRadius: 20))
-        .padding(.horizontal, 4) // Shadow taşması olmaması için
     }
 }
 

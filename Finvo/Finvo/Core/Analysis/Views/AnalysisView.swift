@@ -37,8 +37,8 @@ struct AnalysisView: View {
                 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 24) {
-                        
                         AnalysisSegmentedControl(selectedTab: $selectedTab)
+                            .padding(.horizontal, 20)
                         
                         AnalysisChartCard(
                             flowData: flowData,
@@ -46,15 +46,21 @@ struct AnalysisView: View {
                             isLineGraph: $isLineGraph,
                             selectedTab: selectedTab
                         )
+                        .padding(.horizontal, 20)
                         
                         AnalysisMiniCards(
                             recurringTransactions: recurringTransactions,
                             biggestTransaction: biggestTransaction
                         )
-                        
+                        .padding(.horizontal, 20)
                         AnalysisCategoryCard(
                             categorySummaries: categorySummaries
                         )
+                        .padding(.horizontal, 20)
+                        
+                        ExchangeRatesListCard()
+                            .padding(.horizontal, 20)
+                            .padding(.top, 8)
                         
                         // Sadece paylaşımlı cüzdanlarda (veya üye sayısı 1'den büyükse) Liderlik tablosunu göster
                         if let wallet = walletManager.activeWallet, (wallet.type == .shared || wallet.members.count > 1) {
@@ -62,10 +68,10 @@ struct AnalysisView: View {
                                 contributions: memberContributions,
                                 allTransactions: transactionManager.transactions // Filtrelenmemiş gerçek tüm veri listesi gönderiliyor ki detay ekranında tarihe göre süzebilsin
                             )
+                            .padding(.horizontal, 20)
                         }
                         
                     }
-                    .padding(.horizontal, 20)
                     .safeAreaPadding(.bottom, 60)
                 }
             }
@@ -176,13 +182,17 @@ struct AnalysisView: View {
             }
         }
         
+        let baseCurrency = UserDefaults.standard.string(forKey: "appCurrency").flatMap { CurrencyType(rawValue: $0) } ?? .tryCurrency
+        
         // 2. Net Nakit Akışını Yuvalara Yerleştir (Gelir - Gider)
         for tx in filteredTxs {
             if tx.isDebt { continue } // Borç işlemleri grafikte hesaplanmaz, taksitleri hesaplanır.
             if selectedFilterType == .income && tx.type != .income { continue }
             if selectedFilterType == .expense && tx.type != .expense { continue }
             
-            let value = tx.type == .income ? tx.amount : -tx.amount
+            let convertedAmount = ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: baseCurrency)
+            let value = tx.type == .income ? convertedAmount : -convertedAmount
+            
             if let index = newFlowData.firstIndex(where: {
                 calendar.isDate($0.date, equalTo: tx.date, toGranularity: chartUnit)
             }) {
@@ -196,7 +206,10 @@ struct AnalysisView: View {
             ((selectedFilterType == .all && $0.type == .expense) ||
             (selectedFilterType == .income && $0.type == .income) ||
             (selectedFilterType == .expense && $0.type == .expense))
-        }.max(by: { $0.amount < $1.amount })
+        }.max(by: {
+            ExchangeRateManager.shared.convert(amount: $0.amount, from: $0.currency ?? .tryCurrency, to: baseCurrency) <
+            ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: baseCurrency)
+        })
         
         let recurring = allTxs.filter { $0.isRecurring }
         
@@ -207,17 +220,20 @@ struct AnalysisView: View {
         // Kullanıcı filtreyi gelire çekerse Kategori ve Liderlik Dağılımını sadece Gelirler ile göster!
         let targetTypeForCategories: TransactionType = selectedFilterType == .income ? .income : .expense
         let typeFilteredTxs = filteredTxs.filter { $0.type == targetTypeForCategories && !$0.isDebt }
-        let totalTypeAmount = typeFilteredTxs.reduce(0) { $0 + $1.amount }
+        let totalTypeAmount = typeFilteredTxs.reduce(0) { 
+            $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: baseCurrency)
+        }
         
         for tx in typeFilteredTxs {
+            let convertedAmount = ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: baseCurrency)
             // Kategori Toplama
             let cat = tx.mainCategoryName
             let currentCat = catDict[cat] ?? (amount: 0, icon: tx.categoryIcon, count: 0)
-            catDict[cat] = (amount: currentCat.amount + tx.amount, icon: tx.categoryIcon, count: currentCat.count + 1)
+            catDict[cat] = (amount: currentCat.amount + convertedAmount, icon: tx.categoryIcon, count: currentCat.count + 1)
             
             // Kişi Toplama
             let currentMember = memberDict[tx.createdBy] ?? (0, 0)
-            memberDict[tx.createdBy] = (currentMember.0 + tx.amount, currentMember.1 + 1)
+            memberDict[tx.createdBy] = (currentMember.0 + convertedAmount, currentMember.1 + 1)
         }
         
         let newCatSums = catDict.map { 

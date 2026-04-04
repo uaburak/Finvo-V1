@@ -14,6 +14,7 @@ struct TransactionModel: Codable, Identifiable, Equatable, Hashable {
     var walletId: String
     var type: TransactionType
     var amount: Double
+    var currency: CurrencyType? // Yeni eklenen
     var mainCategoryName: String
     var mainCategoryId: String? // Stable ID for sync and cascade delete
     var subCategoryName: String?
@@ -121,6 +122,7 @@ struct TransactionModel: Codable, Identifiable, Equatable, Hashable {
         hasher.combine(walletId)
         hasher.combine(type)
         hasher.combine(amount)
+        hasher.combine(currency)
         hasher.combine(mainCategoryId)
         hasher.combine(subCategoryId)
         hasher.combine(mainCategoryName)
@@ -140,6 +142,7 @@ struct TransactionModel: Codable, Identifiable, Equatable, Hashable {
                lhs.walletId == rhs.walletId &&
                lhs.type == rhs.type &&
                lhs.amount == rhs.amount &&
+               lhs.currency == rhs.currency &&
                lhs.mainCategoryId == rhs.mainCategoryId &&
                lhs.subCategoryId == rhs.subCategoryId &&
                lhs.mainCategoryName == rhs.mainCategoryName &&
@@ -199,11 +202,24 @@ extension TransactionModel {
             case .yearly: value = 1; component = .year
             }
             
-            if let nextDate = calendar.date(byAdding: component, value: value, to: self.date) {
-                if let end = recurrenceEndDate, nextDate > end { return nil }
-                copy.date = nextDate
-                return copy
+            if self.date > currentDate {
+                return self // It's already in the future, no need to add intervals yet.
             }
+            
+            var nextDate = self.date
+            var safetyCounter = 0
+            while nextDate <= currentDate && safetyCounter < 1000 {
+                if let next = calendar.date(byAdding: component, value: value, to: nextDate) {
+                    nextDate = next
+                } else {
+                    break
+                }
+                safetyCounter += 1
+            }
+            
+            if let end = recurrenceEndDate, nextDate > end { return nil }
+            copy.date = nextDate
+            return copy
         }
         
         // Eğer standart düz bir işlem ileri bir tarihe atandıysa

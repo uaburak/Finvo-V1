@@ -7,6 +7,8 @@ struct TransactionsView: View {
     @EnvironmentObject var authManager: AuthenticationManager
     @ObservedObject var categoryManager = CategoryManager.shared
     
+    @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
+    
     @State var selectedType: TransactionType
 
     @State private var transactionToEdit: TransactionModel?
@@ -81,7 +83,7 @@ struct TransactionsView: View {
                                 iconColor: transaction.resolvedColor(),
                                 title: LocalizedStringKey(mainTitle),
                                 subtitle: LocalizedStringKey(subtitleText),
-                                value: (transaction.type == .income ? "+₺" : "-₺") + transaction.amount.formatted(.number.grouping(.automatic).precision(.fractionLength(2))),
+                                value: (transaction.type == .income ? "+\(transaction.currency?.symbol ?? appCurrency.symbol)" : "-\(transaction.currency?.symbol ?? appCurrency.symbol)") + transaction.amount.formatted(.number.grouping(.automatic).precision(.fractionLength(0))),
                                 valueColor: transaction.type == .income ? theme.income : theme.expense,
                                 secondaryInfo: transaction.date.formatted(date: .abbreviated, time: .shortened)
                             )

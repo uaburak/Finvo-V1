@@ -126,18 +126,18 @@ class FirestoreService: ObservableObject {
     }
     
     // MARK: - Transaction Operations
-    func createTransaction(_ transaction: TransactionModel) async throws {
+    func createTransaction(_ transaction: TransactionModel) throws {
         let docRef = db.collection("wallets").document(transaction.walletId).collection("transactions").document()
         try docRef.setData(from: transaction)
     }
     
-    func updateTransaction(_ transaction: TransactionModel) async throws {
+    func updateTransaction(_ transaction: TransactionModel) throws {
         guard let id = transaction.id else { return }
         try db.collection("wallets").document(transaction.walletId).collection("transactions").document(id).setData(from: transaction, merge: true)
     }
     
-    func deleteTransaction(walletId: String, transactionId: String) async throws {
-        try await db.collection("wallets").document(walletId).collection("transactions").document(transactionId).delete()
+    func deleteTransaction(walletId: String, transactionId: String) {
+        db.collection("wallets").document(walletId).collection("transactions").document(transactionId).delete()
     }
     
     func deleteTransactionsByCategory(walletId: String, categoryId: String, categoryName: String) async throws {

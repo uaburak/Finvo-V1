@@ -23,21 +23,41 @@ struct BalanceCardView: View {
     
     // Dinamik kart verileri:
     var cards: [BalanceCardModel] {
-        let totalBalance = transactionManager.totalIncome - transactionManager.totalExpense
+        var totalBalance = transactionManager.totalIncome - transactionManager.totalExpense
         
-        var allCards: [BalanceCardModel] = [
-            BalanceCardModel(type: .main(balance: totalBalance, profit: transactionManager.totalIncome, pending: 0.0, trend: 0.0))
-        ]
-        
-        // Her bir birikim hesabı için ayrı bir kart ekle
+        // Net Varlık: Ana bakiye + Tüm birikim hesaplarındaki farklı birimlerin o anki kurla toplamı
         if let savingsAccounts = walletManager.activeWallet?.savingsAccounts {
             for account in savingsAccounts {
+                // Dinamik bakiye hesapla
+                let dynamicAmount = account.assets?.reduce(0.0) { sum, assetKV in
+                    let curr = CurrencyType(rawValue: assetKV.key) ?? .tryCurrency
+                    return sum + ExchangeRateManager.shared.convert(amount: assetKV.value, from: curr, to: appCurrency)
+                } ?? 0.0
+                
+                totalBalance += dynamicAmount
+            }
+        }
+        
+        var allCards: [BalanceCardModel] = [
+            BalanceCardModel(type: .main(balance: totalBalance, profit: transactionManager.todaysProfit, pending: 0.0, trend: 0.0))
+        ]
+        
+        if let savingsAccounts = walletManager.activeWallet?.savingsAccounts {
+            for account in savingsAccounts {
+                let dynamicAmount = account.assets?.reduce(0.0) { sum, assetKV in
+                    let curr = CurrencyType(rawValue: assetKV.key) ?? .tryCurrency
+                    return sum + ExchangeRateManager.shared.convert(amount: assetKV.value, from: curr, to: appCurrency)
+                } ?? 0.0
+                
+                let goalCurr = CurrencyType(rawValue: account.goalCurrency ?? "") ?? .tryCurrency
+                let dynamicGoalAmount = ExchangeRateManager.shared.convert(amount: account.goalAmount, from: goalCurr, to: appCurrency)
+                
                 allCards.append(BalanceCardModel(type: .custom(
                     title: account.name,
-                    amount: account.currentAmount,
+                    amount: dynamicAmount,
                     icon: "lanyardcard.fill",
                     color: getSwiftColor(from: account.color),
-                    goalAmount: account.goalAmount
+                    goalAmount: dynamicGoalAmount
                 )))
             }
         }
@@ -56,6 +76,8 @@ struct BalanceCardView: View {
         default: return theme.brandPrimary
         }
     }
+    
+    @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
     
     var body: some View {
         ZStack {
@@ -198,7 +220,7 @@ struct BalanceCardView: View {
             
             // Orta Kısım: Ana Bakiye
             HStack {
-                Text("₺\(balance.formatted(.number.grouping(.automatic).precision(.fractionLength(2))))")
+                Text("\(appCurrency.symbol)\(balance.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))")
                     .font(.system(size: 32, weight: .bold, design: .rounded))
                     .foregroundColor(.black)
                     .contentTransition(.numericText())
@@ -213,7 +235,7 @@ struct BalanceCardView: View {
             HStack {
                 HStack(spacing: 0) {
                     Text("Bugünün Kârı")
-                    Text(": +₺\(profit.formatted(.number.grouping(.automatic).precision(.fractionLength(2))))")
+                    Text(": +\(appCurrency.symbol)\(profit.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))")
                 }
                 .font(.footnote)
                 .foregroundColor(.black.opacity(0.8))
@@ -222,7 +244,7 @@ struct BalanceCardView: View {
                 
                 HStack(spacing: 0) {
                     Text("Bekleyen")
-                    Text(": ₺\(pending.formatted(.number.grouping(.automatic).precision(.fractionLength(2))))")
+                    Text(": \(appCurrency.symbol)\(pending.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))")
                 }
                 .font(.footnote)
                 .foregroundColor(.black.opacity(0.8))
@@ -258,7 +280,7 @@ struct BalanceCardView: View {
             
             // Orta: Birikim Tutarı
             HStack {
-                Text("₺\(balance.formatted(.number.grouping(.automatic).precision(.fractionLength(2))))")
+                Text("\(appCurrency.symbol)\(balance.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))")
                     .font(.system(size: 32, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                     .contentTransition(.numericText())
@@ -330,7 +352,7 @@ struct BalanceCardView: View {
             Spacer(minLength: 0)
             
             HStack {
-                Text("₺\(amount.formatted(.number.grouping(.automatic).precision(.fractionLength(2))))")
+                Text("\(appCurrency.symbol)\(amount.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))")
                     .font(.system(size: 32, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                     .contentTransition(.numericText())
@@ -340,21 +362,30 @@ struct BalanceCardView: View {
             
             Spacer(minLength: 0)
             
-            // İlerleme Çubuğu
-            HStack {
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(Color.white.opacity(0.3))
-                            .frame(height: 8)
-                        
-                        let progress = min(max(amount / goalAmount, 0), 1)
-                        Capsule()
-                            .fill(Color.white)
-                            .frame(width: CGFloat(progress) * geometry.size.width, height: 8)
+            // İlerleme Çubuğu ve Yüzde
+            let progressRaw = goalAmount > 0 ? (amount / goalAmount) : 0
+            let progress = min(max(progressRaw, 0), 1)
+            let percentageText = "%\(Int(progress * 100))"
+            
+            VStack(alignment: .trailing, spacing: 4) {
+                Text("\(percentageText) Ulaşıldı")
+                    .font(.caption2.bold())
+                    .foregroundColor(.white.opacity(0.9))
+                
+                HStack {
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            Capsule()
+                                .fill(Color.white.opacity(0.3))
+                                .frame(height: 8)
+                            
+                            Capsule()
+                                .fill(Color.white)
+                                .frame(width: CGFloat(progress) * geometry.size.width, height: 8)
+                        }
                     }
+                    .frame(height: 8)
                 }
-                .frame(height: 8)
             }
             .padding(.bottom, 20)
             .padding(.horizontal, 20)

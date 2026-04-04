@@ -10,6 +10,8 @@ struct SummaryView: View {
     @State private var showCreateWalletSheet = false
     @State private var showSettings = false
     
+    @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
+    
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
@@ -27,7 +29,7 @@ struct SummaryView: View {
                                 .environmentObject(authManager)
                                 .environmentObject(transactionManager)
                         } label: {
-                            IncomeExpenseCardView(title: "Gelir", amount: "₺\(transactionManager.totalIncome.formatted(.number.grouping(.automatic).precision(.fractionLength(2))))", isIncome: true)
+                            IncomeExpenseCardView(title: "Gelir", amount: "\(appCurrency.symbol)\(transactionManager.totalIncome.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))", isIncome: true)
                         }
                         .buttonStyle(.plain)
                         
@@ -37,7 +39,7 @@ struct SummaryView: View {
                                 .environmentObject(authManager)
                                 .environmentObject(transactionManager)
                         } label: {
-                            IncomeExpenseCardView(title: "Gider", amount: "₺\(transactionManager.totalExpense.formatted(.number.grouping(.automatic).precision(.fractionLength(2))))", isIncome: false)
+                            IncomeExpenseCardView(title: "Gider", amount: "\(appCurrency.symbol)\(transactionManager.totalExpense.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))", isIncome: false)
                         }
                         .buttonStyle(.plain)
                     }

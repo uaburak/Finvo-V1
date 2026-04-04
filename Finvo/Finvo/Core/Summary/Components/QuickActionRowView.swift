@@ -4,18 +4,20 @@ enum QuickDataType: String, CaseIterable {
     case categories = "Kategoriler"
     case debts = "Borçlar"
     case wallets = "Cüzdanlar"
-    case limits = "Limitler"
     case savings = "Birikimler"
+    case limits = "Limitler"
     case recurring = "Tekrarlayan"
+    case marketRates = "Kurlar"
     
     var icon: String {
         switch self {
         case .categories: return "square.grid.2x2"
         case .debts: return "creditcard"
         case .wallets: return "wallet.bifold"
-        case .limits: return "doc.text"
         case .savings: return "lanyardcard"
+        case .limits: return "chart.bar.xaxis"
         case .recurring: return "repeat.circle"
+        case .marketRates: return "globe.europe.africa.fill"
         }
     }
 }
@@ -53,9 +55,10 @@ struct QuickActionRowView: View {
             .environmentObject(transactionManager)
         case .debts: DebtsView().environmentObject(walletManager).environmentObject(authManager).environmentObject(transactionManager)
         case .wallets: WalletsView().environmentObject(walletManager).environmentObject(authManager)
-        case .limits: LimitsView().environmentObject(walletManager).environmentObject(authManager)
         case .savings: SavingsView().environmentObject(walletManager).environmentObject(authManager).environmentObject(transactionManager)
+        case .limits: LimitsView().environmentObject(walletManager).environmentObject(authManager).environmentObject(transactionManager)
         case .recurring: RecurringTransactionsView().environmentObject(walletManager).environmentObject(authManager).environmentObject(transactionManager)
+        case .marketRates: ExchangeRatesDetailView()
         }
     }
     
