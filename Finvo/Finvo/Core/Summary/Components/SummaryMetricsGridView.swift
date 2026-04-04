@@ -15,7 +15,9 @@ struct SummaryMetricsGridView: View {
     ]
     
     var body: some View {
-        let limit = walletManager.activeWallet?.monthlyLimit ?? 0
+        let rawLimit = walletManager.activeWallet?.monthlyLimit ?? 0
+        let limitCurr = CurrencyType(rawValue: walletManager.activeWallet?.monthlyLimitCurrency ?? "") ?? .tryCurrency
+        let limit = ExchangeRateManager.shared.convert(amount: rawLimit, from: limitCurr, to: appCurrency)
         
         let now = Date()
         let calendar = Calendar.current
@@ -29,7 +31,7 @@ struct SummaryMetricsGridView: View {
             total + ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: appCurrency)
         }
         
-        let limitProgress = limit > 0 ? (currentMonthExpenses / limit) : 0.0
+        let limitProgress = rawLimit > 0 ? min(currentMonthExpenses / max(limit, 1), 1.0) : 0.0
         
         let topCategoryId = transactionManager.topExpenseCategoryId
         let topCategoryName = transactionManager.topExpenseCategoryName

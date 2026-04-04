@@ -12,10 +12,10 @@ struct SettingsView: View {
     @AppStorage("appLanguage") private var appLanguage: String = "tr"
     
     let languages = [
-        ("tr", "Türkçe 🇹🇷"),
-        ("en", "English 🇺🇸"),
-        ("de", "Deutsch 🇩🇪"),
-        ("ru", "Русский 🇷🇺")
+        ("tr", "Türkçe"),
+        ("en", "English"),
+        ("de", "Deutsch"),
+        ("ru", "Русский")
     ]
     
     @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
@@ -198,7 +198,7 @@ struct SettingsView: View {
             
             // Firestore'a gönder
             for tx in testTransactions {
-                try? await FirestoreService.shared.createTransaction(tx)
+                try? FirestoreService.shared.createTransaction(tx)
             }
             
             await MainActor.run {

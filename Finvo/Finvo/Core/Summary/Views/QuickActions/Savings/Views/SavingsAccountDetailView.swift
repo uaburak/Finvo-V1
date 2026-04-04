@@ -32,6 +32,12 @@ struct SavingsAccountDetailView: View {
         return total
     }
     
+    // Uygulama para birimi cinsinden dinamik hedef
+    private var dynamicGoalAmount: Double {
+        let goalCurr = CurrencyType(rawValue: account.goalCurrency ?? "") ?? .tryCurrency
+        return ExchangeRateManager.shared.convert(amount: account.goalAmount, from: goalCurr, to: appCurrency)
+    }
+    
     private func getSwiftColor(from stringRaw: String) -> Color {
         switch stringRaw.lowercased() {
         case "blue": return .blue
@@ -70,7 +76,7 @@ struct SavingsAccountDetailView: View {
                                 .font(.title.bold())
                                 .foregroundColor(theme.labelPrimary)
                             
-                            Text("Hedef: \(appCurrency.symbol)\(account.goalAmount.formatted(.number.precision(.fractionLength(0))))")
+                            Text("Hedef: \(appCurrency.symbol)\(dynamicGoalAmount.formatted(.number.precision(.fractionLength(0))))")
                                 .font(.headline)
                                 .foregroundColor(theme.labelSecondary)
                         }
@@ -92,7 +98,7 @@ struct SavingsAccountDetailView: View {
                             Spacer()
                             
                             let percentage: Double = {
-                                return account.goalAmount > 0 ? (totalBalanceInAppCurrency / account.goalAmount) * 100 : 0
+                                return dynamicGoalAmount > 0 ? (totalBalanceInAppCurrency / dynamicGoalAmount) * 100 : 0
                             }()
                             
                             Text("%\(percentage.formatted(.number.precision(.fractionLength(0))))")
@@ -127,7 +133,7 @@ struct SavingsAccountDetailView: View {
                         GeometryReader { geo in
                             ZStack(alignment: .leading) {
                                 Capsule().fill(theme.separatorSecondary)
-                                let progress = account.goalAmount > 0 ? (totalBalanceInAppCurrency / account.goalAmount) : 0
+                                let progress = dynamicGoalAmount > 0 ? (totalBalanceInAppCurrency / dynamicGoalAmount) : 0
                                 Capsule().fill(cardColor)
                                     .frame(width: max(0, min(CGFloat(progress) * geo.size.width, geo.size.width)))
                             }
@@ -135,7 +141,7 @@ struct SavingsAccountDetailView: View {
                         .frame(height: 12)
                         
                         let remaining: Double = {
-                            return account.goalAmount - totalBalanceInAppCurrency
+                            return dynamicGoalAmount - totalBalanceInAppCurrency
                         }()
                         
                         if remaining > 0 {
@@ -319,35 +325,28 @@ struct SavingsAccountDetailView: View {
         )
         
         Task {
-            do {
-                try await FirestoreService.shared.createTransaction(tx)
-                
-                await MainActor.run {
-                    var updatedWallet = wallet
-                    if var accounts = updatedWallet.savingsAccounts,
-                       let idx = accounts.firstIndex(where: { $0.id == account.id }) {
-                        
-                        var updatedAssets = accounts[idx].assets ?? [:]
-                        let currentQty = updatedAssets[selectedCurrency.rawValue] ?? 0
-                        
-                        if adding {
-                            updatedAssets[selectedCurrency.rawValue] = currentQty + validAmount
-                        } else {
-                            updatedAssets[selectedCurrency.rawValue] = max(0, currentQty - validAmount)
-                        }
-                        
-                        accounts[idx].assets = updatedAssets
-                        updatedWallet.savingsAccounts = accounts
-                        walletManager.updateWallet(updatedWallet)
+            try? FirestoreService.shared.createTransaction(tx)
+            
+            await MainActor.run {
+                var updatedWallet = wallet
+                if var accounts = updatedWallet.savingsAccounts,
+                   let idx = accounts.firstIndex(where: { $0.id == account.id }) {
+                    
+                    var updatedAssets = accounts[idx].assets ?? [:]
+                    let currentQty = updatedAssets[selectedCurrency.rawValue] ?? 0
+                    
+                    if adding {
+                        updatedAssets[selectedCurrency.rawValue] = currentQty + validAmount
+                    } else {
+                        updatedAssets[selectedCurrency.rawValue] = max(0, currentQty - validAmount)
                     }
-                    isProcessing = false
-                    amountInput = ""
+                    
+                    accounts[idx].assets = updatedAssets
+                    updatedWallet.savingsAccounts = accounts
+                    walletManager.updateWallet(updatedWallet)
                 }
-            } catch {
-                await MainActor.run {
-                    isProcessing = false
-                    print("Error transferring savings: \(error)")
-                }
+                isProcessing = false
+                amountInput = ""
             }
         }
     }

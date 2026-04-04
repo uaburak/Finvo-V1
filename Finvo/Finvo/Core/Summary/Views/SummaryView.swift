@@ -114,6 +114,9 @@ struct SummaryView: View {
                     CategoryManager.shared.stopListening()
                 }
             }
+            .onChange(of: appCurrency) { _, _ in
+                transactionManager.recalculateTotals(for: appCurrency)
+            }
             .navigationDestination(for: TransactionModel.self) { transaction in
                 TransactionDetailView(transaction: transaction)
                     .environmentObject(walletManager)

@@ -94,6 +94,7 @@ struct LimitsView: View {
                 }
                 .padding(.vertical)
             }
+            .id(appCurrency)
         }
         .navigationTitle("Limitler")
         .navigationBarTitleDisplayMode(.inline)

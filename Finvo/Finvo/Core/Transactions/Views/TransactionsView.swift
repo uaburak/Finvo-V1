@@ -198,7 +198,7 @@ struct TransactionsView: View {
             Button("Sil", role: .destructive) {
                 if let transaction = transactionToDelete, let id = transaction.id {
                     Task {
-                        try? await FirestoreService.shared.deleteTransaction(walletId: transaction.walletId, transactionId: id)
+                        FirestoreService.shared.deleteTransaction(walletId: transaction.walletId, transactionId: id)
                     }
                 }
             }

@@ -10,6 +10,8 @@ struct SavingsView: View {
     @State private var showCreateSheet = false
     @State private var selectedAccount: SavingsAccountModel?
     
+    @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
+    
     // Yardımcı Func: Hesabın rengini Hex->Color veya isim->"Color" olarak çöz
     private func getSwiftColor(from stringRaw: String) -> Color {
         switch stringRaw.lowercased() {
@@ -106,7 +108,19 @@ struct SavingsView: View {
     @ViewBuilder
     private func savingsCard(for account: SavingsAccountModel) -> some View {
         let cardColor = getSwiftColor(from: account.color)
-        let _ = account.currentAmount > 0 ? (account.currentAmount / account.goalAmount) : 0.0
+        
+        // Dinamik Varlık (Bakiye) Hesaplaması
+        let totalBalanceInAppCurrency: Double = account.assets?.reduce(0.0) { sum, assetKV in
+            let curr = CurrencyType(rawValue: assetKV.key) ?? .tryCurrency
+            return sum + ExchangeRateManager.shared.convert(amount: assetKV.value, from: curr, to: appCurrency)
+        } ?? 0.0
+        
+        // Dinamik Hedef Hesaplaması
+        let goalCurr = CurrencyType(rawValue: account.goalCurrency ?? "") ?? .tryCurrency
+        let dynamicGoalAmount = ExchangeRateManager.shared.convert(amount: account.goalAmount, from: goalCurr, to: appCurrency)
+        
+        let progressRaw = dynamicGoalAmount > 0 ? (totalBalanceInAppCurrency / dynamicGoalAmount) : 0.0
+        let progress = min(max(progressRaw, 0.0), 1.0)
         
         HStack(spacing: 16) {
             ZStack {
@@ -126,11 +140,11 @@ struct SavingsView: View {
                     .lineLimit(1)
                 
                 HStack {
-                    Text("₺\(account.currentAmount.formatted(.number.precision(.fractionLength(0))))")
+                    Text("\(appCurrency.symbol)\(totalBalanceInAppCurrency.formatted(.number.precision(.fractionLength(0))))")
                         .font(.subheadline.bold())
                         .foregroundColor(cardColor)
                     
-                    Text("/ ₺\(account.goalAmount.formatted(.number.precision(.fractionLength(0))))")
+                    Text("/ \(appCurrency.symbol)\(dynamicGoalAmount.formatted(.number.precision(.fractionLength(0))))")
                         .font(.caption)
                         .foregroundColor(theme.labelSecondary)
                 }
@@ -140,7 +154,7 @@ struct SavingsView: View {
                     ZStack(alignment: .leading) {
                         Capsule().fill(theme.separatorSecondary)
                         Capsule().fill(cardColor)
-                            .frame(width: max(0, min(CGFloat(account.currentAmount / account.goalAmount) * geo.size.width, geo.size.width)))
+                            .frame(width: max(0, min(CGFloat(progress) * geo.size.width, geo.size.width)))
                     }
                 }
                 .frame(height: 6)
