@@ -200,50 +200,48 @@ class TransactionManager: ObservableObject {
     }
     
     // Borç ödeme operasyonu
-    func payDebtInstallment(for debtTransaction: TransactionModel, currentUsername: String) async throws {
-        guard debtTransaction.isDebt, let total = debtTransaction.totalInstallments, let paid = debtTransaction.paidInstallments, paid < total else {
-            throw NSError(domain: "TransactionManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Geçersiz borç işlemi veya borç zaten kapalı."])
-        }
+    @MainActor func payDebtInstallment(for debtTransaction: TransactionModel, currentUsername: String) async throws {
+        guard let total = debtTransaction.totalInstallments, let paid = debtTransaction.paidInstallments, paid < total else { return }
         
+        let currentInstallmentNum = paid + 1
         let installmentAmount = debtTransaction.amount / Double(total)
         
-        // Eğer ben KREDİ aldıysam (Orijinal type: Income), taksit ödemek benim için GİDER'dir.
-        // Eğer ben televizyon aldıysam taksitli (Orijinal type: Expense), taksit ödemek yine GİDER'dir. (Alışveriş kredisi)
-        // Eğer ben arkadaşıma borç VERDİYSEM (Orijinal type: Expense, mainCategory: Borç), bana o parayı GERİ ÖEDİYORSA bu benim için GELİR'dir.
-        // Finvo yapısında genel kullanım olarak: Kredi ödemesi de, Alışveriş ödemesi de çoğunlukla "Gider" oluşturur.
-        // Sadece "Verilen Borcun Geri Alınması" gelirdir. O yüzden isimden / nota bakmak gerekebilir, ancak
-        // basitçe: Eğer type == .expense ise (Birine para verdin / Mal aldın), bu ödemeyi "Gider" olarak basmak alışverişte mantıklıdır, 
-        // ancak arkadaşından para geliyorsa "Gelir" basılmalıdır.
-        // En sağlam yöntem: original type ne olursa olsun taksit ödemesini "Gider" yazmak TV vs için doğrudur ama 
-        // kullanıcı "Verdiğim Borcu Geri Aldım" diyebilmelidir. Finvo V1'de borç sistemi "Finansal Giderler"e sabitlenmiş.
-        // Biz bunu daha esnek yapmak için: Eğer kategori "Borç & Kredi" ise ve type Expense ise (Borç Verdim), geri ödeme Income'dır.
-        
+        // Mantık: Borç ilk oluşturulduğunda kullanılan kategori ve ikonları aynen koruyoruz.
+        // Ama tipini (Income/Expense) duruma göre belirliyoruz.
         let isLendingMoney = (debtTransaction.type == .expense && debtTransaction.mainCategoryName.lowercased().contains("borç"))
-        
         let newTxType: TransactionType = isLendingMoney ? .income : .expense
-        let newMainCategory = isLendingMoney ? "Diğer Gelirler" : "Finansal Giderler"
-        let newSubCategory = isLendingMoney ? "Borç Tahsilatı" : "Borç Ödemesi"
-        let newColor = isLendingMoney ? "green" : "red"
         
-        // 1. Yeni bir taksit işlemi yarat
+        // 1. Yeni bir taksit işlemi yarat (Daha zengin veriyle)
+        // Kullanıcı isteği: Ana kategori değil alt kategori adıyla oluşsun (Başlık alt kategori olsun)
+        let displayTitle = debtTransaction.subCategoryName ?? debtTransaction.mainCategoryName
+        
         let newInstallment = TransactionModel(
             walletId: debtTransaction.walletId,
             type: newTxType,
             amount: installmentAmount,
-            mainCategoryName: newMainCategory,
-            subCategoryName: newSubCategory,
-            categoryIcon: "arrow.right.arrow.left.circle.fill",
-            categoryColor: newColor,
+            currency: debtTransaction.currency, // Dövizini koru
+            mainCategoryName: displayTitle,
+            mainCategoryId: nil, // Root kategori adının (örn: Konut) başlığı ezmemesi için nil veriyoruz
+            subCategoryName: "\(currentInstallmentNum). Taksit",
+            subCategoryId: nil, // Subtitle kısmına taksit bilgisini yazdığımız için ID boşa çıkıyor
+            categoryIcon: debtTransaction.categoryIcon,
+            categoryColor: debtTransaction.categoryColor,
             date: Date(),
-            note: "\(debtTransaction.debtContact ?? "Bilinmeyen Kişi") için \(paid + 1). Taksit İşlemi",
+            note: debtTransaction.note, // Orijinal notu koru
             createdBy: currentUsername,
             createdAt: Date(),
-            isDebt: false
+            isDebt: false, // Bu bir borç değil, borcun taksit ödemesi
+            debtContact: debtTransaction.debtContact,
+            totalInstallments: debtTransaction.totalInstallments,
+            paidInstallments: currentInstallmentNum, // Kaçıncı taksit ödendi bilgisini snapshot olarak tut
+            isPaid: true, // Taksit işleminin kendisi "Ödendi" durumundadır
+            parentDebtId: debtTransaction.id,
+            installmentNumber: currentInstallmentNum
         )
         
         // 2. Kök borç işleminin taksitini +1 artır ve isPaid kontrolü yap
         var updatedDebt = debtTransaction
-        updatedDebt.paidInstallments = paid + 1
+        updatedDebt.paidInstallments = currentInstallmentNum
         if updatedDebt.paidInstallments == total {
             updatedDebt.isPaid = true
         }

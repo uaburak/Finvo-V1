@@ -38,7 +38,7 @@ struct TransactionDetailView: View {
                 detailCard
 
                 // MARK: - Borç Kartı
-                if transaction.isDebt {
+                if transaction.isDebt || transaction.isInstallment {
                     debtCard
                 }
 

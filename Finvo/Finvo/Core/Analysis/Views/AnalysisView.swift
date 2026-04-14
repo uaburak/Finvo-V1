@@ -250,12 +250,10 @@ struct AnalysisView: View {
         
         // State Ataması
         self.flowData = newFlowData
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-            self.biggestTransaction = biggestActive
-            self.recurringTransactions = recurring
-            self.categorySummaries = newCatSums
-            self.memberContributions = newMemberSums
-        }
+        self.biggestTransaction = biggestActive
+        self.recurringTransactions = recurring
+        self.categorySummaries = newCatSums
+        self.memberContributions = newMemberSums
         
         // Yeniden yüklendiği için animasyon tetikle
         if startAnimation {

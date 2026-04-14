@@ -33,6 +33,12 @@ struct TransactionModel: Codable, Identifiable, Equatable, Hashable {
     var paidInstallments: Int?
     var dueDay: Int?
     var isPaid: Bool = false
+    var parentDebtId: String? // Orijinal borcun ID'si
+    var installmentNumber: Int? // Kaçıncı taksit
+    
+    var isInstallment: Bool {
+        return parentDebtId != nil
+    }
     
     // MARK: - Tekrarlayan (Recurring)
     var isRecurring: Bool = false
