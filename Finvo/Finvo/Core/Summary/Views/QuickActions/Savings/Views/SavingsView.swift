@@ -2,19 +2,15 @@ import SwiftUI
 
 struct SavingsView: View {
     @Environment(\.theme) var theme
-    @Environment(\.dismiss) var dismiss
     @EnvironmentObject var walletManager: WalletManager
     @EnvironmentObject var authManager: AuthenticationManager
     @EnvironmentObject var transactionManager: TransactionManager
     
     @State private var showCreateSheet = false
-    @State private var selectedAccount: SavingsAccountModel?
-    
     @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
     
-    // Yardımcı Func: Hesabın rengini Hex->Color veya isim->"Color" olarak çöz
-    private func getSwiftColor(from stringRaw: String) -> Color {
-        switch stringRaw.lowercased() {
+    private func cardColor(for account: SavingsAccountModel) -> Color {
+        switch account.color.lowercased() {
         case "blue": return .blue
         case "green": return .green
         case "purple": return .purple
@@ -26,79 +22,45 @@ struct SavingsView: View {
     }
     
     var body: some View {
-        ZStack {
-            theme.background1.ignoresSafeArea()
-            
-            let savings = walletManager.activeWallet?.savingsAccounts ?? []
-            
+        let savings = walletManager.activeWallet?.savingsAccounts ?? []
+        
+        Group {
             if savings.isEmpty {
-                VStack(spacing: 20) {
-                    Spacer()
-                    Image(systemName: "banknote.fill")
-                        .font(.system(size: 70))
-                        .foregroundColor(theme.labelSecondary)
-                    
-                    Text("Birikim Hesabınız Yok")
-                        .font(.headline)
-                        .foregroundColor(theme.labelPrimary)
-                    
-                    Text("Araba, tatil veya acil durum fonu gibi hedefleriniz için farklı birikim hesapları oluşturabilirsiniz.")
-                        .font(.subheadline)
-                        .foregroundColor(theme.labelSecondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 40)
-                    
-                    Button {
-                        showCreateSheet = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "plus.circle.fill")
-                            Text("Yeni Hesap Oluştur")
-                        }
-                        .font(.headline)
-                        .foregroundColor(.black)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                    }
-                    .buttonStyle(.glassProminent)
-                    .padding(.top, 10)
-                    .padding(.horizontal, 30)
-                    
-                    Spacer()
-                }
+                emptyStateView
             } else {
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 16) {
-                        ForEach(savings) { account in
-                            ZStack {
-                                NavigationLink(destination: SavingsAccountDetailView(account: account)
-                                    .environmentObject(walletManager)
-                                    .environmentObject(authManager)
-                                    .environmentObject(transactionManager)
-                                ) {
-                                    EmptyView()
-                                }
-                                .opacity(0)
-                                
-                                savingsCard(for: account)
+                List {
+                    ForEach(savings) { account in
+                        ZStack {
+                            NavigationLink(destination: SavingsAccountDetailView(account: account)
+                                .environmentObject(walletManager)
+                                .environmentObject(authManager)
+                                .environmentObject(transactionManager)
+                            ) {
+                                EmptyView()
                             }
+                            .opacity(0)
+                            
+                            savingsRow(for: account)
                         }
+                        .listRowBackground(theme.cardBackground)
                     }
-                    .padding()
-                    .safeAreaPadding(.bottom, 40)
                 }
+                .listStyle(.insetGrouped)
+                .scrollContentBackground(.hidden)
             }
         }
+        .background(theme.background1.ignoresSafeArea())
         .navigationTitle("Birikimler")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                if !(walletManager.activeWallet?.savingsAccounts?.isEmpty ?? true) {
-                    Button { showCreateSheet = true } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(theme.labelPrimary)
-                    }
+                Button {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    showCreateSheet = true
+                } label: {
+                    Image(systemName: "plus")
+                        .fontWeight(.semibold)
+                        .foregroundStyle(theme.labelPrimary)
                 }
             }
         }
@@ -113,64 +75,92 @@ struct SavingsView: View {
         }
     }
     
+    // MARK: - Empty State
+    private var emptyStateView: some View {
+        VStack(spacing: 20) {
+            Spacer()
+            Image(systemName: "banknote.fill")
+                .font(.system(size: 70))
+                .foregroundColor(theme.labelSecondary)
+            Text("Birikim Hesabınız Yok")
+                .font(.headline)
+                .foregroundColor(theme.labelPrimary)
+            Text("Araba, tatil veya acil durum fonu gibi hedefleriniz için farklı birikim hesapları oluşturabilirsiniz.")
+                .font(.subheadline)
+                .foregroundColor(theme.labelSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+            Button {
+                showCreateSheet = true
+            } label: {
+                HStack {
+                    Image(systemName: "plus.circle.fill")
+                    Text("Yeni Hesap Oluştur")
+                }
+                .font(.headline)
+                .foregroundColor(.black)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+            }
+            .buttonStyle(.glassProminent)
+            .padding(.top, 10)
+            .padding(.horizontal, 30)
+            Spacer()
+        }
+    }
+    
+    // MARK: - Row
     @ViewBuilder
-    private func savingsCard(for account: SavingsAccountModel) -> some View {
-        let cardColor = getSwiftColor(from: account.color)
-        
-        // Dinamik Varlık (Bakiye) Hesaplaması
-        let totalBalanceInAppCurrency: Double = account.assets?.reduce(0.0) { sum, assetKV in
-            let curr = CurrencyType(rawValue: assetKV.key) ?? .tryCurrency
-            return sum + ExchangeRateManager.shared.convert(amount: assetKV.value, from: curr, to: appCurrency)
+    private func savingsRow(for account: SavingsAccountModel) -> some View {
+        let color = cardColor(for: account)
+        let totalBalance: Double = account.assets?.reduce(0.0) { sum, kv in
+            let curr = CurrencyType(rawValue: kv.key) ?? .tryCurrency
+            return sum + ExchangeRateManager.shared.convert(amount: kv.value, from: curr, to: appCurrency)
         } ?? 0.0
-        
-        // Dinamik Hedef Hesaplaması
         let goalCurr = CurrencyType(rawValue: account.goalCurrency ?? "") ?? .tryCurrency
-        let dynamicGoalAmount = ExchangeRateManager.shared.convert(amount: account.goalAmount, from: goalCurr, to: appCurrency)
-        
-        let progressRaw = dynamicGoalAmount > 0 ? (totalBalanceInAppCurrency / dynamicGoalAmount) : 0.0
-        let progress = min(max(progressRaw, 0.0), 1.0)
+        let goalAmount = ExchangeRateManager.shared.convert(amount: account.goalAmount, from: goalCurr, to: appCurrency)
+        let balanceStr = totalBalance.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))
+        let goalStr = goalAmount.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))
+        let pct = goalAmount > 0 ? Int(min((totalBalance / goalAmount) * 100, 100)) : 0
         
         HStack(spacing: 16) {
+            // ListItem-style icon
             ZStack {
-                Circle()
-                    .fill(cardColor.opacity(0.15))
-                    .frame(width: 50, height: 50)
-                
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(color)
+                    .frame(width: 36, height: 36)
                 Image(systemName: "lanyardcard.fill")
-                    .foregroundColor(cardColor)
-                    .font(.title3)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.white)
             }
             
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(account.name)
-                    .font(.headline)
+                    .font(.body.weight(.medium))
                     .foregroundColor(theme.labelPrimary)
                     .lineLimit(1)
                 
-                HStack {
-                    Text("\(appCurrency.symbol)\(totalBalanceInAppCurrency.formatted(.number.precision(.fractionLength(0))))")
-                        .font(.subheadline.bold())
-                        .foregroundColor(cardColor)
-                    
-                    Text("/ \(appCurrency.symbol)\(dynamicGoalAmount.formatted(.number.precision(.fractionLength(0))))")
+                HStack(spacing: 4) {
+                    Text("\(appCurrency.symbol)\(balanceStr)")
+                        .font(.caption.bold())
+                        .foregroundColor(color)
+                    Text("/ \(appCurrency.symbol)\(goalStr)")
                         .font(.caption)
                         .foregroundColor(theme.labelSecondary)
                 }
-                
-                // Mini Progress Bar
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(theme.separatorSecondary)
-                        Capsule().fill(cardColor)
-                            .frame(width: max(0, min(CGFloat(progress) * geo.size.width, geo.size.width)))
-                    }
-                }
-                .frame(height: 6)
             }
             
+            Spacer()
+            
+            Text("%\(pct)")
+                .font(.caption.bold())
+                .foregroundStyle(color)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(color.opacity(0.12))
+                .clipShape(Capsule())
         }
-        .padding(16)
-        .glassEffect(in: .rect(cornerRadius: 20))
+        .padding(.vertical, 8)
     }
 }
 

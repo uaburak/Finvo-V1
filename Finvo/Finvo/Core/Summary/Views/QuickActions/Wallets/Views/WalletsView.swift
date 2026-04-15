@@ -11,10 +11,14 @@ struct WalletsView: View {
             ForEach(walletManager.wallets) { wallet in
                 NavigationLink(destination: WalletDetailView(walletId: wallet.id ?? "")) {
                     HStack(spacing: 16) {
-                        Image(systemName: wallet.type == .shared ? "person.3.fill" : "wallet.pass.fill")
-                            .font(.system(size: 20))
-                            .foregroundStyle(theme.brandPrimary)
-                            .frame(width: 32)
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(theme.brandPrimary)
+                                .frame(width: 36, height: 36)
+                            Image(systemName: wallet.type == .shared ? "person.3.fill" : "wallet.pass.fill")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(.white)
+                        }
                         
                         VStack(alignment: .leading, spacing: 4) {
                             Text(wallet.name)

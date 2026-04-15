@@ -5,13 +5,13 @@ struct SavingsDepositSheet: View {
     @Environment(\.dismiss) var dismiss
     @StateObject private var exchangeRateManager = ExchangeRateManager.shared
     
-    let isAdding: Bool
-    let onComplete: (String, CurrencyType) -> Void
+    let onComplete: (String, CurrencyType, Bool) -> Void
     
     enum Step {
-        case type    // Para Ekle / Değerli Maden
-        case asset   // Varlık listesi
-        case amount  // Miktar girişi
+        case direction  // Para Ekle / Para Çıkar
+        case type       // Para (fiat) / Değerli Maden
+        case asset      // Varlık listesi
+        case amount     // Miktar girişi
     }
     
     enum DepositType {
@@ -21,7 +21,8 @@ struct SavingsDepositSheet: View {
     
     @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
     
-    @State private var currentStep: Step = .type
+    @State private var currentStep: Step = .direction
+    @State private var isAdding: Bool = true
     @State private var depositType: DepositType?
     @State private var selectedAsset: CurrencyType?
     @State private var amount: String = ""
@@ -51,6 +52,8 @@ struct SavingsDepositSheet: View {
         NavigationStack {
             VStack {
                 switch currentStep {
+                case .direction:
+                    directionSelectionView
                 case .type:
                     typeSelectionView
                 case .asset:
@@ -90,6 +93,7 @@ struct SavingsDepositSheet: View {
     
     var navTitle: String {
         switch currentStep {
+        case .direction: return "İşlem Yap"
         case .type:   return isAdding ? "Para Ekle" : "Para Çıkar"
         case .asset:  return depositType == .fiat ? "Döviz Seç" : "Maden Seç"
         case .amount: return "Miktar Girin"
@@ -105,11 +109,43 @@ struct SavingsDepositSheet: View {
             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { selectedDetent = .height(280) }
             currentStep = .type
         case .type:
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { selectedDetent = .height(280) }
+            currentStep = .direction
+        case .direction:
             break
         }
     }
     
-    // MARK: - Step 1: Para Ekle / Değerli Maden
+    // MARK: - Step 0: Para Ekle / Para Çıkar
+    private var directionSelectionView: some View {
+        let columns = [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)]
+        return LazyVGrid(columns: columns, spacing: 16) {
+            SelectionCard(
+                title: "Para Ekle",
+                icon: "arrow.down.circle.fill",
+                color: theme.income
+            ) {
+                UISelectionFeedbackGenerator().selectionChanged()
+                isAdding = true
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { selectedDetent = .height(280) }
+                currentStep = .type
+            }
+            SelectionCard(
+                title: "Para Çıkar",
+                icon: "arrow.up.circle.fill",
+                color: theme.expense
+            ) {
+                UISelectionFeedbackGenerator().selectionChanged()
+                isAdding = false
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { selectedDetent = .height(280) }
+                currentStep = .type
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 20)
+    }
+    
+    // MARK: - Step 1: Para / Değerli Maden
     private var typeSelectionView: some View {
         let columns = [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)]
         return LazyVGrid(columns: columns, spacing: 16) {
@@ -252,7 +288,7 @@ struct SavingsDepositSheet: View {
             Button {
                 if !amount.isEmpty, let validAsset = selectedAsset {
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                    onComplete(amount, validAsset)
+                    onComplete(amount, validAsset, isAdding)
                     dismiss()
                 }
             } label: {

@@ -13,9 +13,9 @@ struct SavingsAccountDetailView: View {
     
     @State private var showAmountSheet = false
     @State private var showEditSheet = false
-    @State private var isAdding = true
     @State private var amountInput: String = ""
     @State private var selectedCurrency: CurrencyType = .tryCurrency
+    @State private var isAdding: Bool = true
     @State private var showDeleteConfirm = false
     @State private var isProcessing = false
     
@@ -38,10 +38,8 @@ struct SavingsAccountDetailView: View {
         return ExchangeRateManager.shared.convert(amount: account.goalAmount, from: goalCurr, to: appCurrency)
     }
     
-    // MARK: - Helpers
-    
-    private func getSwiftColor(from stringRaw: String) -> Color {
-        switch stringRaw.lowercased() {
+    private var cardColor: Color {
+        switch account.color.lowercased() {
         case "blue": return .blue
         case "green": return .green
         case "purple": return .purple
@@ -51,6 +49,8 @@ struct SavingsAccountDetailView: View {
         default: return theme.brandPrimary
         }
     }
+    
+    // MARK: - Helpers
     
     private func formatAmount(_ amount: Double) -> String {
         amount.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))
@@ -75,154 +75,141 @@ struct SavingsAccountDetailView: View {
         let pct = (diff / initial) * 100
         guard abs(pct) > 0.01 else { return ("%0.00", theme.labelSecondary) }
         let sign = pct > 0 ? "+" : ""
-        let text = sign + "%" + formatPercentage(pct)
-        let color = pct > 0 ? theme.income : theme.expense
-        return (text, color)
+        return (sign + "%" + formatPercentage(pct), pct > 0 ? theme.income : theme.expense)
+    }
+    
+    // MARK: - Header Card (sticky)
+    private var headerCard: some View {
+        VStack(spacing: 20) {
+            HStack(spacing: 16) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(cardColor)
+                        .frame(width: 52, height: 52)
+                    Image(systemName: "lanyardcard.fill")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(account.name)
+                        .font(.title3.bold())
+                        .foregroundColor(theme.labelPrimary)
+                    Text("Hedef: \(appCurrency.symbol)\(formatAmount(dynamicGoalAmount))")
+                        .font(.caption)
+                        .foregroundColor(theme.labelSecondary)
+                }
+                Spacer()
+                let percentage: Double = dynamicGoalAmount > 0 ? (totalBalanceInAppCurrency / dynamicGoalAmount) * 100 : 0
+                Text("%\(formatAmount(percentage))")
+                    .font(.title3.bold())
+                    .foregroundColor(theme.labelPrimary)
+            }
+            
+            VStack(spacing: 8) {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(theme.separatorSecondary.opacity(0.2))
+                        let progress = dynamicGoalAmount > 0 ? (totalBalanceInAppCurrency / dynamicGoalAmount) : 0
+                        Capsule().fill(cardColor)
+                            .frame(width: max(0, min(CGFloat(progress) * geo.size.width, geo.size.width)))
+                    }
+                }
+                .frame(height: 8)
+                
+                HStack {
+                    Text("\(appCurrency.symbol)\(formatAmount(totalBalanceInAppCurrency))")
+                        .font(.caption.bold())
+                        .foregroundColor(cardColor)
+                    Spacer()
+                    let remaining = dynamicGoalAmount - totalBalanceInAppCurrency
+                    if remaining > 0 {
+                        Text("\(appCurrency.symbol)\(formatAmount(remaining)) kaldı")
+                            .font(.caption)
+                            .foregroundColor(theme.labelSecondary)
+                    } else {
+                        Text("Ulaşıldı 🎉")
+                            .font(.caption.bold())
+                            .foregroundColor(.green)
+                    }
+                }
+            }
+            
+            if let assets = account.assets, !assets.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(Array(assets.keys).sorted(), id: \.self) { key in
+                            if let qty = assets[key], qty > 0, let type = CurrencyType(rawValue: key) {
+                                HStack(spacing: 4) {
+                                    Text(type.symbol)
+                                        .font(.caption2.bold())
+                                        .foregroundColor(theme.labelSecondary)
+                                    Text(formatAssetQuantity(qty, type: type))
+                                        .font(.caption.bold())
+                                        .foregroundColor(theme.labelPrimary)
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Color.primary.opacity(0.08))
+                                .clipShape(Capsule())
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(20)
+        .glassEffect(in: .rect(cornerRadius: 24))
+        .padding(.horizontal, 16)
     }
     
     // MARK: - Body
-    
     var body: some View {
-        ZStack {
+        ZStack(alignment: .top) {
             theme.background1.ignoresSafeArea()
             
-            let cardColor = getSwiftColor(from: account.color)
+            // Scrollable content (header + button + list)
+            let accountTransactions = transactionManager.transactions.filter {
+                $0.subCategoryName == account.name &&
+                ($0.mainCategoryName == "Birikim İşlemleri" || $0.mainCategoryName == "Savings Transactions")
+            }.sorted(by: { $0.date > $1.date })
             
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 32) {
+                VStack(spacing: 0) {
+                    // Header kartın kapladığı alan kadar boşluk
+                    Color.clear.frame(height: 220)
                     
-                    // MARK: Header Card
-                    VStack(spacing: 24) {
-                        HStack(spacing: 16) {
-                            ZStack {
-                                Circle()
-                                    .fill(cardColor.opacity(0.15))
-                                    .frame(width: 56, height: 56)
-                                Image(systemName: "lanyardcard.fill")
-                                    .font(.system(size: 24))
-                                    .foregroundColor(cardColor)
-                            }
-                            
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(account.name)
-                                    .font(.title3.bold())
-                                    .foregroundColor(theme.labelPrimary)
-                                Text("Hedef: \(appCurrency.symbol)\(formatAmount(dynamicGoalAmount))")
-                                    .font(.caption)
-                                    .foregroundColor(theme.labelSecondary)
-                            }
-                            Spacer()
-                            
-                            let percentage: Double = dynamicGoalAmount > 0 ? (totalBalanceInAppCurrency / dynamicGoalAmount) * 100 : 0
-                            Text("%\(formatAmount(percentage))")
-                                .font(.title3.bold())
-                                .foregroundColor(theme.labelPrimary)
+                    // İşlem Yap butonu (scroll ile birlikte kayar)
+                    Button {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        showAmountSheet = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "arrow.left.arrow.right")
+                            Text("İşlem Yap")
                         }
-                        
-                        // Progress Bar
-                        VStack(spacing: 8) {
-                            GeometryReader { geo in
-                                ZStack(alignment: .leading) {
-                                    Capsule().fill(theme.separatorSecondary)
-                                    let progress = dynamicGoalAmount > 0 ? (totalBalanceInAppCurrency / dynamicGoalAmount) : 0
-                                    Capsule().fill(cardColor)
-                                        .frame(width: max(0, min(CGFloat(progress) * geo.size.width, geo.size.width)))
-                                }
-                            }
-                            .frame(height: 12)
-                            
-                            HStack {
-                                Text("\(appCurrency.symbol)\(formatAmount(totalBalanceInAppCurrency))")
-                                    .font(.caption.bold())
-                                    .foregroundColor(cardColor)
-                                Spacer()
-                                let remaining = dynamicGoalAmount - totalBalanceInAppCurrency
-                                if remaining > 0 {
-                                    Text("\(appCurrency.symbol)\(formatAmount(remaining)) kaldı")
-                                        .font(.caption)
-                                        .foregroundColor(theme.labelSecondary)
-                                } else {
-                                    Text("Ulaşıldı 🎉")
-                                        .font(.caption.bold())
-                                        .foregroundColor(.green)
-                                }
-                            }
-                        }
-                        
-                        // Asset badges
-                        if let assets = account.assets, !assets.isEmpty {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 12) {
-                                    ForEach(Array(assets.keys).sorted(), id: \.self) { key in
-                                        if let qty = assets[key], qty > 0, let type = CurrencyType(rawValue: key) {
-                                            HStack(spacing: 4) {
-                                                Text(type.symbol)
-                                                    .font(.caption2.bold())
-                                                    .foregroundColor(theme.labelSecondary)
-                                                Text(formatAssetQuantity(qty, type: type))
-                                                    .font(.caption.bold())
-                                                    .foregroundColor(theme.labelPrimary)
-                                            }
-                                            .padding(.horizontal, 10)
-                                            .padding(.vertical, 6)
-                                            .background(Color.primary.opacity(0.08))
-                                            .clipShape(Capsule())
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        .font(.headline)
+                        .foregroundColor(.black)
+                        .frame(maxWidth: .infinity, minHeight: 48)
                     }
-                    .padding(24)
-                    .glassEffect(in: .rect(cornerRadius: 28))
-                    .padding(.horizontal, 24)
+                    .buttonStyle(.glassProminent)
+                    .clipShape(Capsule())
+                    .padding(.horizontal, 16)
                     .padding(.top, 16)
+                    .padding(.bottom, 8)
                     
-                    // MARK: Action Buttons
-                    HStack(spacing: 20) {
-                        Button {
-                            isAdding = false
-                            amountInput = ""
-                            showAmountSheet = true
-                        } label: {
-                            VStack(spacing: 12) {
-                                Image(systemName: "minus.circle.fill").font(.title2)
-                                Text("Para Çıkar").font(.headline)
-                            }
-                            .foregroundColor(theme.labelPrimary)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 20)
-                            .glassEffect(in: .rect(cornerRadius: 24))
+                    // İşlem listesi
+                    if accountTransactions.isEmpty {
+                        VStack(spacing: 12) {
+                            Image(systemName: "tray")
+                                .font(.system(size: 40))
+                                .foregroundColor(theme.labelSecondary)
+                            Text("Henüz işlem yok")
+                                .font(.subheadline)
+                                .foregroundColor(theme.labelSecondary)
                         }
-                        .disabled(totalBalanceInAppCurrency <= 0)
-                        .opacity(totalBalanceInAppCurrency <= 0 ? 0.5 : 1.0)
-                        
-                        Button {
-                            isAdding = true
-                            amountInput = ""
-                            showAmountSheet = true
-                        } label: {
-                            VStack(spacing: 12) {
-                                Image(systemName: "plus.circle.fill").font(.title2)
-                                Text("Para Ekle").font(.headline)
-                            }
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 20)
-                            .background(cardColor)
-                            .clipShape(RoundedRectangle(cornerRadius: 24))
-                        }
-                    }
-                    .padding(.horizontal, 24)
-                    
-                    // MARK: Transaction List
-                    let accountTransactions = transactionManager.transactions.filter {
-                        $0.subCategoryName == account.name &&
-                        ($0.mainCategoryName == "Birikim İşlemleri" || $0.mainCategoryName == "Savings Transactions")
-                    }.sorted(by: { $0.date > $1.date })
-                    
-                    if !accountTransactions.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
+                        .padding(.top, 60)
+                    } else {
+                        VStack(spacing: 0) {
                             ForEach(accountTransactions) { transaction in
                                 transactionRow(transaction, isLast: transaction.id == accountTransactions.last?.id)
                             }
@@ -233,6 +220,10 @@ struct SavingsAccountDetailView: View {
                     Spacer(minLength: 40)
                 }
             }
+            
+            // Sticky header (üstte sabit)
+            headerCard
+                .padding(.top, 12)
         }
         .navigationTitle("Birikim Detayı")
         .navigationBarTitleDisplayMode(.inline)
@@ -259,10 +250,11 @@ struct SavingsAccountDetailView: View {
                 .presentationBackground(.clear)
         }
         .sheet(isPresented: $showAmountSheet) {
-            SavingsDepositSheet(isAdding: isAdding) { amountStr, currency in
+            SavingsDepositSheet { amountStr, currency, adding in
                 amountInput = amountStr
                 selectedCurrency = currency
-                handleTransaction(adding: isAdding)
+                isAdding = adding
+                handleTransaction(adding: adding)
             }
         }
         .alert("Hesabı Sil", isPresented: $showDeleteConfirm) {
@@ -274,7 +266,6 @@ struct SavingsAccountDetailView: View {
     }
     
     // MARK: - Transaction Row
-    
     @ViewBuilder
     private func transactionRow(_ transaction: TransactionModel, isLast: Bool) -> some View {
         let isDeposit = transaction.type == .expense
@@ -302,18 +293,17 @@ struct SavingsAccountDetailView: View {
             )
         }
         .buttonStyle(.plain)
-        .padding(.vertical, 4)
-        .padding(.horizontal, 24)
+        .padding(.vertical, 10)
+        .padding(.horizontal, 16)
         
         if !isLast {
             Divider()
-                .padding(.leading, 80)
-                .padding(.trailing, 24)
+                .padding(.leading, 68)
+                .padding(.trailing, 16)
         }
     }
     
     // MARK: - Actions
-    
     private func handleTransaction(adding: Bool) {
         guard let wallet = walletManager.activeWallet,
               let currentUser = authManager.currentUserProfile?.username else { return }
@@ -328,7 +318,6 @@ struct SavingsAccountDetailView: View {
         if selectedCurrency != .tryCurrency {
             qtyString = " (\(formatAmount(validAmount)) \(selectedCurrency.symbol))"
         }
-        
         let txMsg = adding
             ? "\(account.name) fonuna eklendi\(qtyString)."
             : "\(account.name) fonundan çekildi\(qtyString)."
