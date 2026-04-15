@@ -45,7 +45,18 @@ struct AddTransactionsView: View {
         let type = transactionToEdit?.type ?? .expense
         _selectedType = State(initialValue: type)
         _selectedDate = State(initialValue: transactionToEdit?.date ?? Date())
-        _amount = State(initialValue: transactionToEdit != nil ? String(format: "%.0f", transactionToEdit!.amount) : "")
+        
+        if let edit = transactionToEdit {
+            var displayAmount = edit.amount
+            if edit.isDebt, let totalInt = edit.totalInstallments, totalInt > 0 {
+                displayAmount = edit.amount / Double(totalInt)
+            }
+            let isInteger = floor(displayAmount) == displayAmount
+            _amount = State(initialValue: isInteger ? String(format: "%.0f", displayAmount) : "\(displayAmount)")
+        } else {
+            _amount = State(initialValue: "")
+        }
+        
         _selectedCurrency = State(initialValue: transactionToEdit?.currency ?? (UserDefaults.standard.string(forKey: "appCurrency").flatMap { CurrencyType(rawValue: $0) } ?? .tryCurrency))
         
         // Kategori eşleştirme (ID bazlı öncelik, isim fallback)
@@ -513,23 +524,27 @@ struct AddTransactionsView: View {
     
     private func formatAmountText() -> String {
         if amount.isEmpty { return "0,00 \(selectedCurrency.symbol)" }
-        let normalized = amount.replacingOccurrences(of: ",", with: ".")
-        if let parsed = Double(normalized) {
-            let hasDecimal = amount.contains(",") || amount.contains(".")
-            if hasDecimal {
-                let parts = normalized.split(separator: ".", omittingEmptySubsequences: false)
-                let intPart = parts.first ?? ""
-                let decPart = parts.count > 1 ? parts[1] : ""
-                if let intVal = Double(intPart) {
-                    let formattedInt = intVal.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))
-                    return "\(formattedInt),\(decPart) \(selectedCurrency.symbol)"
-                }
-            } else {
-                let formatted = parsed.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))
-                return "\(formatted) \(selectedCurrency.symbol)"
-            }
+        var parsedAmount: Double = 0.0
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        if let number = formatter.number(from: amount) {
+            parsedAmount = number.doubleValue
+        } else {
+            let normalized = amount.replacingOccurrences(of: ",", with: ".")
+            parsedAmount = Double(normalized) ?? 0.0
         }
-        return "\(amount) \(selectedCurrency.symbol)"
+        
+        let hasDecimal = amount.contains(",") || amount.contains(".")
+        if hasDecimal {
+            let parts = amount.replacingOccurrences(of: ",", with: ".").split(separator: ".", omittingEmptySubsequences: false)
+            let decPart = parts.count > 1 ? parts[1] : ""
+            let intVal = floor(parsedAmount)
+            let formattedInt = intVal.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))
+            return "\(formattedInt),\(decPart) \(selectedCurrency.symbol)"
+        } else {
+            let formatted = parsedAmount.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))
+            return "\(formatted) \(selectedCurrency.symbol)"
+        }
     }
 
     private func formRow(_ icon: String, _ title: String, _ value: String, action: @escaping () -> Void) -> some View {
@@ -619,9 +634,16 @@ struct AddTransactionsView: View {
             return
         }
         
-        // Parse Amount safely
-        let cleanAmount = amount.replacingOccurrences(of: ".", with: "").replacingOccurrences(of: ",", with: ".")
-        var parsedAmount = Double(cleanAmount) ?? 0.0
+        // Parse Amount safely handling locales and commas
+        var parsedAmount: Double = 0.0
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        if let number = formatter.number(from: amount) {
+            parsedAmount = number.doubleValue
+        } else {
+            let normalized = amount.replacingOccurrences(of: ",", with: ".")
+            parsedAmount = Double(normalized) ?? 0.0
+        }
         
         // Kullanıcı borç eklerken taksit tutarını (aylık ödeme) girer, sistem toplam borcu hesaplar
         if isDebt {

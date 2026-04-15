@@ -70,10 +70,18 @@ struct SavingsView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 16) {
                         ForEach(savings) { account in
-                            NavigationLink(destination: SavingsAccountDetailView(account: account)) {
+                            ZStack {
+                                NavigationLink(destination: SavingsAccountDetailView(account: account)
+                                    .environmentObject(walletManager)
+                                    .environmentObject(authManager)
+                                    .environmentObject(transactionManager)
+                                ) {
+                                    EmptyView()
+                                }
+                                .opacity(0)
+                                
                                 savingsCard(for: account)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
                     .padding()
@@ -160,11 +168,6 @@ struct SavingsView: View {
                 .frame(height: 6)
             }
             
-            Spacer()
-            
-            Image(systemName: "chevron.right")
-                .foregroundColor(theme.labelSecondary)
-                .font(.system(size: 14, weight: .semibold))
         }
         .padding(16)
         .glassEffect(in: .rect(cornerRadius: 20))

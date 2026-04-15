@@ -138,9 +138,13 @@ struct AmountInputSheet: View {
     private func adjustAmount(by value: Double) {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
             var current: Double = 0
-            let normalized = amount.replacingOccurrences(of: ",", with: ".")
-            if let parsed = Double(normalized) {
-                current = parsed
+            let formatter = NumberFormatter()
+            formatter.numberStyle = .decimal
+            if let number = formatter.number(from: amount) {
+                current = number.doubleValue
+            } else {
+                let normalized = amount.replacingOccurrences(of: ",", with: ".")
+                current = Double(normalized) ?? 0.0
             }
             
             current += value
@@ -149,7 +153,8 @@ struct AmountInputSheet: View {
             if current == 0 {
                 amount = ""
             } else {
-                amount = String(format: "%.0f", current)
+                let isInteger = floor(current) == current
+                amount = isInteger ? String(format: "%.0f", current) : "\(current)"
             }
         }
     }
@@ -157,21 +162,25 @@ struct AmountInputSheet: View {
     // Yardımcı fonksiyon: Klavyeden girilen metni anlık olarak binlik formatına çevirir
     private func formatAmountText() -> String {
         if amount.isEmpty { return "0" }
-        let normalized = amount.replacingOccurrences(of: ",", with: ".")
-        if let parsed = Double(normalized) {
-            let hasDecimal = amount.contains(",") || amount.contains(".")
-            if hasDecimal {
-                let parts = normalized.split(separator: ".", omittingEmptySubsequences: false)
-                let intPart = parts.first ?? ""
-                let decPart = parts.count > 1 ? parts[1] : ""
-                if let intVal = Double(intPart) {
-                    let formattedInt = intVal.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))
-                    return "\(formattedInt),\(decPart)"
-                }
-            } else {
-                return parsed.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))
-            }
+        var parsedAmount: Double = 0.0
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        if let number = formatter.number(from: amount) {
+            parsedAmount = number.doubleValue
+        } else {
+            let normalized = amount.replacingOccurrences(of: ",", with: ".")
+            parsedAmount = Double(normalized) ?? 0.0
         }
-        return amount
+        
+        let hasDecimal = amount.contains(",") || amount.contains(".")
+        if hasDecimal {
+            let parts = amount.replacingOccurrences(of: ",", with: ".").split(separator: ".", omittingEmptySubsequences: false)
+            let decPart = parts.count > 1 ? parts[1] : ""
+            let intVal = floor(parsedAmount)
+            let formattedInt = intVal.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))
+            return "\(formattedInt),\(decPart)"
+        } else {
+            return parsedAmount.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))
+        }
     }
 }

@@ -66,7 +66,6 @@ struct WalletModel: Identifiable, Codable, Equatable {
     var permissions: [String: String] // UID -> WalletRole (e.g. "owner")
     var monthlyLimit: Double?
     var monthlyLimitCurrency: String? // Limitin ana para birimi
-    var categoryLimits: [String: Double]? // Kategori ID -> Limit Tutarı eşleşmesi
     var savingsGoal: Double? // Eski tekil birikim hedefi (geriye dönük uyumluluk için tutulabilir)
     var savingsAccounts: [SavingsAccountModel]? // Yeni çoklu birikim hesapları listesi
     

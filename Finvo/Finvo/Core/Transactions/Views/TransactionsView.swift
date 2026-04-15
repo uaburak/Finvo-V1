@@ -22,36 +22,39 @@ struct TransactionsView: View {
     
     @State private var showDeleteConfirmation = false
     @State private var transactionToDelete: TransactionModel? = nil
+    
+    @State private var filteredItems: [TransactionModel] = []
+    
+    private func filterTransactions() {
+        let allItems = transactionManager.transactions
+        filteredItems = allItems.filter { item in
+            guard item.type == selectedType else { return false }
+            
+            if !searchText.isEmpty {
+                guard item.mainCategoryName.localizedCaseInsensitiveContains(searchText) ||
+                      (item.subCategoryName ?? "").localizedCaseInsensitiveContains(searchText) ||
+                      (item.note ?? "").localizedCaseInsensitiveContains(searchText) else { return false }
+            }
+            
+            if let catId = selectedCategory {
+                guard item.mainCategoryId == catId || item.mainCategoryName == catId else { return false }
+            }
+            
+            if useDateRange {
+                let calendar = Calendar.current
+                let start = calendar.startOfDay(for: startDate)
+                let end = calendar.date(bySettingHour: 23, minute: 59, second: 59, of: endDate) ?? endDate
+                
+                if item.date < start || item.date > end {
+                    return false
+                }
+            }
+            return true
+        }
+    }
 
     var body: some View {
         VStack {
-            let allItems: [TransactionModel] = transactionManager.transactions
-            let filteredItems: [TransactionModel] = allItems.filter { item in
-                guard item.type == selectedType else { return false }
-                
-                if !searchText.isEmpty {
-                    guard item.mainCategoryName.localizedCaseInsensitiveContains(searchText) ||
-                          (item.subCategoryName ?? "").localizedCaseInsensitiveContains(searchText) ||
-                          (item.note ?? "").localizedCaseInsensitiveContains(searchText) else { return false }
-                }
-                
-                if let catId = selectedCategory {
-                    guard item.mainCategoryId == catId || item.mainCategoryName == catId else { return false }
-                }
-                
-                if useDateRange {
-                    let calendar = Calendar.current
-                    let start = calendar.startOfDay(for: startDate)
-                    let end = calendar.date(bySettingHour: 23, minute: 59, second: 59, of: endDate) ?? endDate
-                    
-                    if item.date < start || item.date > end {
-                        return false
-                    }
-                }
-                
-                return true
-            }
-
             if !transactionManager.hasLoaded {
                 // Veri henüz yüklenmedi — boş state gösterme
                 Color.clear
@@ -207,10 +210,15 @@ struct TransactionsView: View {
             Text("Bu işlemi silmek istediğinize emin misiniz? Bu işlem geri alınamaz.")
         }
         .onAppear {
-            let brandColor = UIColor(Color(hex: "AEFF23"))
-            UISegmentedControl.appearance().selectedSegmentTintColor = brandColor
-            UISegmentedControl.appearance().setTitleTextAttributes([.foregroundColor: UIColor.black], for: .selected)
+            filterTransactions()
         }
+        .onChange(of: transactionManager.transactions) { _, _ in filterTransactions() }
+        .onChange(of: selectedType) { _, _ in filterTransactions() }
+        .onChange(of: searchText) { _, _ in filterTransactions() }
+        .onChange(of: selectedCategory) { _, _ in filterTransactions() }
+        .onChange(of: useDateRange) { _, _ in filterTransactions() }
+        .onChange(of: startDate) { _, _ in filterTransactions() }
+        .onChange(of: endDate) { _, _ in filterTransactions() }
     }
 }
 

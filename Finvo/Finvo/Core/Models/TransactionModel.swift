@@ -26,6 +26,9 @@ struct TransactionModel: Codable, Identifiable, Equatable, Hashable {
     var createdBy: String // username
     var createdAt: Date
     
+    // Varlık Takibi (Savings/Investments)
+    var appCurrencyAmountAtCreation: Double?
+    
     // MARK: - Borç / Alacak (Debt)
     var isDebt: Bool = false
     var debtContact: String?
@@ -141,6 +144,7 @@ struct TransactionModel: Codable, Identifiable, Equatable, Hashable {
         hasher.combine(isDebt)
         hasher.combine(isRecurring)
         hasher.combine(isPaid)
+        hasher.combine(appCurrencyAmountAtCreation)
     }
 
     static func == (lhs: TransactionModel, rhs: TransactionModel) -> Bool {
@@ -160,7 +164,8 @@ struct TransactionModel: Codable, Identifiable, Equatable, Hashable {
                lhs.createdBy == rhs.createdBy &&
                lhs.isDebt == rhs.isDebt &&
                lhs.isRecurring == rhs.isRecurring &&
-               lhs.isPaid == rhs.isPaid
+               lhs.isPaid == rhs.isPaid &&
+               lhs.appCurrencyAmountAtCreation == rhs.appCurrencyAmountAtCreation
     }
 }
 

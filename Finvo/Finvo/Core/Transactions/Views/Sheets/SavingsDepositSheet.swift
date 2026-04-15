@@ -9,38 +9,40 @@ struct SavingsDepositSheet: View {
     let onComplete: (String, CurrencyType) -> Void
     
     enum Step {
-        case category, asset, amount
+        case type    // Para Ekle / Değerli Maden
+        case asset   // Varlık listesi
+        case amount  // Miktar girişi
     }
     
-    enum AssetCategory: String {
-        case fiat = "Döviz"
-        case metal = "Değerli Maden"
+    enum DepositType {
+        case fiat   // Döviz (TRY, USD, EUR...)
+        case metal  // Değerli Maden (Altın, Gümüş...)
     }
     
-    @State private var currentStep: Step = .category
-    @State private var selectedCategory: AssetCategory?
+    @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
+    
+    @State private var currentStep: Step = .type
+    @State private var depositType: DepositType?
     @State private var selectedAsset: CurrencyType?
     @State private var amount: String = ""
     @State private var searchText = ""
+    @State private var selectedDetent: PresentationDetent = .height(280)
     
     var filteredAssets: [CurrencyType] {
-        guard let category = selectedCategory else { return [] }
+        guard let type = depositType else { return [] }
         var list: [CurrencyType] = []
-        
-        if category == .fiat {
+        if type == .fiat {
             let allowedFiatCodes = ["TRY", "USD", "EUR", "GBP", "CHF", "CAD", "RUB"]
             list = exchangeRateManager.allCurrencies.filter { allowedFiatCodes.contains($0.code) }
         } else {
-            // Include Gold & Silver etc
             list = exchangeRateManager.allCurrencies.filter { $0.assetType != "Döviz" || $0.code.contains("altin") || $0.code.contains("gumus") }
         }
-        
         if searchText.isEmpty {
             return list.sorted { $0.name < $1.name }
         } else {
-            return list.filter { 
-                $0.name.localizedCaseInsensitiveContains(searchText) || 
-                $0.code.localizedCaseInsensitiveContains(searchText) 
+            return list.filter {
+                $0.name.localizedCaseInsensitiveContains(searchText) ||
+                $0.code.localizedCaseInsensitiveContains(searchText)
             }.sorted { $0.name < $1.name }
         }
     }
@@ -49,8 +51,8 @@ struct SavingsDepositSheet: View {
         NavigationStack {
             VStack {
                 switch currentStep {
-                case .category:
-                    categorySelectionView
+                case .type:
+                    typeSelectionView
                 case .asset:
                     assetSelectionView
                 case .amount:
@@ -61,11 +63,10 @@ struct SavingsDepositSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    if currentStep != .category {
+                    if currentStep != .type {
                         Button {
                             UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                            if currentStep == .amount { currentStep = .asset }
-                            else if currentStep == .asset { currentStep = .category }
+                            goBack()
                         } label: {
                             Image(systemName: "chevron.left")
                                 .fontWeight(.bold)
@@ -73,11 +74,8 @@ struct SavingsDepositSheet: View {
                         }
                     }
                 }
-                
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        dismiss()
-                    } label: {
+                    Button { dismiss() } label: {
                         Image(systemName: "xmark")
                             .fontWeight(.bold)
                             .foregroundStyle(theme.labelPrimary)
@@ -85,123 +83,119 @@ struct SavingsDepositSheet: View {
                 }
             }
         }
-        .presentationDetents(currentStep == .amount ? [.height(350)] : [.large])
+        .presentationDetents([.height(280), .height(350), .medium], selection: $selectedDetent)
         .presentationDragIndicator(.visible)
-        // Background matching style
-        .background(theme.background1)
+        .presentationBackground(.clear)
     }
     
     var navTitle: String {
         switch currentStep {
-        case .category: return "Varlık Türü"
-        case .asset: return selectedCategory?.rawValue ?? "Varlık Seç"
+        case .type:   return isAdding ? "Para Ekle" : "Para Çıkar"
+        case .asset:  return depositType == .fiat ? "Döviz Seç" : "Maden Seç"
         case .amount: return "Miktar Girin"
         }
     }
     
-    // 1. Kategori Seçimi
-    private var categorySelectionView: some View {
-        VStack(spacing: 16) {
-            Button {
-                selectedCategory = .fiat
-                currentStep = .asset
-            } label: {
-                HStack(spacing: 16) {
-                    Image(systemName: "banknote")
-                        .font(.system(size: 24))
-                        .foregroundColor(.green)
-                    Text("Para Ekle (Döviz)")
-                        .font(.headline)
-                        .foregroundColor(theme.labelPrimary)
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .foregroundColor(theme.labelSecondary)
-                }
-                .padding()
-                .glassEffect(in: .rect(cornerRadius: 16))
-            }
-            
-            Button {
-                selectedCategory = .metal
-                currentStep = .asset
-            } label: {
-                HStack(spacing: 16) {
-                    Image(systemName: "medal.fill")
-                        .font(.system(size: 24))
-                        .foregroundColor(.orange)
-                    Text("Değerli Maden (Altın, Gümüş)")
-                        .font(.headline)
-                        .foregroundColor(theme.labelPrimary)
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .foregroundColor(theme.labelSecondary)
-                }
-                .padding()
-                .glassEffect(in: .rect(cornerRadius: 16))
-            }
-            
-            Spacer()
+    private func goBack() {
+        switch currentStep {
+        case .amount:
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { selectedDetent = .medium }
+            currentStep = .asset
+        case .asset:
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { selectedDetent = .height(280) }
+            currentStep = .type
+        case .type:
+            break
         }
-        .padding(24)
     }
     
-    // 2. Varlık Seçimi
+    // MARK: - Step 1: Para Ekle / Değerli Maden
+    private var typeSelectionView: some View {
+        let columns = [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)]
+        return LazyVGrid(columns: columns, spacing: 16) {
+            SelectionCard(
+                title: isAdding ? "Para Ekle" : "Para Çıkar",
+                icon: "banknote.fill",
+                color: isAdding ? theme.income : theme.expense
+            ) {
+                UISelectionFeedbackGenerator().selectionChanged()
+                depositType = .fiat
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { selectedDetent = .medium }
+                currentStep = .asset
+            }
+            
+            SelectionCard(
+                title: "Değerli Maden",
+                icon: "medal.fill",
+                color: .orange
+            ) {
+                UISelectionFeedbackGenerator().selectionChanged()
+                depositType = .metal
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { selectedDetent = .medium }
+                currentStep = .asset
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 20)
+    }
+    
+    // MARK: - Step 2: Varlık Listesi
     private var assetSelectionView: some View {
-        VStack {
-            List {
-                ForEach(filteredAssets) { currency in
-                    Button {
-                        selectedAsset = currency
-                        currentStep = .amount
-                    } label: {
-                        HStack(spacing: 16) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .fill(Color(UIColor.systemGray5))
-                                    .frame(width: 36, height: 36)
-                                
-                                Image(systemName: currency.icon)
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(theme.labelPrimary)
-                            }
-                            
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(currency.name)
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(theme.labelPrimary)
-                                Text(currency.code)
-                                    .font(.system(size: 12))
-                                    .foregroundColor(theme.labelSecondary)
-                            }
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
+        List {
+            ForEach(filteredAssets) { currency in
+                Button {
+                    selectedAsset = currency
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { selectedDetent = .height(350) }
+                    currentStep = .amount
+                } label: {
+                    HStack(spacing: 16) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Color(UIColor.systemGray5))
+                                .frame(width: 36, height: 36)
+                            Image(systemName: currency.icon)
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(theme.labelPrimary)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(currency.name)
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(theme.labelPrimary)
+                            Text(currency.code)
+                                .font(.system(size: 12))
                                 .foregroundColor(theme.labelSecondary)
                         }
-                        .padding(.vertical, 4)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundColor(theme.labelSecondary)
                     }
-                    .listRowBackground(theme.background1)
+                    .padding(.vertical, 4)
                 }
+                .listRowBackground(Color.clear)
+                .listRowSeparatorTint(theme.separator)
             }
-            .listStyle(.plain)
-            .searchable(text: $searchText, prompt: "Varlık Ara")
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .searchable(text: $searchText, prompt: "Varlık Ara")
     }
     
-    // 3. Miktar
+    // MARK: - Step 3: Miktar
     private var amountInputView: some View {
         VStack(spacing: 24) {
-            
-            HStack {
-                Text("Seçilen Varlık:")
-                    .foregroundColor(theme.labelSecondary)
-                Spacer()
-                Text("\(selectedAsset?.name ?? "") (\(selectedAsset?.code ?? ""))")
-                    .fontWeight(.semibold)
-                    .foregroundColor(theme.labelPrimary)
+            if let asset = selectedAsset {
+                HStack {
+                    Text("Seçilen Varlık:")
+                        .foregroundColor(theme.labelSecondary)
+                    Spacer()
+                    Text("\(asset.name) (\(asset.code))")
+                        .fontWeight(.semibold)
+                        .foregroundColor(theme.labelPrimary)
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 16)
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 16)
             
             HStack(spacing: 16) {
                 Button {
@@ -245,13 +239,15 @@ struct SavingsDepositSheet: View {
             }
             .padding(.horizontal, 16)
             
-            if selectedCategory == .fiat {
-                HStack(spacing: 16) {
-                    Button { adjustAmount(by: -50) } label: { Text("-50").fontWeight(.bold).foregroundStyle(theme.expense).frame(maxWidth: .infinity, minHeight: 48) }.buttonStyle(.glass)
-                    Button { adjustAmount(by: 50) } label: { Text("+50").fontWeight(.bold).foregroundStyle(theme.income).frame(maxWidth: .infinity, minHeight: 48) }.buttonStyle(.glass)
-                }
-                .padding(.horizontal, 16)
+            HStack(spacing: 16) {
+                Button { adjustAmount(by: -50) } label: {
+                    Text("-50").fontWeight(.bold).foregroundStyle(theme.expense).frame(maxWidth: .infinity, minHeight: 48)
+                }.buttonStyle(.glass)
+                Button { adjustAmount(by: 50) } label: {
+                    Text("+50").fontWeight(.bold).foregroundStyle(theme.income).frame(maxWidth: .infinity, minHeight: 48)
+                }.buttonStyle(.glass)
             }
+            .padding(.horizontal, 16)
             
             Button {
                 if !amount.isEmpty, let validAsset = selectedAsset {
@@ -277,16 +273,10 @@ struct SavingsDepositSheet: View {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
             var current: Double = 0
             let normalized = amount.replacingOccurrences(of: ",", with: ".")
-            if let parsed = Double(normalized) {
-                current = parsed
-            }
+            if let parsed = Double(normalized) { current = parsed }
             current += value
             if current < 0 { current = 0 }
-            if current == 0 {
-                amount = ""
-            } else {
-                amount = String(format: "%.0f", current)
-            }
+            amount = current == 0 ? "" : String(format: "%.0f", current)
         }
     }
     

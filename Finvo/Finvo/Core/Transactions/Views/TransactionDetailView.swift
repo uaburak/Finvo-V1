@@ -121,6 +121,22 @@ struct TransactionDetailView: View {
                 Text("≈ \(appCurrency.symbol)\(converted.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))")
                     .font(.title3.weight(.medium))
                     .foregroundStyle(theme.labelSecondary)
+                    
+                if !transaction.isIncome, let initialVal = transaction.appCurrencyAmountAtCreation, initialVal > 0 {
+                    let diff = converted - initialVal
+                    let pct = (diff / initialVal) * 100
+                    if abs(pct) > 0.01 {
+                        let isPositive = pct > 0
+                        let sign = isPositive ? "+" : ""
+                        let pctStr = "\(sign)%\(pct.formatted(.number.precision(.fractionLength(2))))"
+                        let diffStr = "\(sign)\(appCurrency.symbol)\(abs(diff).formatted(.number.grouping(.automatic).precision(.fractionLength(0))))"
+                        
+                        Text("\(pctStr) (\(diffStr))")
+                            .font(.subheadline.bold())
+                            .foregroundColor(isPositive ? theme.income : theme.expense)
+                            .padding(.top, 4)
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity)

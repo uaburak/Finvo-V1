@@ -7,11 +7,9 @@ struct LimitsView: View {
     
     @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
     
-    @State private var newLimitString: String = ""
-    @State private var selectedLimitCategory: String? = nil // nil = Genel Limit
-    @State private var showEditForm: Bool = false
+    @State private var limitAmount: Double? = nil
+    @State private var showEditSheet: Bool = false
     @State private var isLoading: Bool = false
-    @State private var showCategoryPicker: Bool = false
     
     var body: some View {
         ZStack {
@@ -23,73 +21,61 @@ struct LimitsView: View {
             
             ScrollView {
                 VStack(spacing: 24) {
-                    
-                    Text("Genel Limit")
-                        .font(.headline)
-                        .foregroundColor(theme.labelSecondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal)
-                        .padding(.top, 16)
-                    
-                    if limit == 0 && !showEditForm {
+                    if limit == 0 {
                         emptyLimitNotice
-                    } else {
-                        limitCard(title: "Genel Bütçe", limit: generalLimitSafe, categoryId: nil)
-                    }
-                    
-                    // Category Limits Section
-                    let catLimits = walletManager.activeWallet?.categoryLimits ?? [:]
-                    if !catLimits.isEmpty {
-                        Text("Kategori Limitleri")
-                            .font(.headline)
-                            .foregroundColor(theme.labelSecondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal)
-                            .padding(.top, 8)
                         
-                        ForEach(Array(catLimits.keys), id: \.self) { catId in
-                            let catLimitVal = catLimits[catId] ?? 0.0
-                            let catLimitSafe = ExchangeRateManager.shared.convert(amount: catLimitVal, from: limitCurr, to: appCurrency)
-                            let catName = CategoryManager.shared.categories.first(where: { $0.id == catId })?.name ?? "Kategori"
-                            limitCard(title: catName, limit: catLimitSafe, categoryId: catId)
+                        Button {
+                            limitAmount = nil
+                            showEditSheet = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "plus")
+                                Text("Genel Limit Belirle")
+                            }
+                            .font(.headline)
+                            .foregroundColor(.black)
+                            .frame(maxWidth: .infinity, minHeight: 48)
                         }
-                    }
-                    
-                    if !showEditForm {
+                        .buttonStyle(.glassProminent)
+                        .clipShape(Capsule())
+                        .padding(.horizontal)
+                    } else {
+                        limitCard(limit: generalLimitSafe)
+                        
                         HStack(spacing: 16) {
                             Button {
-                                selectedLimitCategory = nil
-                                newLimitString = limit > 0 ? String(format: "%.0f", limit) : ""
-                                withAnimation { showEditForm = true }
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                deleteLimit()
+                            } label: {
+                                HStack {
+                                    Image(systemName: "trash")
+                                    Text("Limiti Kaldır")
+                                }
+                                .font(.headline)
+                                .foregroundColor(.red) // Limit kaldır kırmızı daha uygun
+                                .frame(maxWidth: .infinity, minHeight: 48)
+                            }
+                            .buttonStyle(.glass)
+                            .clipShape(Capsule())
+                            
+                            Button {
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                limitAmount = limit > 0 ? generalLimitSafe : nil
+                                showEditSheet = true
                             } label: {
                                 HStack {
                                     Image(systemName: "pencil")
-                                    Text(limit == 0 ? "Genel Limit Belirle" : "Limiti Güncelle")
+                                    Text("Limiti Güncelle")
                                 }
-                                .font(.subheadline.bold())
-                                .foregroundColor(theme.labelPrimary)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .glassEffect(in: .rect(cornerRadius: 16))
+                                .font(.headline)
+                                .foregroundColor(.black)
+                                .frame(maxWidth: .infinity, minHeight: 48)
                             }
-                            
-                            Button {
-                                showCategoryPicker = true
-                            } label: {
-                                HStack {
-                                    Image(systemName: "plus")
-                                    Text("Kategori Limiti")
-                                }
-                                .font(.subheadline.bold())
-                                .foregroundColor(theme.labelPrimary)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .glassEffect(in: .rect(cornerRadius: 16))
-                            }
+                            .buttonStyle(.glassProminent)
+                            .clipShape(Capsule())
                         }
                         .padding(.horizontal)
-                    } else {
-                        limitEditForm
+                        .padding(.top, 8)
                     }
                 }
                 .padding(.vertical)
@@ -98,14 +84,10 @@ struct LimitsView: View {
         }
         .navigationTitle("Limitler")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showCategoryPicker) {
-            CategoryPickerSheet { catId in
-                selectedLimitCategory = catId
-                newLimitString = ""
-                showEditForm = true
-                showCategoryPicker = false
-            }
-            .presentationDetents([.medium])
+        .sheet(isPresented: $showEditSheet) {
+            limitEditForm
+                .presentationDetents([.height(300)])
+                .presentationDragIndicator(.visible)
         }
     }
     
@@ -128,11 +110,10 @@ struct LimitsView: View {
     }
     
     @ViewBuilder
-    private func limitCard(title: String, limit: Double, categoryId: String?) -> some View {
+    private func limitCard(limit: Double) -> some View {
         let now = Date()
         let currentMonthExpenses = transactionManager.transactions.filter { 
             !$0.isDebt && $0.type == .expense &&
-            (categoryId == nil || $0.mainCategoryId == categoryId) &&
             Calendar.current.isDate($0.date, equalTo: now, toGranularity: .month) &&
             Calendar.current.isDate($0.date, equalTo: now, toGranularity: .year)
         }.reduce(0) { total, tx in
@@ -149,11 +130,8 @@ struct LimitsView: View {
         VStack(alignment: .leading, spacing: 20) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.headline)
-                        .foregroundColor(theme.labelPrimary)
                     Text("Bu Ayki Harcama")
-                        .font(.caption)
+                        .font(.headline)
                         .foregroundColor(theme.labelSecondary)
                 }
                 Spacer()
@@ -194,71 +172,82 @@ struct LimitsView: View {
         .padding(24)
         .glassEffect(in: .rect(cornerRadius: 24))
         .padding(.horizontal)
-        .contextMenu {
-            if categoryId != nil {
-                Button(role: .destructive) {
-                    deleteCategoryLimit(catId: categoryId!)
-                } label: {
-                    Label("Limiti Kaldır", systemImage: "trash")
-                }
-            }
-        }
     }
     
     private var limitEditForm: some View {
-        VStack(spacing: 16) {
-            let catName = selectedLimitCategory != nil ? (CategoryManager.shared.categories.first(where: { $0.id == selectedLimitCategory })?.name ?? "Kategori") : "Genel"
-            Text("\(catName) Limiti Düzenle")
-                .font(.headline)
-                .foregroundColor(theme.labelPrimary)
-                
-            HStack {
-                Text(appCurrency.symbol)
-                    .font(.title2.bold())
-                    .foregroundColor(theme.labelSecondary)
-                TextField("Yeni Limit", text: $newLimitString)
-                    .keyboardType(.decimalPad)
-                    .font(.title2.bold())
-                    .foregroundColor(theme.labelPrimary)
-            }
-            .padding()
-            .glassEffect(in: .rect(cornerRadius: 16))
-            
-            HStack(spacing: 12) {
-                Button("İptal") {
-                    withAnimation { showEditForm = false }
+        NavigationStack {
+            VStack(spacing: 24) {
+                HStack {
+                    Text(appCurrency.symbol)
+                        .font(.body)
+                        .foregroundColor(theme.labelSecondary)
+                    
+                    TextField("Yeni Limit", value: $limitAmount, format: .number)
+                        .keyboardType(.decimalPad)
+                        .font(.body)
+                        .foregroundColor(theme.labelPrimary)
                 }
-                .font(.headline)
-                .foregroundColor(theme.labelPrimary)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .glassEffect(in: .rect(cornerRadius: 16))
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+                .background(Color.white.opacity(0.05))
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule().stroke(theme.separator, lineWidth: 1)
+                )
                 
-                Button(action: saveLimit) {
-                    if isLoading {
-                        ProgressView().tint(theme.labelPrimary) // glass uyarınca siyah/beyaz olabilir
-                    } else {
-                        Text("Kaydet")
+                HStack(spacing: 12) {
+                    Button {
+                        showEditSheet = false
+                    } label: {
+                        Text("İptal")
                             .font(.headline)
                             .foregroundColor(theme.labelPrimary)
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                    }
+                    .buttonStyle(.glass)
+                    .clipShape(Capsule())
+                    
+                    Button(action: saveLimit) {
+                        if isLoading {
+                            ProgressView().tint(.black)
+                        } else {
+                            Text("Kaydet")
+                                .font(.headline)
+                                .foregroundColor(.black)
+                                .frame(maxWidth: .infinity, minHeight: 48)
+                        }
+                    }
+                    .buttonStyle(.glassProminent)
+                    .clipShape(Capsule())
+                    .disabled(isLoading || (limitAmount ?? 0) <= 0)
+                    .opacity((limitAmount ?? 0) <= 0 ? 0.6 : 1.0)
+                }
+            }
+            .padding(.top, 24)
+            .padding(.horizontal, 24)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .navigationTitle("Genel Limiti Düzenle")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showEditSheet = false
+                    } label: {
+                        Image(systemName: "xmark")
+                            .fontWeight(.bold)
+                            .foregroundStyle(theme.labelPrimary)
                     }
                 }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .glassEffect(in: .rect(cornerRadius: 16))
-                .disabled(isLoading || newLimitString.isEmpty)
             }
+            .background(theme.background1.ignoresSafeArea())
         }
-        .padding(.horizontal)
-        .padding(.vertical, 24)
-        .glassEffect(in: .rect(cornerRadius: 24))
-        .padding(.horizontal)
     }
     
-    private func deleteCategoryLimit(catId: String) {
+    private func deleteLimit() {
         guard let activeWallet = walletManager.activeWallet else { return }
         var updated = activeWallet
-        updated.categoryLimits?[catId] = nil
+        updated.monthlyLimit = 0
+        updated.monthlyLimitCurrency = appCurrency.rawValue
         
         Task {
             try? await FirestoreService.shared.updateWallet(updated)
@@ -268,22 +257,13 @@ struct LimitsView: View {
     
     private func saveLimit() {
         guard let activeWallet = walletManager.activeWallet else { return }
-        let cleanText = newLimitString.replacingOccurrences(of: ".", with: "").replacingOccurrences(of: ",", with: ".")
-        guard let val = Double(cleanText) else { return }
+        guard let val = limitAmount, val > 0 else { return }
         
         isLoading = true
         var updated = activeWallet
         
-        if let catId = selectedLimitCategory {
-            if updated.categoryLimits == nil { updated.categoryLimits = [:] }
-            updated.categoryLimits?[catId] = val
-            // We assume category limits are stored in appCurrency (or define a currency for them if we want to be overly complex!)
-            // For simplicity, we just save them assuming they correspond to monthlyLimitCurrency!
-            updated.monthlyLimitCurrency = appCurrency.rawValue
-        } else {
-            updated.monthlyLimit = val
-            updated.monthlyLimitCurrency = appCurrency.rawValue
-        }
+        updated.monthlyLimit = val
+        updated.monthlyLimitCurrency = appCurrency.rawValue
         
         Task {
             do {
@@ -291,7 +271,7 @@ struct LimitsView: View {
                 await MainActor.run {
                     walletManager.activeWallet = updated // Optimistic update
                     isLoading = false
-                    withAnimation { showEditForm = false }
+                    showEditSheet = false
                 }
             } catch {
                 await MainActor.run { isLoading = false }
@@ -300,29 +280,3 @@ struct LimitsView: View {
     }
 }
 
-struct CategoryPickerSheet: View {
-    @Environment(\.dismiss) var dismiss
-    @Environment(\.theme) var theme
-    var onSelect: (String) -> Void
-    
-    var body: some View {
-        NavigationView {
-            List {
-                let expenses = CategoryManager.shared.categories.filter { $0.type == .expense }
-                ForEach(expenses) { cat in
-                    Button {
-                        onSelect(cat.id)
-                        dismiss()
-                    } label: {
-                        HStack {
-                            Image(systemName: cat.icon)
-                            Text(cat.name)
-                        }
-                    }
-                }
-            }
-            .navigationTitle("Kategori Seç")
-            .navigationBarItems(trailing: Button("Kapat") { dismiss() })
-        }
-    }
-}
