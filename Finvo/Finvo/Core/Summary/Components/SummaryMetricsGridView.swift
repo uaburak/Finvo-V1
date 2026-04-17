@@ -15,18 +15,18 @@ struct SummaryMetricsGridView: View {
     ]
     
     var body: some View {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        
         let rawLimit = walletManager.activeWallet?.monthlyLimit ?? 0
         let limitCurr = CurrencyType(rawValue: walletManager.activeWallet?.monthlyLimitCurrency ?? "") ?? .tryCurrency
         let limit = ExchangeRateManager.shared.convert(amount: rawLimit, from: limitCurr, to: appCurrency)
         
-        let now = Date()
-        let calendar = Calendar.current
-        
         // Sadece İÇİNDE BULUNDUĞUMUZ AYIN harcamalarını topla (Harcama Limiti için)
         let currentMonthExpenses = transactionManager.transactions.filter {
             !$0.isDebt && $0.type == .expense &&
-            calendar.isDate($0.date, equalTo: now, toGranularity: .month) &&
-            calendar.isDate($0.date, equalTo: now, toGranularity: .year)
+            calendar.isDate($0.date, equalTo: today, toGranularity: .month) &&
+            calendar.isDate($0.date, equalTo: today, toGranularity: .year)
         }.reduce(0) { total, tx in
             total + ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: appCurrency)
         }
@@ -38,7 +38,7 @@ struct SummaryMetricsGridView: View {
         let resolvedTopCategory = CategoryManager.shared.categories.first(where: { $0.id == topCategoryId }) ??
                                   CategoryManager.shared.categories.first(where: { $0.name == topCategoryName })
         
-        let upcomingPayments = transactionManager.transactions.filter { $0.type == .expense || $0.isDebt }.compactMap { $0.nextPayment(after: now) }
+        let upcomingPayments = transactionManager.transactions.filter { $0.type == .expense || $0.isDebt }.compactMap { $0.nextPayment(after: today) }
         let upcomingCount = upcomingPayments.count
         let upcomingTotal = upcomingPayments.reduce(0) { total, tx in
             total + ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: appCurrency)
@@ -60,12 +60,17 @@ struct SummaryMetricsGridView: View {
                            iconColor: resolvedTopCategory?.uiColor ?? .blue,
                            progress: 0.0)
             
-            NavigationLink(destination: PaymentCalendarDetailView(upcomingPayments: upcomingPayments)) {
+            NavigationLink(value: "PaymentCalendar") {
                 MetricCardView(title: "Ödeme Takvimi", amount: LocalizedStringKey(paymentCalendarText), iconName: "calendar.badge.clock", iconColor: .orange, progress: upcomingCount > 0 ? 1.0 : nil)
             }
             .buttonStyle(.plain)
             
             MetricCardView(title: "Akıllı İpuçları", amount: "Yok", iconName: "lightbulb.fill", iconColor: .yellow, progress: nil)
+        }
+        .navigationDestination(for: String.self) { value in
+            if value == "PaymentCalendar" {
+                PaymentCalendarDetailView(upcomingPayments: upcomingPayments)
+            }
         }
     }
 }
@@ -174,11 +179,12 @@ struct PaymentCalendarDetailView: View {
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var scrollID: Date? // Native scroll position tracking
     @State private var isInternalUpdate: Bool = false
+    @State private var isFirstLoad: Bool = true // Prevents jumping during back-navigation
     @State private var filterType: CalendarFilterType = .yearly
     @State private var cachedGroupedPayments: [(Date, [TransactionModel])] = []
     
-    // Performance: Group payments logic moved to a triggered cache update
-    private func updateCachedPayments() {
+    // MARK: - Data Processing Helper
+    private static func processPayments(upcomingPayments: [TransactionModel], filterType: CalendarFilterType) -> [(Date, [TransactionModel])] {
         let calendar = Calendar.current
         let now = Date()
         
@@ -187,14 +193,11 @@ struct PaymentCalendarDetailView: View {
         }
         
         if filterType == .transactionsOnly {
-            // Show only days that have at least one transaction
-            cachedGroupedPayments = paymentsByDate.keys.sorted().map { date in
+            return paymentsByDate.keys.sorted().map { date in
                 (date, paymentsByDate[date] ?? [])
             }
-            return
         }
         
-        // Range-based logic for other filters
         let rangeStart: Date
         let rangeEnd: Date
         
@@ -211,8 +214,8 @@ struct PaymentCalendarDetailView: View {
             rangeStart = calendar.date(from: comps) ?? now
             rangeEnd = calendar.date(byAdding: .year, value: 1, to: rangeStart)?.addingTimeInterval(-1) ?? now
         case .transactionsOnly:
-            rangeStart = now // Fallback, handled above
-            rangeEnd = now   // Fallback, handled above
+            rangeStart = now
+            rangeEnd = now
         }
         
         var dates: [Date] = []
@@ -226,9 +229,29 @@ struct PaymentCalendarDetailView: View {
             } else { break }
         }
         
-        cachedGroupedPayments = dates.map { date in
+        return dates.map { date in
             (date, paymentsByDate[date] ?? [])
         }
+    }
+    
+    init(upcomingPayments: [TransactionModel]) {
+        self.upcomingPayments = upcomingPayments
+        
+        // 1. Pre-calculate initial data with default .yearly filter
+        let initialData = Self.processPayments(upcomingPayments: upcomingPayments, filterType: .yearly)
+        _cachedGroupedPayments = State(initialValue: initialData)
+        
+        // 2. Identify the initial scroll target (Today or first available)
+        let today = Calendar.current.startOfDay(for: Date())
+        let initialDate = initialData.first(where: { Calendar.current.isDate($0.0, inSameDayAs: today) })?.0 ?? initialData.first?.0
+        
+        _scrollID = State(initialValue: initialDate)
+        _selectedDate = State(initialValue: initialDate ?? today)
+        _filterType = State(initialValue: .yearly)
+    }
+
+    private func updateCachedPayments() {
+        cachedGroupedPayments = Self.processPayments(upcomingPayments: upcomingPayments, filterType: filterType)
     }
     
     private func dateHeaderLabel(for date: Date) -> String {
@@ -246,8 +269,8 @@ struct PaymentCalendarDetailView: View {
         ZStack {
             theme.background1.ignoresSafeArea()
             
-            ScrollView {
-                LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+            ScrollViewReader { proxy in
+                List {
                     ForEach(cachedGroupedPayments, id: \.0) { date, transactions in
                         Section(header:
                             HStack {
@@ -264,10 +287,15 @@ struct PaymentCalendarDetailView: View {
                                     .glassEffect(in: .capsule)
                                 Spacer()
                             }
-                            .padding(.horizontal, 20)
                             .padding(.vertical, 8)
-                            .background(theme.background1)
-                            .id(date) // Explicitly ID the header for scroll tracking anchor
+                            .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
+                            .listRowBackground(Color.clear)
+                            .background(
+                                GeometryReader { geo in
+                                    Color.clear
+                                        .preference(key: HeaderDatePreferenceKey.self, value: [HeaderDateEntry(date: date, minY: geo.frame(in: .named("CalendarList")).minY)])
+                                }
+                            )
                         ) {
                             if transactions.isEmpty {
                                 HStack {
@@ -278,121 +306,152 @@ struct PaymentCalendarDetailView: View {
                                         .font(.system(size: 10))
                                         .foregroundColor(theme.labelSecondary.opacity(0.3))
                                 }
-                                .padding(.leading, 32)
-                                .padding(.vertical, 8)
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
                             } else {
                                 ForEach(transactions) { tx in
+                                    let titleStr = tx.note?.isEmpty == false ? tx.note! : tx.mainCategoryName
                                     let converted = ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: appCurrency)
                                     let daysCount = Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: Date()), to: Calendar.current.startOfDay(for: tx.date)).day ?? 0
                                     let dayText = daysCount == 0 ? "Bugün" : (daysCount < 0 ? "Gecikti" : "\(daysCount) gün kaldı")
-                                    
-                                    let titleStr = tx.note?.isEmpty == false ? tx.note! : tx.mainCategoryName
                                     let amountStr = "-\(appCurrency.symbol)\(converted.formatted(.number.precision(.fractionLength(0))))"
                                     let statusColor = daysCount <= 3 ? theme.expense : .secondary
-                                    
-                                    ListItem(
-                                        icon: tx.resolvedIcon,
-                                        iconColor: tx.resolvedColor(),
-                                        title: LocalizedStringKey(titleStr),
-                                        subtitle: LocalizedStringKey(tx.mainCategoryName),
-                                        value: amountStr,
-                                        valueColor: theme.labelPrimary,
-                                        secondaryInfo: dayText,
-                                        secondaryInfoColor: statusColor
-                                    )
-                                    .padding(.horizontal, 20)
-                                    .padding(.vertical, 8)
+
+                                    ZStack {
+                                        NavigationLink(destination: TransactionDetailView(transaction: tx)) {
+                                            EmptyView()
+                                        }
+                                        .opacity(0)
+                                        
+                                        ListItem(
+                                            icon: tx.resolvedIcon,
+                                            iconColor: tx.resolvedColor(),
+                                            title: LocalizedStringKey(titleStr),
+                                            subtitle: LocalizedStringKey(tx.mainCategoryName),
+                                            value: amountStr,
+                                            valueColor: theme.labelPrimary,
+                                            secondaryInfo: dayText,
+                                            secondaryInfoColor: statusColor
+                                        )
+                                        .padding(.vertical, 4)
+                                    }
+                                    .listRowBackground(theme.background1.opacity(0.01))
+                                    .listRowInsets(EdgeInsets(top: 12, leading: 20, bottom: 12, trailing: 12))
                                 }
+                            }
+                        }
+                        .id(date)
+                    }
+                }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .coordinateSpace(name: "CalendarList")
+                .scrollPosition(id: $scrollID, anchor: .top)
+                .onPreferenceChange(HeaderDatePreferenceKey.self) { entries in
+                    // Sync logic for Vertical -> Horizontal
+                    if !isInternalUpdate {
+                        // Find the header closest to the top
+                        // Apply +1 day offset as requested by the user for perfect sync
+                        if let topHeader = entries.last(where: { $0.minY <= 170 }) {
+                            let adjustedDate = Calendar.current.date(byAdding: .day, value: 1, to: topHeader.date) ?? topHeader.date
+                            if !selectedDate.isSameDay(as: adjustedDate) {
+                                selectedDate = adjustedDate
                             }
                         }
                     }
                 }
-                .scrollTargetLayout()
-            }
-            .scrollPosition(id: $scrollID, anchor: .top) // Track the top item accurately
-            .onChange(of: scrollID) { _, newValue in
-                // Case: User scrolled manually
-                if let newValue, !isInternalUpdate {
-                    if !selectedDate.isSameDay(as: newValue) {
-                        selectedDate = newValue
+                .onChange(of: scrollID) { _, newValue in
+                    if let newValue, !isInternalUpdate {
+                        if !selectedDate.isSameDay(as: newValue) {
+                            selectedDate = newValue
+                        }
                     }
                 }
-            }
-            .safeAreaInset(edge: .top) {
-                HorizontalWeekView(selectedDate: $selectedDate) { date in
-                    isInternalUpdate = true
-                    selectedDate = date
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                        scrollID = date
+                .safeAreaInset(edge: .top) {
+                    HorizontalWeekView(selectedDate: $selectedDate) { date in
+                        isInternalUpdate = true
+                        selectedDate = date
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                            scrollID = date
+                            proxy.scrollTo(date, anchor: .top)
+                        }
+                        
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            isInternalUpdate = false
+                        }
                     }
-                    
-                    // Release lock after animation completes
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        isInternalUpdate = false
-                    }
-                }
-                .padding(.horizontal, 8)
-                .padding(.bottom, 4)
-                .glassEffect(in: .rect(cornerRadius: 24))
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(theme.background1.opacity(0.01))
-            }
-            .onChange(of: filterType) { _, _ in
-                updateCachedPayments()
-                
-                let today = Calendar.current.startOfDay(for: Date())
-                let firstDateInRange = cachedGroupedPayments.first?.0 ?? today
-                let targetDate = cachedGroupedPayments.contains(where: { $0.0.isSameDay(as: today) }) ? today : firstDateInRange
-                
-                isInternalUpdate = true
-                selectedDate = targetDate
-                
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    withAnimation(.spring()) {
-                        scrollID = targetDate
-                    }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                        isInternalUpdate = false
-                    }
-                }
-            }
-            .onAppear {
-                if cachedGroupedPayments.isEmpty {
-                    updateCachedPayments()
-                }
-                // Initial sync to today or first available date
-                let today = Calendar.current.startOfDay(for: Date())
-                if let initialDate = (cachedGroupedPayments.contains(where: { $0.0.isSameDay(as: today) }) ? today : cachedGroupedPayments.first?.0) {
-                    selectedDate = initialDate
-                    scrollID = initialDate
-                }
-            }
-            .overlay(alignment: .bottomTrailing) {
-                Button {
-                    let today = Calendar.current.startOfDay(for: Date())
-                    isInternalUpdate = true
-                    selectedDate = today
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                        scrollID = today
-                    }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        isInternalUpdate = false
-                    }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "chevron.up.chevron.down")
-                        Text("Bugün")
-                    }
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(theme.labelPrimary)
+                    .padding(.horizontal, 8)
+                    .padding(.bottom, 4)
+                    .glassEffect(in: .rect(cornerRadius: 24))
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .glassEffect(in: .capsule)
-                    .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
+                    .padding(.vertical, 8)
+                    .background(theme.background1)
                 }
-                .padding(.trailing, 16)
-                .padding(.bottom, 12)
+                .onChange(of: filterType) { _, _ in
+                    updateCachedPayments()
+                    
+                    let today = Calendar.current.startOfDay(for: Date())
+                    let targetDate = cachedGroupedPayments.first(where: { Calendar.current.isDate($0.0, inSameDayAs: today) })?.0 ?? cachedGroupedPayments.first?.0 ?? today
+                    
+                    isInternalUpdate = true
+                    selectedDate = targetDate
+                    
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        withAnimation(.spring()) {
+                            scrollID = targetDate
+                            proxy.scrollTo(targetDate, anchor: .top)
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                            isInternalUpdate = false
+                        }
+                    }
+                }
+                .task {
+                    // Hybrid initial load: ONLY runs on the first time the view appears in the stack
+                    guard isFirstLoad else { return }
+                    
+                    let today = Calendar.current.startOfDay(for: Date())
+                    let targetDate = cachedGroupedPayments.first(where: { Calendar.current.isDate($0.0, inSameDayAs: today) })?.0 ?? cachedGroupedPayments.first?.0
+                    
+                    if let targetDate {
+                        // Small delay to ensure List is ready to receive scrollTo
+                        try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s
+                        await MainActor.run {
+                            withAnimation(.none) {
+                                scrollID = targetDate
+                                proxy.scrollTo(targetDate, anchor: .top)
+                                isFirstLoad = false // Mark as initialized
+                            }
+                        }
+                    }
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    Button {
+                        let today = Calendar.current.startOfDay(for: Date())
+                        isInternalUpdate = true
+                        selectedDate = today
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                            scrollID = today
+                            proxy.scrollTo(today, anchor: .top)
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            isInternalUpdate = false
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "chevron.up.chevron.down")
+                            Text("Bugün")
+                        }
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(theme.labelPrimary)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .glassEffect(in: .capsule)
+                        .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
+                    }
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 12)
+                }
             }
         }
 
