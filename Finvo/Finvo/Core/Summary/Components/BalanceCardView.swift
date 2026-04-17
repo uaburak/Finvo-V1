@@ -3,7 +3,6 @@ import SwiftUI
 // MARK: - Card Models
 enum BalanceCardType {
     case main(balance: Double, profit: Double, pending: Double, trend: Double)
-    case savings(balance: Double, goalProgress: Double, hasGoal: Bool)
     case custom(title: String, amount: Double, icon: String, color: Color, goalAmount: Double)
 }
 
@@ -66,15 +65,7 @@ struct BalanceCardView: View {
     }
     
     private func getSwiftColor(from stringRaw: String) -> Color {
-        switch stringRaw.lowercased() {
-        case "blue": return .blue
-        case "green": return .green
-        case "purple": return .purple
-        case "orange": return .orange
-        case "red": return .red
-        case "mint": return .mint
-        default: return theme.brandPrimary
-        }
+        Color.fromStandardName(stringRaw)
     }
     
     @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
@@ -91,8 +82,8 @@ struct BalanceCardView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(spacing: 0) {
                     if cards.count > 1 {
-                        // Sonsuz kayma (Smart Stack) hissi (Sadece birden fazla kart varsa)
-                        ForEach(0..<100, id: \.self) { index in
+                        // Sonsuz kayma hissi — 20 döngü LazyVStack + paging ile yeterli
+                        ForEach(0..<20, id: \.self) { index in
                             let cardIndex = index % cards.count
                             let card = cards[cardIndex]
                             
@@ -193,8 +184,6 @@ struct BalanceCardView: View {
         switch model.type {
         case .main(let balance, let profit, let pending, let trend):
             mainBalanceCard(balance: balance, profit: profit, pending: pending, trend: trend)
-        case .savings(let balance, let goalProgress, let hasGoal):
-            savingsCard(balance: balance, goalProgress: goalProgress, hasGoal: hasGoal)
         case .custom(let title, let amount, let icon, let color, let goalAmount):
             customCard(title: title, amount: amount, icon: icon, color: color, goalAmount: goalAmount)
         }
@@ -260,81 +249,7 @@ struct BalanceCardView: View {
         .glassEffect(in: .rect(cornerRadius: 24.0))
     }
     
-    // MARK: - Savings Card
-    private func savingsCard(balance: Double, goalProgress: Double, hasGoal: Bool) -> some View {
-        VStack(spacing: 0) {
-            // Üst: Başlık ve İkon
-            HStack {
-                Text("Toplam Birikim")
-                    .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.8))
-                
-                Spacer()
-                
-                settingsMenuButton
-            }
-            .padding(.top, 16)
-            .padding(.horizontal, 20)
-            
-            Spacer(minLength: 0)
-            
-            // Orta: Birikim Tutarı
-            HStack {
-                Text("\(appCurrency.symbol)\(balance.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))")
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-                    .contentTransition(.numericText())
-                
-                Spacer()
-            }
-            .padding(.horizontal, 20)
-            
-            Spacer(minLength: 0)
-            
-            // Alt: Hedef Çubuğu (Daha kalın ve şık) veya Buton
-            HStack {
-                if hasGoal {
-                    GeometryReader { geometry in
-                        ZStack(alignment: .leading) {
-                            // Arka Plan Pisti
-                            Capsule()
-                                .fill(Color.white.opacity(0.3))
-                                .frame(height: 8)
-                            
-                            // Dolan Kısım
-                            Capsule()
-                                .fill(Color.white)
-                                .frame(width: max(0, min(CGFloat(goalProgress) * geometry.size.width, geometry.size.width)), height: 8)
-                        }
-                    }
-                    .frame(height: 8)
-                } else {
-                    Button {
-                        showSavingsGoalSheet = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "plus.circle.fill")
-                            Text("Birikim Hedefi Belirle")
-                                .font(.footnote.bold())
-                        }
-                        .foregroundColor(.orange)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(Color.white)
-                        .clipShape(Capsule())
-                    }
-                }
-            }
-            .padding(.bottom, 20)
-            .padding(.horizontal, 20)
-        }
-        .frame(height: 150)
-        .background(
-            Color.orange.opacity(1)
-                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        ) // Birikim için opsiyonel mor tonu
-        .glassEffect(in: .rect(cornerRadius: 24.0))
-    }
+
     
     // MARK: - Custom Card Template
     private func customCard(title: String, amount: Double, icon: String, color: Color, goalAmount: Double) -> some View {
@@ -408,95 +323,7 @@ struct BalanceCardView_Previews: PreviewProvider {
     }
 }
 
-// MARK: - Legacy Sheets (May be removed if CreateSavingsAccountSheet replaces them)
 
-struct SetSavingsGoalSheet: View {
-    @Environment(\.dismiss) var dismiss
-    @Environment(\.theme) var theme
-    @EnvironmentObject var walletManager: WalletManager
-    @State private var amountString: String = ""
-    
-    var body: some View {
-        VStack(spacing: 24) {
-            // Header
-            HStack {
-                Spacer()
-                Text("Birikim Hedefi Belirle")
-                    .font(.headline)
-                Spacer()
-            }
-            .padding(.top, 24)
-            .overlay(alignment: .leading) {
-                Button(action: { dismiss() }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title2)
-                        .foregroundColor(theme.labelSecondary)
-                }
-                .padding(.top, 24)
-                .padding(.leading, 20)
-            }
-            
-            Text("Kendine ulaşılabilir bir birikim hedefi koy ve bu yolda ilerle.")
-                .font(.footnote)
-                .foregroundColor(theme.labelSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
-            
-            // Input
-            HStack {
-                Text("₺")
-                    .font(.system(size: 32, weight: .bold))
-                    .foregroundColor(theme.labelSecondary)
-                
-                TextField("Eklenecek Tutar", text: $amountString)
-                    .font(.system(size: 40, weight: .heavy, design: .rounded))
-                    .foregroundColor(theme.labelPrimary)
-                    .keyboardType(.decimalPad)
-            }
-            .padding()
-            .background(theme.background2)
-            .cornerRadius(16)
-            .padding(.horizontal, 24)
-            
-            Spacer()
-            
-            // Kaydet
-            Button {
-                saveGoal()
-            } label: {
-                Text("Kaydet")
-                    .font(.headline.bold())
-                    .foregroundColor(.black)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(theme.brandPrimary)
-                    .clipShape(Capsule())
-            }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 32)
-            .disabled(amountString.isEmpty)
-        }
-        .background(theme.background1.ignoresSafeArea())
-        .onAppear {
-            if let existing = walletManager.activeWallet?.savingsGoal, existing > 0 {
-                amountString = String(format: "%.0f", existing)
-            }
-        }
-    }
-    
-    private func saveGoal() {
-        guard var wallet = walletManager.activeWallet else { return }
-        
-        // Temizleme (virgül vs)
-        let cleaned = amountString.replacingOccurrences(of: ",", with: ".")
-        if let val = Double(cleaned) {
-            wallet.savingsGoal = val
-            walletManager.updateWallet(wallet)
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            dismiss()
-        }
-    }
-}
 
 struct SetSpendingLimitSheet: View {
     @Environment(\.dismiss) var dismiss

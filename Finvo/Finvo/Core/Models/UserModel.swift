@@ -10,6 +10,7 @@ struct UserModel: Codable, Identifiable, Equatable {
     var username: String
     var photoUrl: String?
     var isPro: Bool = false
+    var ibans: [IBANModel]?
     
     var fullName: String {
         return "\(firstName) \(lastName)"

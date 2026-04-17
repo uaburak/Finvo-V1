@@ -76,9 +76,9 @@ struct CategoriesListView: View {
                 }
             }
         }
-        .task {
+        .onAppear {
             if let walletId = walletManager.activeWallet?.id {
-                await categoryManager.loadCategories(walletId: walletId)
+                categoryManager.startListening(walletId: walletId)
             }
         }
         .sheet(isPresented: $showAddSheet) {

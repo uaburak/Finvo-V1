@@ -47,8 +47,9 @@ class TransactionManager: ObservableObject {
                     return
                 }
                 
-                // Swift 6 hatasını önlemek için Main Actor üzerinde çalıştır (Parsing MainActor-isolated olabilir)
-                Task {
+                // Swift 6: Firestore callback farklı thread'den gelir.
+                // @Published değişkenlere assignment'ı Main Actor'da guarantee etmek için:
+                Task { @MainActor in
                     let parsed = documents.compactMap { try? $0.data(as: TransactionModel.self) }
                     
                     let baseCurrency = UserDefaults.standard.string(forKey: "appCurrency").flatMap { CurrencyType(rawValue: $0) } ?? .tryCurrency
@@ -74,14 +75,14 @@ class TransactionManager: ObservableObject {
                     
                     let expenseOnly = parsed.filter { $0.type == .expense && !$0.isDebt }
                     let expenseDict = Dictionary(grouping: expenseOnly, by: { $0.mainCategoryId ?? $0.mainCategoryName })
-                    let topEntry = expenseDict.max(by: { a, b in 
-                        a.value.reduce(0) { $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: baseCurrency) } < 
-                        b.value.reduce(0) { $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: baseCurrency) } 
+                    let topEntry = expenseDict.max(by: { a, b in
+                        a.value.reduce(0) { $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: baseCurrency) } <
+                        b.value.reduce(0) { $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: baseCurrency) }
                     })
                     let topId = topEntry?.key
                     let topName = topEntry?.value.first?.mainCategoryName ?? "-"
                     
-                    // Verileri güncelle
+                    // Verileri güncelle (Main Actor garantili)
                     self.transactions = parsed
                     self.totalIncome = income
                     self.totalExpense = expense

@@ -97,7 +97,9 @@ struct SummaryView: View {
                     .presentationDragIndicator(.hidden)
             }
             .sheet(isPresented: $showSettings) {
-                SettingsView()
+                ProfileSettingsView()
+                    .environmentObject(authManager)
+                    .environmentObject(walletManager)
             }
             .onAppear {
                 if let walletId = walletManager.activeWallet?.id {
@@ -121,6 +123,7 @@ struct SummaryView: View {
                 TransactionDetailView(transaction: transaction)
                     .environmentObject(walletManager)
                     .environmentObject(authManager)
+                    .environmentObject(transactionManager)
             }
             .navigationDestination(for: TransactionType.self) { type in
                 TransactionsView(selectedType: type)

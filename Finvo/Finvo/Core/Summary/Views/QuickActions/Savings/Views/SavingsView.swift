@@ -10,15 +10,7 @@ struct SavingsView: View {
     @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
     
     private func cardColor(for account: SavingsAccountModel) -> Color {
-        switch account.color.lowercased() {
-        case "blue": return .blue
-        case "green": return .green
-        case "purple": return .purple
-        case "orange": return .orange
-        case "red": return .red
-        case "mint": return .mint
-        default: return theme.brandPrimary
-        }
+        Color.fromStandardName(account.color)
     }
     
     var body: some View {

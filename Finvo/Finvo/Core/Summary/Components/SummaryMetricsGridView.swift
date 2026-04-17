@@ -23,7 +23,7 @@ struct SummaryMetricsGridView: View {
         let calendar = Calendar.current
         
         // Sadece İÇİNDE BULUNDUĞUMUZ AYIN harcamalarını topla (Harcama Limiti için)
-        let currentMonthExpenses = transactionManager.transactions.filter { 
+        let currentMonthExpenses = transactionManager.transactions.filter {
             !$0.isDebt && $0.type == .expense &&
             calendar.isDate($0.date, equalTo: now, toGranularity: .month) &&
             calendar.isDate($0.date, equalTo: now, toGranularity: .year)
@@ -35,7 +35,7 @@ struct SummaryMetricsGridView: View {
         
         let topCategoryId = transactionManager.topExpenseCategoryId
         let topCategoryName = transactionManager.topExpenseCategoryName
-        let resolvedTopCategory = CategoryManager.shared.categories.first(where: { $0.id == topCategoryId }) ?? 
+        let resolvedTopCategory = CategoryManager.shared.categories.first(where: { $0.id == topCategoryId }) ??
                                   CategoryManager.shared.categories.first(where: { $0.name == topCategoryName })
         
         let upcomingPayments = transactionManager.transactions.filter { $0.type == .expense || $0.isDebt }.compactMap { $0.nextPayment(after: now) }
@@ -54,10 +54,10 @@ struct SummaryMetricsGridView: View {
         return LazyVGrid(columns: columns, spacing: 16) {
             // Harcama Limiti
             MetricCardView(title: "Harcama Limiti", amount: "\(appCurrency.symbol)\(currentMonthExpenses.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))) / \(appCurrency.symbol)\(limit.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))", iconName: "creditcard.fill", iconColor: theme.expense, progress: limitProgress)
-            MetricCardView(title: "En Çok Harcama", 
-                           amount: LocalizedStringKey(resolvedTopCategory?.name ?? topCategoryName), 
-                           iconName: resolvedTopCategory?.icon ?? "cart.fill", 
-                           iconColor: resolvedTopCategory?.uiColor ?? .blue, 
+            MetricCardView(title: "En Çok Harcama",
+                           amount: LocalizedStringKey(resolvedTopCategory?.name ?? topCategoryName),
+                           iconName: resolvedTopCategory?.icon ?? "cart.fill",
+                           iconColor: resolvedTopCategory?.uiColor ?? .blue,
                            progress: 0.0)
             
             NavigationLink(destination: PaymentCalendarDetailView(upcomingPayments: upcomingPayments)) {
@@ -152,126 +152,349 @@ struct PaymentCalendarDetailView: View {
     @Environment(\.theme) var theme
     @Environment(\.dismiss) var dismiss
     
-    let upcomingPayments: [TransactionModel]
+    enum CalendarFilterType: String, CaseIterable {
+        case weekly = "Haftalık"
+        case monthly = "Aylık"
+        case yearly = "Yıllık"
+        case transactionsOnly = "İşlemler"
+        
+        var icon: String {
+            switch self {
+            case .weekly: return "calendar.day.timeline.left"
+            case .monthly: return "calendar.badge.clock"
+            case .yearly: return "calendar"
+            case .transactionsOnly: return "list.bullet.indent"
+            }
+        }
+    }
     
+    let upcomingPayments: [TransactionModel]
     @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
+    
+    @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
+    @State private var scrollID: Date? // Native scroll position tracking
+    @State private var isInternalUpdate: Bool = false
+    @State private var filterType: CalendarFilterType = .yearly
+    @State private var cachedGroupedPayments: [(Date, [TransactionModel])] = []
+    
+    // Performance: Group payments logic moved to a triggered cache update
+    private func updateCachedPayments() {
+        let calendar = Calendar.current
+        let now = Date()
+        
+        let paymentsByDate = Dictionary(grouping: upcomingPayments) { transaction in
+            calendar.startOfDay(for: transaction.date)
+        }
+        
+        if filterType == .transactionsOnly {
+            // Show only days that have at least one transaction
+            cachedGroupedPayments = paymentsByDate.keys.sorted().map { date in
+                (date, paymentsByDate[date] ?? [])
+            }
+            return
+        }
+        
+        // Range-based logic for other filters
+        let rangeStart: Date
+        let rangeEnd: Date
+        
+        switch filterType {
+        case .weekly:
+            rangeStart = now.startOfWeek
+            rangeEnd = calendar.date(byAdding: .day, value: 6, to: rangeStart) ?? now
+        case .monthly:
+            let comps = calendar.dateComponents([.year, .month], from: now)
+            rangeStart = calendar.date(from: comps) ?? now
+            rangeEnd = calendar.date(byAdding: .month, value: 1, to: rangeStart)?.addingTimeInterval(-1) ?? now
+        case .yearly:
+            let comps = calendar.dateComponents([.year], from: now)
+            rangeStart = calendar.date(from: comps) ?? now
+            rangeEnd = calendar.date(byAdding: .year, value: 1, to: rangeStart)?.addingTimeInterval(-1) ?? now
+        case .transactionsOnly:
+            rangeStart = now // Fallback, handled above
+            rangeEnd = now   // Fallback, handled above
+        }
+        
+        var dates: [Date] = []
+        var currentDate = calendar.startOfDay(for: rangeStart)
+        let finalDate = calendar.startOfDay(for: rangeEnd)
+        
+        while currentDate <= finalDate {
+            dates.append(currentDate)
+            if let nextDate = calendar.date(byAdding: .day, value: 1, to: currentDate) {
+                currentDate = nextDate
+            } else { break }
+        }
+        
+        cachedGroupedPayments = dates.map { date in
+            (date, paymentsByDate[date] ?? [])
+        }
+    }
+    
+    private func dateHeaderLabel(for date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) { return "Bugün" }
+        if calendar.isDateInTomorrow(date) { return "Yarın" }
+        
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "tr_TR")
+        formatter.dateFormat = "d MMMM EEEE"
+        return formatter.string(from: date)
+    }
     
     var body: some View {
         ZStack {
             theme.background1.ignoresSafeArea()
             
-            if upcomingPayments.isEmpty {
-                VStack(spacing: 20) {
-                    Image(systemName: "calendar.badge.checkmark")
-                        .font(.system(size: 60))
-                        .foregroundColor(theme.labelSecondary)
-                    
-                    Text("Yaklaşan Ödemeniz Bulunmuyor")
-                        .font(.headline)
-                        .foregroundColor(theme.labelPrimary)
-                    
-                    Text("Önümüzdeki günlerde planlanmış bir borç veya abonelik ödemeniz görünmüyor.")
-                        .font(.subheadline)
-                        .foregroundColor(theme.labelSecondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 40)
-                }
-            } else {
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 24) {
-                        
-                        // Top Header
-                        let total = upcomingPayments.reduce(0) { total, tx in
-                            total + ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: appCurrency)
-                        }
-                        VStack(spacing: 8) {
-                            Text("Yaklaşan Toplam Yükümlülük")
-                                .font(.subheadline)
-                                .foregroundColor(theme.labelSecondary)
-                            Text("\(appCurrency.symbol)\(total.formatted(.number.precision(.fractionLength(0))))")
-                                .font(.system(size: 40, weight: .bold, design: .rounded))
-                                .foregroundColor(theme.expense)
-                                .contentTransition(.numericText())
-                        }
-                        .padding(.vertical, 32)
-                        .frame(maxWidth: .infinity)
-                        .glassEffect(in: .rect(cornerRadius: 24))
-                        .padding(.horizontal, 20)
-                        
-                        // Ödemeler Listesi
-                        VStack(spacing: 12) {
+            ScrollView {
+                LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                    ForEach(cachedGroupedPayments, id: \.0) { date, transactions in
+                        Section(header:
                             HStack {
-                                Text("Abonelikler ve Kesintiler")
-                                    .font(.title3.bold())
-                                    .foregroundColor(theme.labelPrimary)
+                                let isToday = Calendar.current.isDateInToday(date)
+                                Text(dateHeaderLabel(for: date))
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(isToday ? .black : theme.labelSecondary)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 4)
+                                    .background(
+                                        isToday ? theme.brandPrimary : Color.clear,
+                                        in: Capsule()
+                                    )
+                                    .glassEffect(in: .capsule)
                                 Spacer()
                             }
-                            .padding(.horizontal, 24)
-                            
-                            // Yakın bir tarihe göre sırala (En yakın tarih en üstte)
-                            let sorted = upcomingPayments.sorted(by: { $0.date < $1.date })
-                            
-                            ForEach(sorted) { tx in
-                                HStack(spacing: 16) {
-                                    ZStack {
-                                        Circle()
-                                            .fill(tx.resolvedColor().opacity(0.15))
-                                            .frame(width: 48, height: 48)
-                                        Image(systemName: tx.resolvedIcon)
-                                            .font(.title3)
-                                            .foregroundColor(tx.resolvedColor())
-                                    }
-                                    
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        let title = tx.note?.isEmpty == false ? tx.note! : tx.mainCategoryName
-                                        Text(title)
-                                            .font(.headline)
-                                            .foregroundColor(theme.labelPrimary)
-                                            .lineLimit(1)
-                                        HStack(spacing: 4) {
-                                            if tx.isRecurring {
-                                                Image(systemName: "repeat")
-                                                    .font(.system(size: 10, weight: .bold))
-                                                    .foregroundColor(.orange)
-                                            } else if tx.isDebt {
-                                                Image(systemName: "creditcard.fill")
-                                                    .font(.system(size: 10, weight: .bold))
-                                                    .foregroundColor(.red)
-                                            }
-                                            Text(tx.date.formatted(date: .abbreviated, time: .omitted))
-                                                .font(.caption)
-                                                .foregroundColor(theme.labelSecondary)
-                                        }
-                                    }
-                                    
-                                    Spacer()
-                                    
-                                    VStack(alignment: .trailing, spacing: 4) {
-                                        let converted = ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: appCurrency)
-                                        Text("-\(appCurrency.symbol)\(converted.formatted(.number.precision(.fractionLength(0))))")
-                                            .font(.headline.bold())
-                                            .foregroundColor(theme.labelPrimary)
-                                        
-                                        // Kaç gün kaldı hesapla
-                                        let daysCount = Calendar.current.dateComponents([.day], from: Date(), to: tx.date).day ?? 0
-                                        Text(daysCount == 0 ? "Bugün" : (daysCount < 0 ? "Gecikti" : "\(daysCount) gün kaldı"))
-                                            .font(.caption2.bold())
-                                            .foregroundColor(daysCount <= 3 ? theme.expense : theme.labelSecondary)
-                                    }
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 8)
+                            .background(theme.background1)
+                            .id(date) // Explicitly ID the header for scroll tracking anchor
+                        ) {
+                            if transactions.isEmpty {
+                                HStack {
+                                    Circle()
+                                        .fill(theme.labelSecondary.opacity(0.1))
+                                        .frame(width: 4, height: 4)
+                                    Text("Ödeme Yok")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(theme.labelSecondary.opacity(0.3))
                                 }
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 12)
-                                .glassEffect(in: .rect(cornerRadius: 20))
-                                .padding(.horizontal, 20)
+                                .padding(.leading, 32)
+                                .padding(.vertical, 8)
+                            } else {
+                                ForEach(transactions) { tx in
+                                    let converted = ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: appCurrency)
+                                    let daysCount = Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: Date()), to: Calendar.current.startOfDay(for: tx.date)).day ?? 0
+                                    let dayText = daysCount == 0 ? "Bugün" : (daysCount < 0 ? "Gecikti" : "\(daysCount) gün kaldı")
+                                    
+                                    let titleStr = tx.note?.isEmpty == false ? tx.note! : tx.mainCategoryName
+                                    let amountStr = "-\(appCurrency.symbol)\(converted.formatted(.number.precision(.fractionLength(0))))"
+                                    let statusColor = daysCount <= 3 ? theme.expense : .secondary
+                                    
+                                    ListItem(
+                                        icon: tx.resolvedIcon,
+                                        iconColor: tx.resolvedColor(),
+                                        title: LocalizedStringKey(titleStr),
+                                        subtitle: LocalizedStringKey(tx.mainCategoryName),
+                                        value: amountStr,
+                                        valueColor: theme.labelPrimary,
+                                        secondaryInfo: dayText,
+                                        secondaryInfoColor: statusColor
+                                    )
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 8)
+                                }
                             }
                         }
                     }
-                    .padding(.top, 16)
-                    .safeAreaPadding(.bottom, 40)
+                }
+                .scrollTargetLayout()
+            }
+            .scrollPosition(id: $scrollID, anchor: .top) // Track the top item accurately
+            .onChange(of: scrollID) { _, newValue in
+                // Case: User scrolled manually
+                if let newValue, !isInternalUpdate {
+                    if !selectedDate.isSameDay(as: newValue) {
+                        selectedDate = newValue
+                    }
+                }
+            }
+            .safeAreaInset(edge: .top) {
+                HorizontalWeekView(selectedDate: $selectedDate) { date in
+                    isInternalUpdate = true
+                    selectedDate = date
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        scrollID = date
+                    }
+                    
+                    // Release lock after animation completes
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        isInternalUpdate = false
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.bottom, 4)
+                .glassEffect(in: .rect(cornerRadius: 24))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(theme.background1.opacity(0.01))
+            }
+            .onChange(of: filterType) { _, _ in
+                updateCachedPayments()
+                
+                let today = Calendar.current.startOfDay(for: Date())
+                let firstDateInRange = cachedGroupedPayments.first?.0 ?? today
+                let targetDate = cachedGroupedPayments.contains(where: { $0.0.isSameDay(as: today) }) ? today : firstDateInRange
+                
+                isInternalUpdate = true
+                selectedDate = targetDate
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    withAnimation(.spring()) {
+                        scrollID = targetDate
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        isInternalUpdate = false
+                    }
+                }
+            }
+            .onAppear {
+                if cachedGroupedPayments.isEmpty {
+                    updateCachedPayments()
+                }
+                // Initial sync to today or first available date
+                let today = Calendar.current.startOfDay(for: Date())
+                if let initialDate = (cachedGroupedPayments.contains(where: { $0.0.isSameDay(as: today) }) ? today : cachedGroupedPayments.first?.0) {
+                    selectedDate = initialDate
+                    scrollID = initialDate
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                Button {
+                    let today = Calendar.current.startOfDay(for: Date())
+                    isInternalUpdate = true
+                    selectedDate = today
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        scrollID = today
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        isInternalUpdate = false
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "chevron.up.chevron.down")
+                        Text("Bugün")
+                    }
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(theme.labelPrimary)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .glassEffect(in: .capsule)
+                    .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
+                }
+                .padding(.trailing, 16)
+                .padding(.bottom, 12)
+            }
+        }
+
+        .navigationTitle("Ödeme Takvimi")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                Menu {
+                    Picker("Filtre", selection: $filterType) {
+                        ForEach(CalendarFilterType.allCases, id: \.self) { type in
+                            Label(type.rawValue, systemImage: type.icon)
+                                .tag(type)
+                        }
+                    }
+                } label: {
+                    Image(systemName: "line.3.horizontal.decrease")
+                        .foregroundColor(theme.labelPrimary)
                 }
             }
         }
-        .navigationTitle("Ödeme Takvimi")
-        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - Teams-style Horizontal Week Strip Component (Refined)
+struct HorizontalWeekView: View {
+    @Environment(\.theme) var theme
+    @Binding var selectedDate: Date
+    var onDateTapped: (Date) -> Void
+    
+    private let weekDays = ["P", "S", "Ç", "P", "C", "C", "P"]
+    
+    private var currentWeekDays: [Date] {
+        selectedDate.daysInWeek
+    }
+    
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(0..<7, id: \.self) { index in
+                let date = currentWeekDays[index]
+                let isSelected = date.isSameDay(as: selectedDate)
+                
+                VStack(spacing: 8) {
+                    Text(weekDays[index])
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(theme.labelSecondary)
+                    
+                    Text("\(Calendar.current.component(.day, from: date))")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(isSelected ? .black : theme.labelPrimary)
+                        .frame(width: 32, height: 32)
+                        .background(
+                            Circle()
+                                .fill(isSelected ? theme.brandPrimary : Color.clear)
+                        )
+                }
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    onDateTapped(date)
+                }
+            }
+        }
+        .padding(.horizontal, 4) // Further reduced internal padding
+        .padding(.vertical, 12)
+    }
+}
+
+// MARK: - Date Extensions for Calendar Logic
+extension Date {
+    /// Returns the start of the week for the receiver, considering Monday as the first day.
+    var startOfWeek: Date {
+        let calendar = Calendar.current
+        var components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: self)
+        components.weekday = 2 // Monday (In Turkish/Teams context, weeks start on Monday)
+        return calendar.date(from: components) ?? self
+    }
+    
+    /// Returns an array of dates representing the 7 days of the week containing the receiver.
+    var daysInWeek: [Date] {
+        let calendar = Calendar.current
+        let start = self.startOfWeek
+        return (0..<7).compactMap { day in
+            calendar.date(byAdding: .day, value: day, to: start)
+        }
+    }
+    
+    /// Checks if the receiver is on the same day as another date.
+    func isSameDay(as other: Date) -> Bool {
+        Calendar.current.isDate(self, inSameDayAs: other)
+    }
+}
+
+// MARK: - PreferenceKey and Models for Sticky Header Sync
+struct HeaderDateEntry: Equatable {
+    let date: Date
+    let minY: CGFloat
+}
+
+struct HeaderDatePreferenceKey: PreferenceKey {
+    static var defaultValue: [HeaderDateEntry] = []
+    
+    static func reduce(value: inout [HeaderDateEntry], nextValue: () -> [HeaderDateEntry]) {
+        value.append(contentsOf: nextValue())
     }
 }

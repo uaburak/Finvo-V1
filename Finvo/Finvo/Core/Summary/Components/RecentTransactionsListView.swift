@@ -52,6 +52,7 @@ struct RecentTransactionsListView: View {
                             TransactionDetailView(transaction: transaction)
                                 .environmentObject(walletManager)
                                 .environmentObject(authManager)
+                                .environmentObject(transactionManager)
                         } label: {
                             ListItem(
                                 icon: transaction.resolvedIcon,

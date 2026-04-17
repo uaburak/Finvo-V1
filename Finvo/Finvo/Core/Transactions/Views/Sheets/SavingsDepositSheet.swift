@@ -66,7 +66,7 @@ struct SavingsDepositSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    if currentStep != .type {
+                    if currentStep != .direction {
                         Button {
                             UIImpactFeedbackGenerator(style: .light).impactOccurred()
                             goBack()

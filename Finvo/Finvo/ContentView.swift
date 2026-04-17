@@ -67,28 +67,7 @@ struct ContentView: View {
             }
 
             Tab(value: AppTab.add) {
-                // Ekleme sayfası için basit bir placeholder
-                VStack(spacing: 20) {
-                    Spacer().frame(height: 100)
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 80))
-                        .foregroundStyle(theme.brandPrimary.gradient)
-                    
-                    VStack(spacing: 8) {
-                        Text("Yeni İşlem")
-                            .font(.title2.weight(.bold))
-                            .foregroundStyle(theme.labelPrimary)
-                        
-                        Text("Harcamalarınızı veya gelirlerinizi\nhızlıca ekleyin.")
-                            .font(.subheadline)
-                            .foregroundStyle(theme.labelSecondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(theme.background1.ignoresSafeArea())
+                EmptyView()
             } label: {
                 tabLabel(for: .add)
             }

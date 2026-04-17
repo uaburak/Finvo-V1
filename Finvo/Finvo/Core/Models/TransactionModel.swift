@@ -2,6 +2,12 @@ import Foundation
 import SwiftUI
 import FirebaseFirestore
 
+// TransactionType, TransactionItemModel.swift'ten buraya taşındı (tek kullanılan kısımdı)
+enum TransactionType: String, Codable, CaseIterable {
+    case income
+    case expense
+}
+
 enum RecurrenceInterval: String, Codable, CaseIterable {
     case daily = "Günlük"
     case weekly = "Haftalık"

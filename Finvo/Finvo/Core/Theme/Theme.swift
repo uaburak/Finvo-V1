@@ -35,10 +35,8 @@ struct DefaultTheme: AppTheme {
     // Background 1 (Native system background, Light: White, Dark: Black)
     let background1 = Color(uiColor: .systemBackground)
     
-    // Background 2 (Inverted native background, Light: Black, Dark: White)
-    let background2 = Color(uiColor: UIColor { traitCollection in
-        return traitCollection.userInterfaceStyle == .dark ? .white : .black
-    })
+    // Background 2 (Adaptive secondary background)
+    let background2 = Color(uiColor: .secondarySystemBackground)
     
     // Card Background (Figma - Light: Black 4%, Dark: White 6%)
     let cardBackground = Color(uiColor: UIColor { traitCollection in

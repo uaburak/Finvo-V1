@@ -76,7 +76,8 @@ struct TransactionsView: View {
                         ZStack {
                             NavigationLink(destination: TransactionDetailView(transaction: transaction)
                                 .environmentObject(walletManager)
-                                .environmentObject(authManager)) {
+                                .environmentObject(authManager)
+                                .environmentObject(transactionManager)) {
                                 EmptyView()
                             }
                             .opacity(0)

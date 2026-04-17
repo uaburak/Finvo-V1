@@ -48,11 +48,6 @@ class CategoryManager: ObservableObject {
         categoriesListener = nil
     }
     
-    // Eski uyumluluk için load (Artık listening kullanıyor ama methodu boşaltıyoruz)
-    func loadCategories(walletId: String) async {
-        // startListening yeterli, ama eğer çağrılıyorsa start et
-        startListening(walletId: walletId)
-    }
     
     func checkPermission(authManager: AuthenticationManager, walletManager: WalletManager) -> Bool {
         guard let wallet = walletManager.activeWallet,

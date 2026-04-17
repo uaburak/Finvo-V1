@@ -39,15 +39,7 @@ struct SavingsAccountDetailView: View {
     }
     
     private var cardColor: Color {
-        switch account.color.lowercased() {
-        case "blue": return .blue
-        case "green": return .green
-        case "purple": return .purple
-        case "orange": return .orange
-        case "red": return .red
-        case "mint": return .mint
-        default: return theme.brandPrimary
-        }
+        Color.fromStandardName(account.color)
     }
     
     // MARK: - Helpers
@@ -168,9 +160,11 @@ struct SavingsAccountDetailView: View {
             theme.background1.ignoresSafeArea()
             
             // Scrollable content (header + button + list)
+            // Birikim işlemleri için sabit kategori isimleri — yeni dil eklenirse buraya ekle
+            let savingsCategoryNames: Set<String> = ["Birikim İşlemleri", "Savings Transactions", "Sparkonten-Transaktionen"]
             let accountTransactions = transactionManager.transactions.filter {
                 $0.subCategoryName == account.name &&
-                ($0.mainCategoryName == "Birikim İşlemleri" || $0.mainCategoryName == "Savings Transactions")
+                savingsCategoryNames.contains($0.mainCategoryName)
             }.sorted(by: { $0.date > $1.date })
             
             ScrollView(showsIndicators: false) {

@@ -1,15 +1,24 @@
 import SwiftUI
 
+/// Analiz ekranının zaman dilimi seçicisi.
+/// AnalysisSegmentedControl.swift - önceki boş dosya yerine yeniden oluşturuldu.
 struct AnalysisSegmentedControl: View {
+    @Environment(\.theme) var theme
     @Binding var selectedTab: AnalysisTimeFrame
-    
+
     var body: some View {
-        Picker("Zaman Aralığı", selection: $selectedTab) {
-            ForEach(AnalysisTimeFrame.allCases) { tab in
-                Text(tab.rawValue).tag(tab)
+        Picker("Zaman Dilimi", selection: $selectedTab) {
+            ForEach(AnalysisTimeFrame.allCases) { frame in
+                Text(frame.rawValue).tag(frame)
             }
         }
         .pickerStyle(.segmented)
-        .padding(.top, 8)
+        .frame(maxWidth: .infinity)
     }
+}
+
+#Preview {
+    AnalysisSegmentedControl(selectedTab: .constant(.month))
+        .padding()
+        .environment(\.theme, DefaultTheme())
 }

@@ -489,20 +489,6 @@ struct AddTransactionsView: View {
         return true
     }
 
-    private func summaryItem(icon: String, color: String?, text: String) -> some View {
-        let resolvedColor = color != nil ? Color(hex: color!) : .gray
-        return HStack(spacing: 8) {
-            Image(systemName: icon)
-                .foregroundStyle(resolvedColor)
-            Text(text)
-                .font(.subheadline)
-                .foregroundStyle(theme.labelPrimary)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(resolvedColor.opacity(0.1))
-        .clipShape(Capsule())
-    }
 
     private func nextStep() {
         UISelectionFeedbackGenerator().selectionChanged()
@@ -704,24 +690,6 @@ struct AddTransactionsView: View {
         }
     }
     
-    private func colorName(for color: Color) -> String {
-        switch color {
-        case .blue: return "blue"
-        case .green: return "green"
-        case .red: return "red"
-        case .orange: return "orange"
-        case .purple: return "purple"
-        case .pink: return "pink"
-        case .teal: return "teal"
-        case .indigo: return "indigo"
-        case .brown: return "brown"
-        case .cyan: return "cyan"
-        case .yellow: return "yellow"
-        case .gray: return "gray"
-        case .mint: return "mint"
-        default: return "blue"
-        }
-    }
 }
 
 extension LocalizedStringKey {

@@ -68,17 +68,5 @@ struct WalletModel: Identifiable, Codable, Equatable {
     var monthlyLimitCurrency: String? // Limitin ana para birimi
     var savingsGoal: Double? // Eski tekil birikim hedefi (geriye dönük uyumluluk için tutulabilir)
     var savingsAccounts: [SavingsAccountModel]? // Yeni çoklu birikim hesapları listesi
-    
-    // Geçici Mock Fonksiyonu (Firestore öncesi UI testleri için)
-    static func createEmpty() -> WalletModel {
-        WalletModel(
-            id: UUID().uuidString,
-            name: "",
-            ownerId: "current_user_id",
-            type: .personal,
-            context: .general,
-            members: ["current_user_id"],
-            permissions: ["current_user_id": WalletRole.owner.rawValue]
-        )
-    }
 }
+

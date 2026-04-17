@@ -5,6 +5,7 @@ struct TransactionDetailView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var walletManager: WalletManager
     @EnvironmentObject var authManager: AuthenticationManager
+    @EnvironmentObject var transactionManager: TransactionManager
     @ObservedObject var categoryManager = CategoryManager.shared
     
     @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
@@ -80,6 +81,7 @@ struct TransactionDetailView: View {
             AddTransactionsView(transactionToEdit: transaction)
                 .environmentObject(walletManager)
                 .environmentObject(authManager)
+                .environmentObject(transactionManager)
         }
     }
 
