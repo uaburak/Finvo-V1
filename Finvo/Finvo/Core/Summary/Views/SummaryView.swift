@@ -131,6 +131,13 @@ struct SummaryView: View {
                     .environmentObject(authManager)
                     .environmentObject(transactionManager)
             }
+            .navigationDestination(for: String.self) { value in
+                if value == "PaymentCalendar" {
+                    let today = Date()
+                    let upcomingList = transactionManager.transactions.filter { $0.type == .expense || $0.isDebt }.compactMap { $0.nextPayment(after: today) }
+                    PaymentCalendarDetailView(upcomingPayments: upcomingList)
+                }
+            }
         }
     }
     
