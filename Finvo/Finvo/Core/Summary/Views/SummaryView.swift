@@ -133,9 +133,11 @@ struct SummaryView: View {
             }
             .navigationDestination(for: String.self) { value in
                 if value == "PaymentCalendar" {
-                    let today = Date()
-                    let upcomingList = transactionManager.transactions.filter { $0.type == .expense || $0.isDebt }.compactMap { $0.nextPayment(after: today) }
-                    PaymentCalendarDetailView(upcomingPayments: upcomingList)
+                    let allPayments = transactionManager.transactions
+                        .filter { $0.isDebt || $0.isRecurring }
+                        .flatMap { $0.allPaymentOccurrences() }
+                        .sorted { $0.date < $1.date }
+                    PaymentCalendarDetailView(upcomingPayments: allPayments)
                 }
             }
         }

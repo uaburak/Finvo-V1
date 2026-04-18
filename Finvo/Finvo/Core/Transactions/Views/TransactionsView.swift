@@ -1,5 +1,18 @@
 import SwiftUI
 
+enum TransactionsViewMode: String, CaseIterable {
+    case list = "Liste"
+    case calendar = "Takvim"
+}
+
+enum DateFilterMode: String, CaseIterable {
+    case all = "Tümü"
+    case weekly = "Haftalık"
+    case monthly = "Aylık"
+    case yearly = "Yıllık"
+    case custom = "Özel Aralık"
+}
+
 struct TransactionsView: View {
     @Environment(\.theme) var theme
     @EnvironmentObject var transactionManager: TransactionManager
@@ -14,11 +27,19 @@ struct TransactionsView: View {
     @State private var transactionToEdit: TransactionModel?
     @State private var searchText = ""
     
-    // Fitre State'leri
-    @State private var useDateRange = false
+    // Filtre State'leri
+    @State private var showFilterMenu = false
+    @State private var viewMode: TransactionsViewMode = .list
+    @State private var dateFilterMode: DateFilterMode = .all
     @State private var startDate = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
     @State private var endDate = Date()
     @State private var selectedCategory: String? = nil
+    
+    // Takvim state'leri
+    @State private var selectedDate = Date().startOfDay
+    @State private var scrollID: Date? = Date().startOfDay
+    @State private var isInternalUpdate = false
+    @State private var hasInitialScrolled = false
     
     @State private var showDeleteConfirmation = false
     @State private var transactionToDelete: TransactionModel? = nil
@@ -40,101 +61,116 @@ struct TransactionsView: View {
                 guard item.mainCategoryId == catId || item.mainCategoryName == catId else { return false }
             }
             
-            if useDateRange {
-                let calendar = Calendar.current
+            let calendar = Calendar.current
+            let itemDate = item.date
+            
+            switch dateFilterMode {
+            case .all:
+                break
+            case .weekly:
+                let start = Date().startOfWeek
+                let end = calendar.date(byAdding: .day, value: 7, to: start) ?? start
+                if itemDate < start || itemDate >= end { return false }
+            case .monthly:
+                let start = Date().startOfMonth
+                let end = calendar.date(byAdding: .month, value: 1, to: start) ?? start
+                if itemDate < start || itemDate >= end { return false }
+            case .yearly:
+                let start = Date().startOfYear
+                let end = calendar.date(byAdding: .year, value: 1, to: start) ?? start
+                if itemDate < start || itemDate >= end { return false }
+            case .custom:
                 let start = calendar.startOfDay(for: startDate)
                 let end = calendar.date(bySettingHour: 23, minute: 59, second: 59, of: endDate) ?? endDate
-                
-                if item.date < start || item.date > end {
-                    return false
-                }
+                if itemDate < start || itemDate > end { return false }
             }
             return true
+        }
+    }
+    
+    // Takvim İçin Tarih Aralığı Oluşturucu
+    private var calendarDateRange: [Date] {
+        let calendar = Calendar.current
+        let today = Date().startOfDay
+        switch dateFilterMode {
+        case .all:
+            return []
+        case .weekly:
+            let start = today.startOfWeek
+            return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
+        case .monthly:
+            let start = today.startOfMonth
+            let days = calendar.range(of: .day, in: .month, for: today)?.count ?? 30
+            return (0..<days).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
+        case .yearly:
+            let start = today.startOfYear
+            let days = calendar.range(of: .day, in: .year, for: today)?.count ?? 365
+            return (0..<days).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
+        case .custom:
+            let start = calendar.startOfDay(for: startDate)
+            let end = calendar.startOfDay(for: endDate)
+            let days = calendar.dateComponents([.day], from: start, to: end).day ?? 0
+            return (0...max(0, days)).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
+        }
+    }
+    
+    // Takvim İçin Gruplanmış İşlemler
+    private var groupedPaymentsForCalendar: [(Date, [TransactionModel])] {
+        let calendar = Calendar.current
+        let paymentsByDate = Dictionary(grouping: filteredItems) { calendar.startOfDay(for: $0.date) }
+        
+        if dateFilterMode == .all {
+            let sortedKeys = paymentsByDate.keys.sorted()
+            guard let first = sortedKeys.first, let last = sortedKeys.last else { return [] }
+            let days = calendar.dateComponents([.day], from: first, to: last).day ?? 0
+            let fullRange = (0...days).compactMap { calendar.date(byAdding: .day, value: $0, to: first) }
+            return fullRange.map { ($0, paymentsByDate[$0] ?? []) }
+        } else {
+            return calendarDateRange.map { ($0, paymentsByDate[$0] ?? []) }
+        }
+    }
+    
+    // UI Helpers
+    private var isFilterActive: Bool {
+        selectedCategory != nil || dateFilterMode != .all
+    }
+    
+    private var categoryFilterLabel: String {
+        if let catId = selectedCategory {
+            let availableCategories = CategoryManager.shared.categories.isEmpty ? CategoriesMockData.data : CategoryManager.shared.categories
+            if let cat = availableCategories.first(where: { $0.id == catId }) {
+                return cat.name
+            }
+        }
+        return "Kategoriler"
+    }
+    
+    private var dateFilterLabel: String {
+        if dateFilterMode == .custom {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "d MMM"
+            formatter.locale = Locale(identifier: "tr_TR")
+            return "\(formatter.string(from: startDate)) - \(formatter.string(from: endDate))"
+        } else {
+            return dateFilterMode.rawValue
         }
     }
 
     var body: some View {
         VStack {
             if !transactionManager.hasLoaded {
-                // Veri henüz yüklenmedi — boş state gösterme
                 Color.clear
-            } else if filteredItems.isEmpty {
-                VStack {
-                    Spacer()
-                    ContentUnavailableView("İşlem Bulunamadı", systemImage: "list.bullet",
-                                          description: Text("Bu kriterlere uygun işlem bulunamadı."))
-                    Spacer()
-                }
+            } else if viewMode == .calendar {
+                calendarView
             } else {
-                let sortedItems = filteredItems.sorted(by: { $0.date > $1.date })
-                List {
-                    ForEach(sortedItems) { transaction in
-                        let isFirst = transaction.id == sortedItems.first?.id
-                        let mainTitle = transaction.resolvedSubCategoryName ?? transaction.resolvedMainCategoryName
-                        let subtitleText = transaction.resolvedSubCategoryName != nil ? transaction.resolvedMainCategoryName : transaction.date.formatted(date: .abbreviated, time: .shortened)
-
-                        ZStack {
-                            NavigationLink(destination: TransactionDetailView(transaction: transaction)
-                                .environmentObject(walletManager)
-                                .environmentObject(authManager)
-                                .environmentObject(transactionManager)) {
-                                EmptyView()
-                            }
-                            .opacity(0)
-
-                            ListItem(
-                                icon: transaction.resolvedIcon,
-                                iconColor: transaction.resolvedColor(),
-                                title: LocalizedStringKey(mainTitle),
-                                subtitle: LocalizedStringKey(subtitleText),
-                                value: (transaction.type == .income ? "+\(transaction.currency?.symbol ?? appCurrency.symbol)" : "-\(transaction.currency?.symbol ?? appCurrency.symbol)") + transaction.amount.formatted(.number.grouping(.automatic).precision(.fractionLength(0))),
-                                valueColor: transaction.type == .income ? theme.income : theme.expense,
-                                secondaryInfo: transaction.date.formatted(date: .abbreviated, time: .shortened)
-                            )
-                            .padding(.leading)
-                        }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            
-                            let currentUser = authManager.currentUserProfile?.username ?? ""
-                            let roleRaw = walletManager.activeWallet?.permissions[currentUser] ?? WalletRole.member.rawValue
-                            let role = WalletRole(rawValue: roleRaw) ?? .member
-                            let isOwner = walletManager.activeWallet?.ownerId == currentUser
-                            
-                            let isAdminOrOwner = isOwner || role == .admin
-                            let isCreator = transaction.createdBy == currentUser
-                            let canManage = isAdminOrOwner || (role == .member && isCreator)
-                            
-                            if canManage {
-                                Button(role: .destructive) {
-                                    transactionToDelete = transaction
-                                    showDeleteConfirmation = true
-                                } label: {
-                                    Image(systemName: "trash")
-                                }
-                                .tint(.red)
-                                
-                                Button { 
-                                    transactionToEdit = transaction 
-                                } label: {
-                                    Image(systemName: "pencil")
-                                }
-                                .tint(.orange)
-                            }
-                        }
-                        .listRowInsets(EdgeInsets(top: 12, leading: 0, bottom: 12, trailing: 20))
-                        .listRowSeparator(.visible)
-                        .listRowSeparator(isFirst ? .hidden : .visible, edges: .top)
-                        .listSectionSeparator(isFirst ? .hidden : .visible, edges: .top)
-                    }
-                }
-                .listStyle(.plain)
-                .sheet(item: $transactionToEdit) { transaction in
-                    AddTransactionsView(transactionToEdit: transaction)
-                        .environmentObject(walletManager)
-                        .environmentObject(transactionManager)
-                        .environmentObject(authManager)
-                }
+                listView
             }
+        }
+        .sheet(item: $transactionToEdit) { transaction in
+            AddTransactionsView(transactionToEdit: transaction)
+                .environmentObject(walletManager)
+                .environmentObject(transactionManager)
+                .environmentObject(authManager)
         }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
@@ -145,55 +181,118 @@ struct TransactionsView: View {
                     Text("Gelir").tag(TransactionType.income)
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 200)
+                .frame(width: 160)
             }
 
             ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Menu {
-                        DatePicker("Başlangıç", selection: $startDate, displayedComponents: .date)
-                        DatePicker("Bitiş", selection: $endDate, displayedComponents: .date)
+                Button {
+                    showFilterMenu.toggle()
+                } label: {
+                    Image(systemName: isFilterActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")
+                        .font(.system(size: 18))
+                        .foregroundStyle(isFilterActive ? Color.accentColor : theme.labelPrimary)
+                        .contentTransition(.symbolEffect(.replace))
+                }
+                .popover(isPresented: $showFilterMenu) {
+                    // Popover içi özgür alan
+                    VStack(alignment: .leading, spacing: 20) {
+                        
+                        // 1. Görünüm (Açıkta kalan Segmented Control - İstediğin gibi)
+                        Picker("Görünüm", selection: $viewMode) {
+                            ForEach(TransactionsViewMode.allCases, id: \.self) { mode in
+                                Text(mode.rawValue).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.segmented)
                         
                         Divider()
                         
-                        Button {
-                            useDateRange.toggle()
+                        // 2. Kategori Seçimi (Menü içine alındı)
+                        Menu {
+                            Picker("Kategori", selection: $selectedCategory) {
+                                Text("Tüm Kategoriler").tag(Optional<String>.none)
+                                let availableCategories = CategoryManager.shared.categories.isEmpty ? CategoriesMockData.data : CategoryManager.shared.categories
+                                ForEach(availableCategories.filter { $0.type == selectedType }) { cat in
+                                    Text(cat.name).tag(Optional(cat.id))
+                                }
+                            }
                         } label: {
-                            Label(useDateRange ? "Tarih Filtresini Kapat" : "Tarih Filtresini Aç", 
-                                  systemImage: useDateRange ? "calendar.badge.minus" : "calendar.badge.plus")
+                            HStack {
+                                Label(categoryFilterLabel, systemImage: "folder")
+                                    .foregroundStyle(theme.labelPrimary)
+                                Spacer()
+                                Image(systemName: "chevron.up.chevron.down")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
-                    } label: {
-                        Label("Tarih Aralığı Seç", systemImage: "calendar")
-                    }
-
-                    Divider()
-
-                    Picker("Kategori", selection: $selectedCategory) {
-                        Text("Tüm Kategoriler").tag(Optional<String>.none)
-                        let availableCategories = CategoryManager.shared.categories.isEmpty ? CategoriesMockData.data : CategoryManager.shared.categories
-                        ForEach(availableCategories.filter { $0.type == selectedType }) { cat in
-                            Label(cat.name, systemImage: cat.icon).tag(Optional(cat.id))
-                        }
-                    }
-
-                    Divider()
-
-                    if useDateRange || selectedCategory != nil {
-                        Button(role: .destructive) {
-                            useDateRange = false
-                            selectedCategory = nil
-                            startDate = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
-                            endDate = Date()
+                        
+                        Divider()
+                        
+                        // 3. Zaman Filtresi (Menü içine alındı)
+                        Menu {
+                            Picker("Zaman Filtresi", selection: $dateFilterMode) {
+                                Text("Tümü").tag(DateFilterMode.all)
+                                Text("Haftalık").tag(DateFilterMode.weekly)
+                                Text("Aylık").tag(DateFilterMode.monthly)
+                                Text("Yıllık").tag(DateFilterMode.yearly)
+                                if dateFilterMode == .custom {
+                                    Text(dateFilterLabel).tag(DateFilterMode.custom)
+                                }
+                            }
                         } label: {
-                            Label("Filtreleri Sıfırla", systemImage: "xmark.circle")
+                            HStack {
+                                Label(dateFilterMode == .custom ? dateFilterLabel : (dateFilterMode == .all ? "Zaman Filtresi" : dateFilterMode.rawValue), systemImage: "calendar.badge.clock")
+                                    .foregroundStyle(theme.labelPrimary)
+                                Spacer()
+                                Image(systemName: "chevron.up.chevron.down")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        
+                        Divider()
+                        
+                        // 4. Tarih Aralığı (HStack İçinde Yan Yana - İstediğin gibi bozulmadı)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Tarih Aralığı")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            
+                            HStack {
+                                DatePicker("Başlangıç", selection: $startDate, displayedComponents: .date)
+                                    .labelsHidden()
+                                    .datePickerStyle(.compact)
+                                    .onChange(of: startDate) { _, _ in dateFilterMode = .custom }
+                                
+                                Text("-")
+                                
+                                DatePicker("Bitiş", selection: $endDate, displayedComponents: .date)
+                                    .labelsHidden()
+                                    .datePickerStyle(.compact)
+                                    .onChange(of: endDate) { _, _ in dateFilterMode = .custom }
+                            }
+                        }
+                        
+                        // 5. Sıfırla
+                        if isFilterActive {
+                            Divider()
+                            Button(role: .destructive) {
+                                selectedCategory = nil
+                                dateFilterMode = .all
+                                showFilterMenu = false // Sıfırlayınca pencereyi kapat
+                            } label: {
+                                HStack {
+                                    Spacer()
+                                    Label("Filtreleri Sıfırla", systemImage: "xmark.circle")
+                                    Spacer()
+                                }
+                            }
                         }
                     }
-                } label: {
-                    Image(systemName: (useDateRange || selectedCategory != nil)
-                          ? "line.3.horizontal.decrease.circle.fill"
-                          : "line.3.horizontal.decrease")
-                        .foregroundStyle((useDateRange || selectedCategory != nil) ? Color.accentColor : theme.labelPrimary)
-                        .contentTransition(.symbolEffect(.replace))
+                    .padding()
+                    .frame(minWidth: 250) // Açılan pencerenin genişliği
+                    .presentationCompactAdaptation(.popover) // iPhone'da tam ekran olmasını engeller
                 }
             }
         }
@@ -217,9 +316,197 @@ struct TransactionsView: View {
         .onChange(of: selectedType) { _, _ in filterTransactions() }
         .onChange(of: searchText) { _, _ in filterTransactions() }
         .onChange(of: selectedCategory) { _, _ in filterTransactions() }
-        .onChange(of: useDateRange) { _, _ in filterTransactions() }
+        .onChange(of: dateFilterMode) { _, _ in filterTransactions() }
         .onChange(of: startDate) { _, _ in filterTransactions() }
         .onChange(of: endDate) { _, _ in filterTransactions() }
+    }
+    
+    // MARK: - List View
+    private var listView: some View {
+        Group {
+            if filteredItems.isEmpty {
+                VStack {
+                    Spacer()
+                    ContentUnavailableView("İşlem Bulunamadı", systemImage: "list.bullet",
+                                          description: Text("Bu kriterlere uygun işlem bulunamadı."))
+                    Spacer()
+                }
+            } else {
+                let sortedItems = filteredItems.sorted(by: { $0.date > $1.date })
+                List {
+                    ForEach(sortedItems) { transaction in
+                        listRow(for: transaction, isFirst: transaction.id == sortedItems.first?.id)
+                    }
+                }
+                .listStyle(.plain)
+            }
+        }
+    }
+    
+    // MARK: - Calendar View
+    private var calendarView: some View {
+        ScrollViewReader { proxy in
+            ZStack(alignment: .top) {
+                theme.background1.ignoresSafeArea()
+                
+                List {
+                    ForEach(groupedPaymentsForCalendar, id: \.0) { date, transactions in
+                        Section(header: dateHeader(date)) {
+                            if transactions.isEmpty {
+                                emptyRow
+                            } else {
+                                ForEach(transactions) { tx in
+                                    listRow(for: tx, isFirst: false)
+                                        .listRowBackground(Color.clear)
+                                }
+                            }
+                        }
+                        .id(date)
+                        .background(GeometryReader { geo in
+                            Color.clear.preference(key: HeaderDatePreferenceKey.self, value: [HeaderDateEntry(date: date, minY: geo.frame(in: .named("CalendarListTransactions")).minY)])
+                        })
+                    }
+                }
+                .listStyle(.plain)
+                .coordinateSpace(name: "CalendarListTransactions")
+                .scrollPosition(id: $scrollID, anchor: .top)
+                .safeAreaInset(edge: .top) {
+                    Color.clear.frame(height: 72)
+                }
+                .onPreferenceChange(HeaderDatePreferenceKey.self) { entries in
+                    DispatchQueue.main.async {
+                        if !isInternalUpdate, let top = entries.last(where: { $0.minY <= 160 }) {
+                            let adjusted = Calendar.current.date(byAdding: .day, value: 1, to: top.date) ?? top.date
+                            if !selectedDate.isSameDay(as: adjusted) { selectedDate = adjusted }
+                        }
+                    }
+                }
+                
+                // Sabit Üst Takvim Şeridi
+                VStack {
+                    HorizontalWeekView(selectedDate: $selectedDate) { date in
+                        syncToDate(date, proxy: proxy)
+                    }
+                    .glassEffect(in: RoundedRectangle(cornerRadius: 24))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                Button {
+                    syncToDate(Date().startOfDay, proxy: proxy)
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.system(size: 14, weight: .bold))
+                        Text("Bugün")
+                            .font(.system(size: 14, weight: .bold))
+                    }
+                    .foregroundColor(theme.labelPrimary)
+                }
+                .buttonStyle(.glass)
+                .padding(.trailing, 20)
+                .padding(.bottom, 20) // Tabbar'ın hemen üzerinde
+            }
+            .onAppear {
+                if !hasInitialScrolled {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        let today = Date().startOfDay
+                        scrollID = today
+                        proxy.scrollTo(today, anchor: .top)
+                        hasInitialScrolled = true
+                    }
+                }
+            }
+        }
+    }
+    
+    // MARK: - View Helpers
+    private func listRow(for transaction: TransactionModel, isFirst: Bool) -> some View {
+        let mainTitle = transaction.resolvedSubCategoryName ?? transaction.resolvedMainCategoryName
+        let subtitleText = transaction.resolvedSubCategoryName != nil ? transaction.resolvedMainCategoryName : transaction.date.formatted(date: .abbreviated, time: .shortened)
+        
+        return ZStack {
+            NavigationLink(destination: TransactionDetailView(transaction: transaction)
+                .environmentObject(walletManager)
+                .environmentObject(authManager)
+                .environmentObject(transactionManager)) {
+                EmptyView()
+            }
+            .opacity(0)
+            
+            ListItem(
+                icon: transaction.resolvedIcon,
+                iconColor: transaction.resolvedColor(),
+                title: LocalizedStringKey(mainTitle),
+                subtitle: LocalizedStringKey(subtitleText),
+                value: (transaction.type == .income ? "+" : "-") + (transaction.currency?.symbol ?? appCurrency.symbol) + transaction.amount.formatted(.number.grouping(.automatic).precision(.fractionLength(0))),
+                valueColor: transaction.type == .income ? theme.income : theme.expense,
+                secondaryInfo: transaction.date.formatted(date: .abbreviated, time: .shortened)
+            )
+            .padding(.leading)
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            setupSwipeActions(for: transaction)
+        }
+        .listRowInsets(EdgeInsets(top: 12, leading: 0, bottom: 12, trailing: 20))
+        .listRowSeparator(.visible)
+        .listRowSeparator(isFirst ? .hidden : .visible, edges: .top)
+        .listSectionSeparator(isFirst ? .hidden : .visible, edges: .top)
+    }
+
+    @ViewBuilder
+    private func setupSwipeActions(for transaction: TransactionModel) -> some View {
+        let currentUser = authManager.currentUserProfile?.username ?? ""
+        let roleRaw = walletManager.activeWallet?.permissions[currentUser] ?? WalletRole.member.rawValue
+        let role = WalletRole(rawValue: roleRaw) ?? .member
+        let isOwner = walletManager.activeWallet?.ownerId == currentUser
+        
+        let isAdminOrOwner = isOwner || role == .admin
+        let isCreator = transaction.createdBy == currentUser
+        let canManage = isAdminOrOwner || (role == .member && isCreator)
+        
+        if canManage {
+            Button(role: .destructive) {
+                transactionToDelete = transaction
+                showDeleteConfirmation = true
+            } label: {
+                Image(systemName: "trash")
+            }
+            .tint(.red)
+            
+            Button {
+                transactionToEdit = transaction
+            } label: {
+                Image(systemName: "pencil")
+            }
+            .tint(.orange)
+        }
+    }
+    
+    private func dateHeader(_ date: Date) -> some View {
+        Text(date.calendarHeaderString)
+            .font(.caption.bold())
+            .foregroundColor(date.isToday ? .black : theme.labelSecondary)
+            .padding(.horizontal, 12).padding(.vertical, 4)
+            .background(date.isToday ? theme.brandPrimary : Color.clear, in: Capsule())
+            .glassEffect(in: .capsule)
+    }
+    
+    private var emptyRow: some View {
+        HStack(spacing: 12) {
+            Circle().fill(.gray.opacity(0.2)).frame(width: 4, height: 4)
+            Text("İşlem Yok").font(.caption2).foregroundColor(.secondary.opacity(0.5))
+        }
+        .listRowBackground(Color.clear).listRowSeparator(.hidden)
+    }
+    
+    private func syncToDate(_ date: Date, proxy: ScrollViewProxy) {
+        isInternalUpdate = true
+        selectedDate = date
+        scrollID = date
+        withAnimation { proxy.scrollTo(date, anchor: .top) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { isInternalUpdate = false }
     }
 }
 

@@ -172,25 +172,44 @@ class TransactionManager: ObservableObject {
                 case .yearly: value = 1; component = .year
                 }
                 
-                guard let nextDate = calendar.date(byAdding: component, value: value, to: currentTx.date) else { continue }
+                // Çoğaltma işlemindeki kök tarihi (gerçek zincir başlangıcını) koruyalım
+                let trueStartDate = min(currentTx.createdAt, currentTx.date)
                 
-                if let end = currentTx.recurrenceEndDate, nextDate > end {
-                    var finishedTx = currentTx
-                    finishedTx.isRecurring = false
-                    try? FirestoreService.shared.updateTransaction(finishedTx)
-                    continue
+                // Mevcut (geçmişte kalmış) işlemi kapatıyoruz
+                var originalTx = currentTx
+                originalTx.isRecurring = false
+                try? FirestoreService.shared.updateTransaction(originalTx)
+                
+                var generatingDate = currentTx.date
+                var safetyCounter = 0
+                
+                while generatingDate < startOfToday && safetyCounter < 500 {
+                    safetyCounter += 1
+                    guard let nextDate = calendar.date(byAdding: component, value: value, to: generatingDate) else { break }
+                    
+                    if let end = currentTx.recurrenceEndDate, nextDate > end {
+                        break
+                    }
+                    
+                    var newTx = currentTx
+                    newTx.id = nil
+                    newTx.date = nextDate
+                    newTx.createdAt = trueStartDate // Zincirin başını işaret ediyoruz
+                    
+                    if nextDate < startOfToday {
+                        newTx.isRecurring = false
+                    } else {
+                        newTx.isRecurring = true
+                    }
+                    
+                    try? FirestoreService.shared.createTransaction(newTx)
+                    
+                    generatingDate = nextDate
+                    
+                    if nextDate >= startOfToday {
+                        break
+                    }
                 }
-                
-                var oldTx = currentTx
-                oldTx.isRecurring = false
-                try? FirestoreService.shared.updateTransaction(oldTx)
-                
-                var nextTx = currentTx
-                nextTx.id = nil
-                nextTx.date = nextDate
-                nextTx.createdAt = Date()
-                
-                try? FirestoreService.shared.createTransaction(nextTx)
             }
             
             try? await Task.sleep(nanoseconds: 1_000_000_000)

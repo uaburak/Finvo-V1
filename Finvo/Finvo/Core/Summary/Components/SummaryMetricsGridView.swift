@@ -124,7 +124,13 @@ struct PaymentCalendarDetailView: View {
         let paymentsByDate = Dictionary(grouping: upcomingPayments) { calendar.startOfDay(for: $0.date) }
         
         if filterType == .transactionsOnly {
-            return paymentsByDate.keys.sorted().map { ($0, paymentsByDate[$0] ?? []) }
+            // Sadece bu yıl içindeki işlemleri göster
+            let yearStart = Date().startOfYear
+            let yearEnd = calendar.date(byAdding: .year, value: 1, to: yearStart) ?? yearStart
+            return paymentsByDate.keys
+                .filter { $0 >= yearStart && $0 < yearEnd }
+                .sorted()
+                .map { ($0, paymentsByDate[$0] ?? []) }
         }
         
         let dateRange = calendar.generateRange(for: filterType, from: Date())
@@ -204,11 +210,9 @@ struct PaymentCalendarDetailView: View {
                         Text("Bugün")
                             .font(.system(size: 14, weight: .bold))
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .glassEffect(in: Capsule())
                     .foregroundColor(theme.labelPrimary)
                 }
+                .buttonStyle(.glass)
                 .padding(.trailing, 20)
                 .padding(.bottom, 20) // Tabbar'ın hemen üzerinde
             }
@@ -256,6 +260,38 @@ struct PaymentCalendarDetailView: View {
     private func calendarRow(_ tx: TransactionModel) -> some View {
         let converted = ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: appCurrency)
         let days = Calendar.current.daysFromToday(to: tx.date)
+        let isPastPayment = tx.isPaid
+        
+        // Title: Alt kategori adı (varsa), yoksa ana kategori adı
+        let rowTitle = tx.resolvedSubCategoryName ?? tx.mainCategoryName
+        
+        // Subtitle: allPaymentOccurrences zaten installmentNumber atıyor
+        var rowSubtitle = tx.mainCategoryName
+        if tx.isDebt {
+            let installmentNum = tx.installmentNumber ?? ((tx.paidInstallments ?? 0) + 1)
+            let total = tx.totalInstallments ?? 0
+            rowSubtitle = "\(installmentNum). Taksit / \(total) (\(tx.mainCategoryName))"
+        } else if tx.isRecurring {
+            let occurrenceNum = tx.installmentNumber ?? 1
+            rowSubtitle = "\(occurrenceNum). Ödeme (\(tx.mainCategoryName))"
+        }
+        
+        // Tarih durum bilgisi: Geçmiş ödemeler "Ödendi", gelecek olanlar gün sayısı
+        let statusText: String
+        let statusColor: Color
+        if isPastPayment {
+            statusText = "Ödendi"
+            statusColor = theme.income
+        } else if days == 0 {
+            statusText = "Bugün"
+            statusColor = theme.expense
+        } else if days < 0 {
+            statusText = "Gecikti"
+            statusColor = theme.expense
+        } else {
+            statusText = "\(days) gün"
+            statusColor = days <= 3 ? theme.expense : .secondary
+        }
         
         return ZStack {
             NavigationLink(destination: TransactionDetailView(transaction: tx)) {
@@ -266,12 +302,12 @@ struct PaymentCalendarDetailView: View {
             ListItem(
                 icon: tx.resolvedIcon,
                 iconColor: tx.resolvedColor(),
-                title: LocalizedStringKey(tx.note ?? tx.mainCategoryName),
-                subtitle: LocalizedStringKey(tx.mainCategoryName),
-                value: "-\(appCurrency.symbol)\(converted.formatted(.number.precision(.fractionLength(0))))",
+                title: LocalizedStringKey(rowTitle),
+                subtitle: LocalizedStringKey(rowSubtitle),
+                value: "-\(tx.currency?.symbol ?? appCurrency.symbol)\(tx.amount.formatted(.number.precision(.fractionLength(0))))",
                 valueColor: theme.labelPrimary,
-                secondaryInfo: days == 0 ? "Bugün" : (days < 0 ? "Gecikti" : "\(days) gün"),
-                secondaryInfoColor: days <= 3 ? theme.expense : .secondary
+                secondaryInfo: statusText,
+                secondaryInfoColor: statusColor
             )
         }
         .listRowBackground(Color.clear)
@@ -325,9 +361,19 @@ extension Calendar {
         let start: Date
         let count: Int
         switch type {
-        case .weekly: (start, count) = (date.startOfWeek, 7)
-        case .monthly: (start, count) = (date.startOfMonth, 30)
-        case .yearly: (start, count) = (date.startOfYear, 365)
+        case .weekly:
+            // İçinde bulunduğumuz hafta
+            (start, count) = (date.startOfWeek, 7)
+        case .monthly:
+            // İçinde bulunduğumuz ay
+            let monthStart = date.startOfMonth
+            let daysInMonth = self.range(of: .day, in: .month, for: date)?.count ?? 30
+            (start, count) = (monthStart, daysInMonth)
+        case .yearly:
+            // İçinde bulunduğumuz yıl (1 Ocak - 31 Aralık)
+            let yearStart = date.startOfYear
+            let daysInYear = self.range(of: .day, in: .year, for: date)?.count ?? 365
+            (start, count) = (yearStart, daysInYear)
         case .transactionsOnly: return []
         }
         return (0..<count).compactMap { self.date(byAdding: .day, value: $0, to: start) }

@@ -246,5 +246,107 @@ extension TransactionModel {
         
         return nil
     }
+    
+    /// Borç veya tekrarlayan işlemin tüm geçmiş ve gelecek dönemlerini sanal kopyalar olarak üretir.
+    /// Geçmiş dönemler `isPaid = true`, gelecek dönemler `isPaid = false` olarak işaretlenir.
+    func allPaymentOccurrences() -> [TransactionModel] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        var results: [TransactionModel] = []
+        
+        if isDebt {
+            guard let total = totalInstallments, total > 0 else { return [] }
+            let paid = paidInstallments ?? 0
+            let installmentAmount = self.amount / Double(total)
+            let targetDay = self.dueDay ?? calendar.component(.day, from: self.date)
+            
+            // İlk taksit tarihini borcun oluşturulduğu aydan başlat
+            var baseComponents = calendar.dateComponents([.year, .month], from: self.createdAt)
+            baseComponents.day = targetDay
+            guard let firstDate = calendar.date(from: baseComponents) else { return [] }
+            
+            for i in 0..<total {
+                var copy = self
+                copy.amount = installmentAmount
+                copy.installmentNumber = i + 1
+                
+                // Taksit tarihi: ilk tarihten i ay sonrası
+                if let installmentDate = calendar.date(byAdding: .month, value: i, to: firstDate) {
+                    copy.date = installmentDate
+                } else {
+                    continue
+                }
+                
+                // Ödenmiş taksitler
+                copy.isPaid = (i < paid)
+                copy.paidInstallments = paid
+                copy.note = "\(i + 1). Taksit"
+                
+                // Benzersiz ID oluştur (SwiftUI ForEach için)
+                copy.id = "\(self.id ?? "debt")_installment_\(i + 1)"
+                
+                results.append(copy)
+            }
+        } else if isRecurring {
+            let component: Calendar.Component
+            let value: Int = 1
+            
+            switch recurrenceInterval ?? .monthly {
+            case .daily: component = .day
+            case .weekly: component = .weekOfYear
+            case .monthly: component = .month
+            case .yearly: component = .year
+            }
+            
+            // Başlangıç: İşlemin tam hizalı ilk tarihini bul (Geriye doğru giderek)
+            let limit = calendar.startOfDay(for: min(self.createdAt, self.date))
+            var optimalStart = calendar.startOfDay(for: self.date)
+            
+            if optimalStart > limit {
+                var previousDate = optimalStart
+                while let prev = calendar.date(byAdding: component, value: -value, to: previousDate), prev >= limit {
+                    previousDate = prev
+                }
+                optimalStart = previousDate
+            }
+            
+            let startDate = optimalStart
+            
+            // Bitiş sınırı: recurrenceEndDate varsa o, yoksa bugünden 1 yıl sonrası
+            let maxFuture = calendar.date(byAdding: .year, value: 1, to: today) ?? today
+            let endLimit: Date
+            if let endDate = recurrenceEndDate {
+                endLimit = min(endDate, maxFuture)
+            } else {
+                endLimit = maxFuture
+            }
+            
+            var currentDate = startDate
+            var occurrenceIndex = 1
+            let maxIterations = 500 // Güvenlik sınırı
+            
+            while currentDate <= endLimit && occurrenceIndex <= maxIterations {
+                var copy = self
+                copy.date = currentDate
+                copy.installmentNumber = occurrenceIndex
+                copy.note = "\(occurrenceIndex). Ödeme"
+                
+                // Geçmiş mi gelecek mi?
+                copy.isPaid = currentDate < today
+                
+                // Benzersiz ID
+                copy.id = "\(self.id ?? "recurring")_occurrence_\(occurrenceIndex)"
+                
+                results.append(copy)
+                
+                // Sonraki dönem
+                guard let next = calendar.date(byAdding: component, value: value, to: currentDate) else { break }
+                currentDate = next
+                occurrenceIndex += 1
+            }
+        }
+        
+        return results
+    }
 }
 
