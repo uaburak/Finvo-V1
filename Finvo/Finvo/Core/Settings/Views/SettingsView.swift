@@ -20,6 +20,7 @@ struct SettingsView: View {
     ]
     
     @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
+    @AppStorage("appThemeColor") private var appThemeColor: String = AppThemeColor.neonGreen.rawValue
     
     var body: some View {
         NavigationStack {
@@ -61,6 +62,14 @@ struct SettingsView: View {
                         }
                     } label: {
                         Label("Uygulama Dili", systemImage: "globe")
+                    }
+                    
+                    Picker(selection: $appThemeColor) {
+                        ForEach(AppThemeColor.allCases) { themeColor in
+                            Text(themeColor.title).tag(themeColor.rawValue)
+                        }
+                    } label: {
+                        Label("Tema Rengi", systemImage: "paintpalette")
                     }
                     
                     Picker(selection: $appCurrency) {

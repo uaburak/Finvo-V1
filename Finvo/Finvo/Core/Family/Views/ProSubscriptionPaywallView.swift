@@ -100,7 +100,7 @@ struct ProSubscriptionPaywallView: View {
                                     .font(.headline.weight(.bold))
                                 Image(systemName: "arrow.right.circle.fill")
                             }
-                            .foregroundStyle(.black)
+                            .foregroundStyle(theme.onBrandPrimary)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 18)
                             .background(

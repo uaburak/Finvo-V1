@@ -33,7 +33,7 @@ struct LimitsView: View {
                                 Text("Genel Limit Belirle")
                             }
                             .font(.headline)
-                            .foregroundColor(.black)
+                            .foregroundColor(theme.onBrandPrimary)
                             .frame(maxWidth: .infinity, minHeight: 48)
                         }
                         .buttonStyle(.glassProminent)
@@ -68,7 +68,7 @@ struct LimitsView: View {
                                     Text("Limiti Güncelle")
                                 }
                                 .font(.headline)
-                                .foregroundColor(.black)
+                                .foregroundColor(theme.onBrandPrimary)
                                 .frame(maxWidth: .infinity, minHeight: 48)
                             }
                             .buttonStyle(.glassProminent)
@@ -209,11 +209,11 @@ struct LimitsView: View {
                     
                     Button(action: saveLimit) {
                         if isLoading {
-                            ProgressView().tint(.black)
+                            ProgressView().tint(theme.onBrandPrimary)
                         } else {
                             Text("Kaydet")
                                 .font(.headline)
-                                .foregroundColor(.black)
+                                .foregroundColor(theme.onBrandPrimary)
                                 .frame(maxWidth: .infinity, minHeight: 48)
                         }
                     }

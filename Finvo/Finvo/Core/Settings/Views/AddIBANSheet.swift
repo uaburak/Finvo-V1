@@ -81,7 +81,7 @@ struct AddIBANSheet: View {
                     } label: {
                         Text("Kaydet")
                             .font(.headline)
-                            .foregroundColor(.black)
+                            .foregroundColor(theme.onBrandPrimary)
                             .frame(maxWidth: .infinity)
                             .padding()
                             .background(theme.brandPrimary)

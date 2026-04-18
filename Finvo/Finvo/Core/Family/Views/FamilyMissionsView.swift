@@ -100,7 +100,7 @@ struct FamilyMissionsView: View {
                     .font(.headline.bold())
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
-                    .foregroundStyle(.black)
+                    .foregroundStyle(theme.onBrandPrimary)
                     .background(theme.brandPrimary)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             }
@@ -159,7 +159,7 @@ struct FamilyMissionsView: View {
                         } label: {
                             Text("ÖDE")
                                 .font(.caption2.bold())
-                                .foregroundStyle(.black)
+                                .foregroundStyle(theme.onBrandPrimary)
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 6)
                                 .background(theme.brandPrimary)

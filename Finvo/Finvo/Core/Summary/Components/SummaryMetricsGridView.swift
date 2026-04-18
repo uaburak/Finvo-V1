@@ -242,7 +242,7 @@ struct PaymentCalendarDetailView: View {
     private func dateHeader(_ date: Date) -> some View {
         Text(date.calendarHeaderString)
             .font(.caption.bold())
-            .foregroundColor(date.isToday ? .black : theme.labelSecondary)
+            .foregroundColor(date.isToday ? theme.onBrandPrimary : theme.labelSecondary)
             .padding(.horizontal, 12).padding(.vertical, 4)
             .background(date.isToday ? theme.brandPrimary : Color.clear, in: Capsule())
             .glassEffect(in: .capsule)
@@ -342,7 +342,7 @@ struct HorizontalWeekView: View {
                     Text(weekDays[dayIndex]).font(.system(size: 10, weight: .medium)).foregroundColor(theme.labelSecondary)
                     Text("\(Calendar.current.component(.day, from: date))")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(isSelected ? .black : theme.labelPrimary)
+                        .foregroundColor(isSelected ? theme.onBrandPrimary : theme.labelPrimary)
                         .frame(width: 30, height: 30)
                         .background(Circle().fill(isSelected ? theme.brandPrimary : Color.clear))
                 }

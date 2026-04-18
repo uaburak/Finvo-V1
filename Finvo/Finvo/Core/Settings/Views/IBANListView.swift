@@ -39,7 +39,7 @@ struct IBANListView: View {
                     } label: {
                         Text("İlk IBAN'ı Ekle")
                             .font(.headline)
-                            .foregroundColor(.black)
+                            .foregroundColor(theme.onBrandPrimary)
                             .padding(.horizontal, 32)
                             .padding(.vertical, 12)
                             .background(theme.brandPrimary)

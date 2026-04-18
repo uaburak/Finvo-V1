@@ -118,7 +118,7 @@ struct CompleteProfileView: View {
                         } label: {
                             Text(isSaving ? "Kaydediliyor..." : "Devam Et")
                                 .font(.headline)
-                                .foregroundStyle(.black)
+                                .foregroundStyle(theme.onBrandPrimary)
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 52)
                                 .background(isFormValid ? theme.brandPrimary : theme.brandPrimary.opacity(0.5))
@@ -182,7 +182,7 @@ struct CompleteProfileView: View {
                         } label: {
                             Text(isSaving ? "Oluşturuluyor..." : "Tamamla ve Başla")
                                 .font(.headline)
-                                .foregroundStyle(.black)
+                                .foregroundStyle(theme.onBrandPrimary)
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 52)
                                 .background(walletName.isEmpty ? theme.brandPrimary.opacity(0.5) : theme.brandPrimary)

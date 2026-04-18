@@ -130,7 +130,7 @@ struct InviteUserSheet: View {
                 Text("Davet Et")
                     .font(.subheadline)
                     .fontWeight(.semibold)
-                    .foregroundStyle(.black)
+                    .foregroundStyle(theme.onBrandPrimary)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
                     .background(theme.brandPrimary)

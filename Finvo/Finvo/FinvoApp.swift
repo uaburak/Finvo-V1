@@ -20,6 +20,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 struct FinvoApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @AppStorage("appLanguage") private var appLanguage: String = "tr"
+    @AppStorage("appThemeColor") private var appThemeColor: String = AppThemeColor.neonGreen.rawValue
     @StateObject private var authManager = AuthenticationManager.shared
     @StateObject private var walletManager = WalletManager()
     @StateObject private var notificationManager = NotificationManager()
@@ -29,11 +30,13 @@ struct FinvoApp: App {
         // Konsoldaki gereksiz AutoLayout ve klavye uyarılarını gizlemek için
         UserDefaults.standard.set(false, forKey: "_UIConstraintBasedLayoutLogUnsatisfiable")
         
-        // Segment Control: Seçili segmentin rengi neon green, metin siyah okunaklı olsun.
-        let brandColor = UIColor(Color(hex: "AEFF23"))
-        UISegmentedControl.appearance().selectedSegmentTintColor = brandColor
+        // Segment Control: Başlangıç temasına göre ayarla
+        let themeStr = UserDefaults.standard.string(forKey: "appThemeColor") ?? AppThemeColor.neonGreen.rawValue
+        let selectedTheme = AppThemeColor(rawValue: themeStr) ?? .neonGreen
+        
+        UISegmentedControl.appearance().selectedSegmentTintColor = selectedTheme.uiColor
         UISegmentedControl.appearance().setTitleTextAttributes(
-            [.foregroundColor: UIColor.black], for: .selected
+            [.foregroundColor: selectedTheme.uiOnBrandPrimary], for: .selected
         )
         UISegmentedControl.appearance().setTitleTextAttributes(
             [.foregroundColor: UIColor.label], for: .normal
@@ -63,6 +66,14 @@ struct FinvoApp: App {
             }
             .environmentObject(authManager)
             .environment(\.locale, Locale(identifier: appLanguage))
+            .environment(\.theme, DefaultTheme(colorIdentifier: appThemeColor))
+            .onChange(of: appThemeColor) { newValue in
+                let newTheme = AppThemeColor(rawValue: newValue) ?? .neonGreen
+                UISegmentedControl.appearance().selectedSegmentTintColor = newTheme.uiColor
+                UISegmentedControl.appearance().setTitleTextAttributes(
+                    [.foregroundColor: newTheme.uiOnBrandPrimary], for: .selected
+                )
+            }
         }
     }
 }

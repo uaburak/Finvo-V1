@@ -182,7 +182,7 @@ struct SavingsAccountDetailView: View {
                             Text("İşlem Yap")
                         }
                         .font(.headline)
-                        .foregroundColor(.black)
+                        .foregroundColor(theme.onBrandPrimary)
                         .frame(maxWidth: .infinity, minHeight: 48)
                     }
                     .buttonStyle(.glassProminent)

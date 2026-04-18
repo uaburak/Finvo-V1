@@ -170,7 +170,7 @@ struct DebtDetailView: View {
                 } label: {
                     Text("Öde")
                         .font(.subheadline.bold())
-                        .foregroundColor(.black)
+                        .foregroundColor(theme.onBrandPrimary)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
                         .background(theme.brandPrimary)

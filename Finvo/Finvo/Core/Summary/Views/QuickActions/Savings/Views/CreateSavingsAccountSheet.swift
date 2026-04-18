@@ -90,7 +90,7 @@ struct CreateSavingsAccountSheet: View {
                     } label: {
                         Text("Oluştur")
                             .font(.headline)
-                            .foregroundStyle(.black)
+                            .foregroundStyle(theme.onBrandPrimary)
                             .frame(maxWidth: .infinity, minHeight: 48)
                     }
                     .buttonStyle(.glassProminent)

@@ -487,7 +487,7 @@ struct TransactionsView: View {
     private func dateHeader(_ date: Date) -> some View {
         Text(date.calendarHeaderString)
             .font(.caption.bold())
-            .foregroundColor(date.isToday ? .black : theme.labelSecondary)
+            .foregroundColor(date.isToday ? theme.onBrandPrimary : theme.labelSecondary)
             .padding(.horizontal, 12).padding(.vertical, 4)
             .background(date.isToday ? theme.brandPrimary : Color.clear, in: Capsule())
             .glassEffect(in: .capsule)

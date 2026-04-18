@@ -91,7 +91,7 @@ struct FamilyShoppingListView: View {
                     .font(.headline.bold())
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
-                    .foregroundStyle(.black)
+                    .foregroundStyle(theme.onBrandPrimary)
                     .background(theme.brandPrimary)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             }

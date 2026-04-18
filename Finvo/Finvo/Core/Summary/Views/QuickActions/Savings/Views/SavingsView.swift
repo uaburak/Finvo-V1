@@ -90,7 +90,7 @@ struct SavingsView: View {
                     Text("Yeni Hesap Oluştur")
                 }
                 .font(.headline)
-                .foregroundColor(.black)
+                .foregroundColor(theme.onBrandPrimary)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
             }

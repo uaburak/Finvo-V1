@@ -7,10 +7,66 @@ class ThemeManager: ObservableObject {
     @Published var currentTheme: any AppTheme = DefaultTheme()
 }
 
+// MARK: - App Theme Color
+enum AppThemeColor: String, CaseIterable, Identifiable {
+    case neonGreen = "neonGreen"
+    case blue = "blue"
+    case pink = "pink"
+    case orange = "orange"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .neonGreen: return "Finvo Yeşil (Mevcut)"
+        case .blue: return "Mavi"
+        case .pink: return "Pembe"
+        case .orange: return "Turuncu"
+        }
+    }
+    var color: Color {
+        switch self {
+        case .neonGreen: return Color(hex: "AEFF23")
+        case .blue: return Color(hex: "0088FF")
+        case .pink: return Color(hex: "FF2D55")
+        case .orange: return Color(hex: "FF9500")
+        }
+    }
+    
+    var onBrandPrimary: Color {
+        switch self {
+        case .neonGreen: return .black
+        case .blue: return .white
+        case .pink: return .white
+        case .orange: return .white
+        }
+    }
+    
+    var uiOnBrandPrimary: UIColor {
+        switch self {
+        case .neonGreen: return .black
+        case .blue: return .white
+        case .pink: return .white
+        case .orange: return .white
+        }
+    }
+    
+    var uiColor: UIColor {
+
+        switch self {
+        case .neonGreen: return UIColor(Color(hex: "AEFF23"))
+        case .blue: return UIColor(Color(hex: "0088FF"))
+        case .pink: return UIColor(Color(hex: "FF2D55"))
+        case .orange: return UIColor(Color(hex: "FF9500"))
+        }
+    }
+}
+
 // MARK: - Theme Protocol
 // Tüm temaların sağlaması gereken renk tanımları
 protocol AppTheme {
     var brandPrimary: Color { get }
+    var onBrandPrimary: Color { get }
     
     var background1: Color { get }
     var background2: Color { get }
@@ -29,8 +85,15 @@ protocol AppTheme {
 
 // MARK: - Default Theme (Figma Tasarımı)
 struct DefaultTheme: AppTheme {
-    // Tasarımdaki canlı mavi (#007AFF / #0084FF vb.)
-    let brandPrimary = Color(hex: "AEFF23")
+    var colorIdentifier: String = AppThemeColor.neonGreen.rawValue
+    
+    var brandPrimary: Color {
+        AppThemeColor(rawValue: colorIdentifier)?.color ?? Color(hex: "AEFF23")
+    }
+    
+    var onBrandPrimary: Color {
+        AppThemeColor(rawValue: colorIdentifier)?.onBrandPrimary ?? .black
+    }
     
     // Background 1 (Native system background, Light: White, Dark: Black)
     let background1 = Color(uiColor: .systemBackground)

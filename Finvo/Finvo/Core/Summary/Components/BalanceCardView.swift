@@ -174,7 +174,7 @@ struct BalanceCardView: View {
         } label: {
             Image(systemName: "gearshape.fill")
                 .font(.system(size: 18, weight: .bold))
-                .foregroundColor(theme.brandPrimary == DefaultTheme().brandPrimary ? .black : .white)
+                .foregroundColor(theme.onBrandPrimary)
         }
     }
     
@@ -196,7 +196,7 @@ struct BalanceCardView: View {
             HStack {
                 Text("Toplam Bakiye")
                     .font(.subheadline)
-                    .foregroundColor(.black.opacity(0.8))
+                    .foregroundColor(theme.onBrandPrimary.opacity(0.8))
                 
                 Spacer()
                 
@@ -211,7 +211,7 @@ struct BalanceCardView: View {
             HStack {
                 Text("\(appCurrency.symbol)\(balance.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))")
                     .font(.system(size: 32, weight: .bold, design: .rounded))
-                    .foregroundColor(.black)
+                    .foregroundColor(theme.onBrandPrimary)
                     .contentTransition(.numericText())
                 
                 Spacer()
@@ -227,7 +227,7 @@ struct BalanceCardView: View {
                     Text(": +\(appCurrency.symbol)\(profit.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))")
                 }
                 .font(.footnote)
-                .foregroundColor(.black.opacity(0.8))
+                .foregroundColor(theme.onBrandPrimary.opacity(0.8))
                 
                 Spacer()
                 
@@ -236,7 +236,7 @@ struct BalanceCardView: View {
                     Text(": \(appCurrency.symbol)\(pending.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))")
                 }
                 .font(.footnote)
-                .foregroundColor(.black.opacity(0.8))
+                .foregroundColor(theme.onBrandPrimary.opacity(0.8))
             }
             .padding(.bottom, 16)
             .padding(.horizontal, 20)

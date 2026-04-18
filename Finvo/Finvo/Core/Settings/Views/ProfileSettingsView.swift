@@ -117,11 +117,11 @@ struct ProfileSettingsView: View {
                         } label: {
                             HStack {
                                 if isSaving {
-                                    ProgressView().tint(.black)
+                                    ProgressView().tint(theme.onBrandPrimary)
                                 } else {
                                     Text("Değişiklikleri Kaydet")
                                         .font(.headline)
-                                        .foregroundColor(.black)
+                                        .foregroundColor(theme.onBrandPrimary)
                                 }
                             }
                             .frame(maxWidth: .infinity)
