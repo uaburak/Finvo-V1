@@ -23,7 +23,7 @@ struct RecurringAnalysisDetailView: View {
             } else {
                 VStack(spacing: 0) {
                     // Segmented Control
-                    Picker("İşlem Türü", selection: $selectedType) {
+                    Picker(L10n("İşlem Türü"), selection: $selectedType) {
                         Text("Giderler").tag(TransactionType.expense)
                         Text("Gelirler").tag(TransactionType.income)
                     }
@@ -118,7 +118,7 @@ struct RecurringAnalysisDetailView: View {
                 }
             }
         }
-        .navigationTitle("Tekrarlayan İşlemler")
+        .navigationTitle(L10n("Tekrarlayan İşlemler"))
         .navigationBarTitleDisplayMode(.inline)
     }
 }

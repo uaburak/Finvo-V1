@@ -110,10 +110,10 @@ struct AddTransactionsView: View {
         
         var title: String {
             switch self {
-            case .type: return "İşlem Türü"
-            case .category: return "Kategori Seçin"
-            case .subcategory: return "Alt Kategori Seçin"
-            case .details: return "İşlem Detayları"
+            case .type: return L10n("İşlem Türü")
+            case .category: return L10n("Kategori Seçin")
+            case .subcategory: return L10n("Alt Kategori Seçin")
+            case .details: return L10n("İşlem Detayları")
             }
         }
     }
@@ -126,7 +126,7 @@ struct AddTransactionsView: View {
     private var categoryRowValue: String {
         if let sub = selectedSubCategory { return sub.name }
         if let main = selectedMainCategory { return main.name }
-        return "Seçin"
+        return L10n("Seçin")
     }
 
     private let columns = [
@@ -209,10 +209,10 @@ struct AddTransactionsView: View {
                         .presentationDragIndicator(.visible)
                 }
             }
-            .alert("Yetki İste", isPresented: $showPermissionErrorAlert) {
-                Button("Tamam", role: .cancel) { }
+            .alert(L10n("Yetki İste"), isPresented: $showPermissionErrorAlert) {
+                Button(L10n("Tamam"), role: .cancel) { }
             } message: {
-                Text("Görüntüleyici rolüne sahip olduğunuz için cüzdana işlem ekleyemezsiniz. Lütfen kurucudan yetki isteyin.")
+                Text(L10n("Görüntüleyici rolüne sahip olduğunuz için cüzdana işlem ekleyemezsiniz. Lütfen kurucudan yetki isteyin."))
             }
     }
 
@@ -232,11 +232,11 @@ struct AddTransactionsView: View {
 
     private var typeSelectionView: some View {
         LazyVGrid(columns: columns, spacing: 16) {
-            SelectionCard(title: "Gider", icon: "arrow.down.circle.fill", color: theme.expense) {
+             SelectionCard(title: L10n("Gider"), icon: "arrow.down.circle.fill", color: theme.expense) {
                 selectedType = .expense
                 nextStep()
             }
-            SelectionCard(title: "Gelir", icon: "arrow.up.circle.fill", color: theme.income) {
+            SelectionCard(title: L10n("Gelir"), icon: "arrow.up.circle.fill", color: theme.income) {
                 selectedType = .income
                 nextStep()
             }
@@ -275,7 +275,7 @@ struct AddTransactionsView: View {
                 ListItem(
                     icon: selectedSubCategory?.icon ?? selectedMainCategory?.icon ?? "questionmark",
                     iconColor: selectedSubCategory?.uiColor ?? selectedMainCategory?.uiColor ?? Color.gray,
-                    title: LocalizedStringKey(selectedSubCategory?.name ?? selectedMainCategory?.name ?? "Kategori Seçilmedi"),
+                    title: LocalizedStringKey(selectedSubCategory?.name ?? selectedMainCategory?.name ?? L10n("Kategori Seçilmedi")),
                     subtitle: LocalizedStringKey(selectedMainCategory?.name ?? ""),
                     iconForegroundColor: .white
                 )
@@ -286,7 +286,7 @@ struct AddTransactionsView: View {
             .overlay(RoundedRectangle(cornerRadius: 24).stroke(theme.separator, lineWidth: 1))
 
             VStack(spacing: 0) {
-                formRow("turkishlirasign.circle", "Tutar", formatAmountText()) { activeSheet = .amount }
+                formRow("turkishlirasign.circle", L10n("Tutar"), formatAmountText()) { activeSheet = .amount }
                 Divider().padding(.leading, 56)
                 
                 HStack(spacing: 16) {
@@ -294,7 +294,7 @@ struct AddTransactionsView: View {
                         .font(.system(size: 20))
                         .foregroundStyle(theme.brandPrimary)
                         .frame(width: 24)
-                    Text("Para Birimi")
+                    Text(L10n("Para Birimi"))
                         .foregroundStyle(theme.labelPrimary)
                     Spacer()
                     Text(selectedCurrency.code)  // Show abbreviation here! "USD" 
@@ -318,7 +318,7 @@ struct AddTransactionsView: View {
                         .font(.system(size: 20))
                         .foregroundStyle(theme.brandPrimary)
                         .frame(width: 24)
-                    DatePicker("Tarih", selection: $selectedDate, displayedComponents: .date)
+                    DatePicker(L10n("Tarih"), selection: $selectedDate, displayedComponents: .date)
                         .foregroundStyle(theme.labelPrimary)
                         .tint(theme.brandPrimary)
                 }
@@ -337,7 +337,7 @@ struct AddTransactionsView: View {
                         .font(.system(size: 20))
                         .foregroundStyle(theme.brandPrimary)
                         .frame(width: 24)
-                    TextField("Not Ekle (İsteğe bağlı)", text: $note)
+                    TextField(L10n("Not Ekle (İsteğe bağlı)"), text: $note)
                         .foregroundStyle(theme.labelPrimary)
                 }
                 .padding(.horizontal, 20)
@@ -347,7 +347,7 @@ struct AddTransactionsView: View {
             .overlay(RoundedRectangle(cornerRadius: 24).stroke(theme.separator, lineWidth: 1))
 
             VStack(spacing: 0) {
-                toggleRow("person.2.fill", "Borç / Alacak İşlemi", isOn: $isDebt)
+                toggleRow("person.2.fill", L10n("Borç / Alacak İşlemi"), isOn: $isDebt)
                 
                 if isDebt {
                     Divider().padding(.leading, 56)
@@ -357,7 +357,7 @@ struct AddTransactionsView: View {
                             .font(.system(size: 20))
                             .foregroundStyle(theme.brandPrimary)
                             .frame(width: 24)
-                        TextField("Kişi veya Kurum (Örn: Ahmet)", text: $debtContact)
+                        TextField(L10n("Kişi veya Kurum (Örn: Ahmet)"), text: $debtContact)
                             .foregroundStyle(theme.labelPrimary)
                     }
                     .padding(.horizontal, 20)
@@ -371,13 +371,13 @@ struct AddTransactionsView: View {
                             .foregroundStyle(theme.brandPrimary)
                             .frame(width: 24)
                         
-                        TextField("Toplam Taksit", text: $installmentCount)
+                        TextField(L10n("Toplam Taksit"), text: $installmentCount)
                             .keyboardType(.numberPad)
                             .foregroundStyle(theme.labelPrimary)
                         
                         Divider().frame(height: 20)
                         
-                        TextField("Ödenen", text: $paidInstallments)
+                        TextField(L10n("Ödenen"), text: $paidInstallments)
                             .keyboardType(.numberPad)
                             .foregroundStyle(theme.labelPrimary)
                     }
@@ -391,10 +391,10 @@ struct AddTransactionsView: View {
                             .font(.system(size: 20))
                             .foregroundStyle(theme.brandPrimary)
                             .frame(width: 24)
-                        Text("Son Ödeme Günü")
+                        Text(L10n("Son Ödeme Günü"))
                             .foregroundStyle(theme.labelPrimary)
                         Spacer()
-                        Text("Her ayın")
+                        Text(L10n("Her ayın"))
                             .font(.subheadline)
                             .foregroundStyle(theme.labelSecondary)
                         Picker("", selection: $dueDay) {
@@ -410,7 +410,7 @@ struct AddTransactionsView: View {
                 
                 Divider()
                 
-                toggleRow("arrow.2.squarepath", "Tekrarlayan İşlem", isOn: $isRecurring)
+                toggleRow("arrow.2.squarepath", L10n("Tekrarlayan İşlem"), isOn: $isRecurring)
                 
                 if isRecurring {
                     Divider().padding(.leading, 56)
@@ -419,12 +419,12 @@ struct AddTransactionsView: View {
                             .font(.system(size: 20))
                             .foregroundStyle(theme.brandPrimary)
                             .frame(width: 24)
-                        Text("Sıklık:")
+                        Text(L10n("Sıklık:"))
                             .foregroundStyle(theme.labelPrimary)
                         Spacer()
                         Picker("", selection: $recurringFrequency) {
                             ForEach(RecurrenceInterval.allCases, id: \.self) { interval in
-                                Text(interval.rawValue).tag(interval)
+                                Text(interval.localizedTitle).tag(interval)
                             }
                         }
                         .tint(theme.labelSecondary)
@@ -438,7 +438,7 @@ struct AddTransactionsView: View {
                             .font(.system(size: 20))
                             .foregroundStyle(theme.brandPrimary)
                             .frame(width: 24)
-                        Text("Bitiş Tarihi")
+                        Text(L10n("Bitiş Tarihi"))
                             .foregroundStyle(theme.labelPrimary)
                         Spacer()
                         
@@ -465,7 +465,7 @@ struct AddTransactionsView: View {
                     saveTransaction()
                 }
             } label: {
-                Text(isSaving ? "Kaydediliyor..." : "Kaydet")
+                Text(isSaving ? L10n("Kaydediliyor...") : L10n("Kaydet"))
                     .font(.headline)
                     .foregroundStyle(theme.onBrandPrimary)
                     .frame(maxWidth: .infinity, minHeight: 48)
@@ -568,10 +568,10 @@ struct AddTransactionsView: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
-        .alert("Yetki Hatası", isPresented: $showPermissionErrorAlert) {
-            Button("Tamam", role: .cancel) { }
+        .alert(L10n("Yetki Hatası"), isPresented: $showPermissionErrorAlert) {
+            Button(L10n("Tamam"), role: .cancel) { }
         } message: {
-            Text("Bu işlemi düzenleme yetkiniz bulunmamaktadır. Sadece kendi eklediğiniz işlemleri düzenleyebilirsiniz.")
+            Text(L10n("Bu işlemi düzenleme yetkiniz bulunmamaktadır. Sadece kendi eklediğiniz işlemleri düzenleyebilirsiniz."))
         }
     }
     

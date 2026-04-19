@@ -43,7 +43,7 @@ struct MemberTransactionsDetailView: View {
                         // Category List (Sorted by Amount)
                         VStack(spacing: 12) {
                             HStack {
-                                Text("Kategori Dağılımı")
+                                Text(L10n("Kategori Dağılımı"))
                                     .font(.title3.bold())
                                     .foregroundColor(theme.labelPrimary)
                                 Spacer()

@@ -93,8 +93,8 @@ struct SavingsDepositSheet: View {
     
     var navTitle: String {
         switch currentStep {
-        case .direction: return "İşlem Yap"
-        case .type:   return isAdding ? "Para Ekle" : "Para Çıkar"
+        case .direction: return L10n("İşlem Yap")
+        case .type:   return isAdding ? L10n("Para Ekle") : L10n("Para Çıkar")
         case .asset:  return depositType == .fiat ? "Döviz Seç" : "Maden Seç"
         case .amount: return "Miktar Girin"
         }
@@ -121,7 +121,7 @@ struct SavingsDepositSheet: View {
         let columns = [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)]
         return LazyVGrid(columns: columns, spacing: 16) {
             SelectionCard(
-                title: "Para Ekle",
+                title: L10n("Para Ekle"),
                 icon: "arrow.down.circle.fill",
                 color: theme.income
             ) {
@@ -131,7 +131,7 @@ struct SavingsDepositSheet: View {
                 currentStep = .type
             }
             SelectionCard(
-                title: "Para Çıkar",
+                title: L10n("Para Çıkar"),
                 icon: "arrow.up.circle.fill",
                 color: theme.expense
             ) {
@@ -150,7 +150,7 @@ struct SavingsDepositSheet: View {
         let columns = [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)]
         return LazyVGrid(columns: columns, spacing: 16) {
             SelectionCard(
-                title: isAdding ? "Para Ekle" : "Para Çıkar",
+                title: isAdding ? L10n("Para Ekle") : L10n("Para Çıkar"),
                 icon: "banknote.fill",
                 color: isAdding ? theme.income : theme.expense
             ) {
@@ -222,7 +222,7 @@ struct SavingsDepositSheet: View {
         VStack(spacing: 24) {
             if let asset = selectedAsset {
                 HStack {
-                    Text("Seçilen Varlık:")
+                    Text(L10n("Seçilen Varlık:"))
                         .foregroundColor(theme.labelSecondary)
                     Spacer()
                     Text("\(asset.name) (\(asset.code))")
@@ -292,7 +292,7 @@ struct SavingsDepositSheet: View {
                     dismiss()
                 }
             } label: {
-                Text(isAdding ? "Ekle" : "Çıkar")
+                Text(isAdding ? L10n("Ekle") : L10n("Çıkar"))
                     .font(.headline)
                     .foregroundStyle(theme.onBrandPrimary)
                     .frame(maxWidth: .infinity, minHeight: 48)

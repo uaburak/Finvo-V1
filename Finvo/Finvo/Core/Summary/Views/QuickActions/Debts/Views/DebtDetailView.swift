@@ -28,7 +28,7 @@ struct DebtDetailView: View {
                     Color.clear.frame(height: 180) 
                     
                     VStack(alignment: .leading, spacing: 16) {
-                        Text("Taksit Planı")
+                        Text(L10n("Taksit Planı"))
                             .font(.headline)
                             .padding(.horizontal, 4)
                         
@@ -75,7 +75,7 @@ struct DebtDetailView: View {
                 
                 VStack(spacing: 12) {
                     HStack {
-                        Text("Ödeme Gelişimi")
+                        Text(L10n("Ödeme Gelişimi"))
                             .font(.footnote.bold())
                             .foregroundColor(theme.labelSecondary)
                         Spacer()
@@ -111,7 +111,7 @@ struct DebtDetailView: View {
         .navigationTitle("Borç Detayı")
         .navigationBarTitleDisplayMode(.inline)
         .alert("Ödeme Hatası", isPresented: $showingError) {
-            Button("Tamam", role: .cancel) { }
+            Button(L10n("Tamam"), role: .cancel) { }
         } message: {
             Text(errorMessage)
         }

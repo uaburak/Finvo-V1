@@ -116,7 +116,7 @@ struct CompleteProfileView: View {
                         Button {
                             completeProfile()
                         } label: {
-                            Text(isSaving ? "Kaydediliyor..." : "Devam Et")
+                            Text(isSaving ? L10n("Kaydediliyor...") : L10n("Devam Et"))
                                 .font(.headline)
                                 .foregroundStyle(theme.onBrandPrimary)
                                 .frame(maxWidth: .infinity)
@@ -160,7 +160,7 @@ struct CompleteProfileView: View {
                             .pickerStyle(.segmented)
                             .controlSize(.large)
                             
-                            Picker("Kullanım Amacı", selection: $selectedContext) {
+                            Picker(L10n("Kullanım Amacı"), selection: $selectedContext) {
                                 ForEach(WalletContext.allCases, id: \.self) { context in
                                     Text(context.title).tag(context)
                                 }
@@ -180,7 +180,7 @@ struct CompleteProfileView: View {
                         Button {
                             completeWallet()
                         } label: {
-                            Text(isSaving ? "Oluşturuluyor..." : "Tamamla ve Başla")
+                            Text(isSaving ? L10n("Oluşturuluyor...") : L10n("Tamamla ve Başla"))
                                 .font(.headline)
                                 .foregroundStyle(theme.onBrandPrimary)
                                 .frame(maxWidth: .infinity)

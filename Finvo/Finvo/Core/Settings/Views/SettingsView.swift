@@ -30,11 +30,11 @@ struct SettingsView: View {
                     Button {
                         showProfileSheet = true
                     } label: {
-                        HStack(spacing: 16) {
+                        HStack(spacing: 12) {
                             ProfileImageView(photoURL: authManager.user?.photoURL)
-                                .frame(width: 60, height: 60)
+                                .frame(width: 50, height: 50)
                             
-                            VStack(alignment: .leading, spacing: 4) {
+                            VStack(alignment: .leading, spacing: 2) {
                                 Text(authManager.currentUserProfile?.fullName ?? "Finvo Kullanıcısı")
                                     .font(.headline)
                                     .foregroundColor(theme.labelPrimary)
@@ -50,18 +50,22 @@ struct SettingsView: View {
                                 .font(.caption.weight(.bold))
                                 .foregroundColor(theme.labelSecondary)
                         }
-                        .padding(.vertical, 8)
+                        .padding(.vertical, 2)
                     }
                 }
                 
                 // MARK: - Uygulama Ayarları
-                Section(header: Text("Uygulama Tercihleri")) {
+                Section(header: Text(L10n("Uygulama Tercihleri"))) {
                     Picker(selection: $appLanguage) {
                         ForEach(languages, id: \.0) { lang in
                             Text(lang.1).tag(lang.0)
                         }
                     } label: {
-                        Label("Uygulama Dili", systemImage: "globe")
+                        Label {
+                            Text(L10n("Uygulama Dili")).foregroundColor(theme.labelPrimary)
+                        } icon: {
+                            Image(systemName: "globe").foregroundColor(theme.brandPrimary)
+                        }
                     }
                     
                     Picker(selection: $appThemeColor) {
@@ -69,7 +73,11 @@ struct SettingsView: View {
                             Text(themeColor.title).tag(themeColor.rawValue)
                         }
                     } label: {
-                        Label("Tema Rengi", systemImage: "paintpalette")
+                        Label {
+                            Text(L10n("Tema Rengi")).foregroundColor(theme.labelPrimary)
+                        } icon: {
+                            Image(systemName: "paintpalette").foregroundColor(theme.brandPrimary)
+                        }
                     }
                     
                     Picker(selection: $appCurrency) {
@@ -78,14 +86,18 @@ struct SettingsView: View {
                             Text("\(currency.symbol) \(currency.name)").tag(currency)
                         }
                     } label: {
-                        Label("Para Birimi", systemImage: "coloncurrencysign.circle")
+                        Label {
+                            Text(L10n("Para Birimi")).foregroundColor(theme.labelPrimary)
+                        } icon: {
+                            Image(systemName: "coloncurrencysign.circle").foregroundColor(theme.brandPrimary)
+                        }
                     }
                 }
                 
                 // MARK: - Abonelik
-                Section(header: Text("Abonelik")) {
+                Section(header: Text(L10n("Abonelik"))) {
                     HStack {
-                        Label("Pro Üyelik", systemImage: "crown.fill")
+                        Label(L10n("Pro Üyelik"), systemImage: "crown.fill")
                             .foregroundColor(authManager.currentUserProfile?.isPro == true ? .yellow : .gray)
                         Spacer()
                         Text(authManager.currentUserProfile?.isPro == true ? "Aktif" : "Pasif")
@@ -97,7 +109,7 @@ struct SettingsView: View {
                         Button {
                             // Satın alma akışı
                         } label: {
-                            Text("Pro'ya Yükselt")
+                            Text(L10n("Pro'ya Yükselt"))
                                 .fontWeight(.bold)
                                 .foregroundColor(theme.brandPrimary)
                         }
@@ -105,12 +117,20 @@ struct SettingsView: View {
                 }
                 
                 // MARK: - Destek ve Hakkında
-                Section(header: Text("Destek")) {
+                Section(header: Text(L10n("Destek"))) {
                     Link(destination: URL(string: "https://finvo.app/privacy")!) {
-                        Label("Gizlilik Politikası", systemImage: "hand.raised.fill")
+                        Label {
+                            Text(L10n("Gizlilik Politikası")).foregroundColor(theme.labelPrimary)
+                        } icon: {
+                            Image(systemName: "hand.raised.fill").foregroundColor(theme.brandPrimary)
+                        }
                     }
                     Link(destination: URL(string: "https://finvo.app/terms")!) {
-                        Label("Kullanım Koşulları", systemImage: "doc.text.fill")
+                        Label {
+                            Text(L10n("Kullanım Koşulları")).foregroundColor(theme.labelPrimary)
+                        } icon: {
+                            Image(systemName: "doc.text.fill").foregroundColor(theme.brandPrimary)
+                        }
                     }
                 }
                 
@@ -125,20 +145,24 @@ struct SettingsView: View {
                         }
                     } label: {
                         HStack {
-                            Label("Hesaptan Çıkış Yap", systemImage: "rectangle.portrait.and.arrow.right")
+                            Label {
+                                Text(L10n("Hesaptan Çıkış Yap")).foregroundColor(.red)
+                            } icon: {
+                                Image(systemName: "rectangle.portrait.and.arrow.right").foregroundColor(.red)
+                            }
                             Spacer()
                         }
                     }
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("Ayarlar")
+            .navigationTitle(L10n("Ayarlar"))
             .sheet(isPresented: $showProfileSheet) {
                 ProfileSettingsView()
                     .environmentObject(authManager)
                     .environmentObject(walletManager)
             }
-            .navigationTitle("Ayarlar")
+            .navigationTitle(L10n("Ayarlar"))
         }
     }
 }

@@ -61,7 +61,7 @@ struct TransactionDetailView: View {
             .padding()
         }
         .safeAreaPadding(.bottom, 20)
-        .navigationTitle("İşlem Detayı")
+        .navigationTitle(L10n("İşlem Detayı"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -149,12 +149,12 @@ struct TransactionDetailView: View {
     // MARK: - Detay Kartı
     private var detailCard: some View {
         VStack(spacing: 0) {
-            detailRow(icon: "calendar", title: "Tarih",
+            detailRow(icon: "calendar", title: L10n("Tarih"),
                       value: transaction.date.formatted(date: .long, time: .shortened))
 
             Divider().padding(.horizontal)
 
-            detailRow(icon: "person.fill", title: "Ekleyen",
+            detailRow(icon: "person.fill", title: L10n("Ekleyen"),
                       value: "@\(transaction.createdBy)")
 
             Divider().padding(.horizontal)
@@ -166,7 +166,7 @@ struct TransactionDetailView: View {
 
             detailRow(icon: transaction.isIncome ? "arrow.down.left" : "arrow.up.right",
                       title: "Tür",
-                      value: transaction.isIncome ? "Gelir" : "Gider")
+                      value: transaction.isIncome ? L10n("Gelir") : L10n("Gider"))
         }
         .glassEffect(in: .rect(cornerRadius: 24.0))
     }
@@ -180,7 +180,7 @@ struct TransactionDetailView: View {
             }
 
             if let total = transaction.totalInstallments, let paid = transaction.paidInstallments {
-                detailRow(icon: "number", title: "Taksit",
+                detailRow(icon: "number", title: L10n("Taksit"),
                           value: "\(paid)/\(total) ödendi")
                 Divider().padding(.horizontal)
 
@@ -209,7 +209,7 @@ struct TransactionDetailView: View {
 
             detailRow(icon: transaction.isPaid ? "checkmark.seal.fill" : "hourglass",
                       title: "Durum",
-                      value: transaction.isPaid ? "Ödendi ✓" : "Devam Ediyor")
+                      value: transaction.isPaid ? L10n("Ödendi") + " ✓" : L10n("Devam Ediyor"))
         }
         .glassEffect(in: .rect(cornerRadius: 24.0))
     }
@@ -218,15 +218,15 @@ struct TransactionDetailView: View {
     private var recurringCard: some View {
         VStack(spacing: 0) {
             if let interval = transaction.recurrenceInterval {
-                detailRow(icon: "repeat", title: "Tekrar Sıklığı", value: interval.rawValue)
+                detailRow(icon: "repeat", title: L10n("Tekrar Sıklığı"), value: interval.localizedTitle)
                 Divider().padding(.horizontal)
             }
 
             if let endDate = transaction.recurrenceEndDate {
-                detailRow(icon: "calendar.badge.minus", title: "Bitiş Tarihi",
+                detailRow(icon: "calendar.badge.minus", title: L10n("Bitiş Tarihi"),
                           value: endDate.formatted(date: .long, time: .omitted))
             } else {
-                detailRow(icon: "infinity", title: "Bitiş", value: "Süresiz")
+                detailRow(icon: "infinity", title: L10n("Bitiş"), value: L10n("Süresiz"))
             }
         }
         .glassEffect(in: .rect(cornerRadius: 24.0))
@@ -259,7 +259,7 @@ struct TransactionDetailView: View {
         } label: {
             HStack {
                 Image(systemName: "trash")
-                Text("İşlemi Sil")
+                Text(L10n("İşlemi Sil"))
             }
             .font(.headline)
             .frame(maxWidth: .infinity, minHeight: 48)

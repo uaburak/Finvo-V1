@@ -33,11 +33,11 @@ struct WalletSelectionSheet: View {
             }
             .scrollContentBackground(.hidden)
             .background(theme.background1)
-            .navigationTitle("Cüzdan Seçin")
+            .navigationTitle(L10n("Cüzdan Seçin"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Kapat") { dismiss() }
+                    Button(L10n("Kapat")) { dismiss() }
                 }
             }
         }

@@ -252,16 +252,20 @@ struct AnalysisChartCard: View {
     }
     
     private func xAxisLabel(for date: Date, isTooltip: Bool = false) -> String {
-        let calendar = Calendar.current
+        let appLang = UserDefaults.standard.string(forKey: "appLanguage") ?? "tr"
+        var calendar = Calendar.current
+        calendar.locale = Locale(identifier: appLang)
+        let locale = Locale(identifier: appLang)
+        
         switch selectedTab {
         case .day: 
-            return isTooltip ? date.formatted(.dateTime.hour().minute()) : "\(calendar.component(.hour, from: date))"
+            return isTooltip ? date.formatted(.dateTime.locale(locale).hour().minute()) : "\(calendar.component(.hour, from: date))"
         case .week: 
-            return isTooltip ? date.formatted(.dateTime.weekday().day()) : calendar.shortWeekdaySymbols[calendar.component(.weekday, from: date) - 1]
+            return isTooltip ? date.formatted(.dateTime.locale(locale).weekday().day()) : calendar.shortWeekdaySymbols[calendar.component(.weekday, from: date) - 1]
         case .month: 
-            return isTooltip ? date.formatted(.dateTime.month().day()) : "\(calendar.component(.day, from: date))"
+            return isTooltip ? date.formatted(.dateTime.locale(locale).month().day()) : "\(calendar.component(.day, from: date))"
         case .year: 
-            return isTooltip ? date.formatted(.dateTime.month(.wide).year()) : calendar.shortMonthSymbols[calendar.component(.month, from: date) - 1]
+            return isTooltip ? date.formatted(.dateTime.locale(locale).month(.wide).year()) : calendar.shortMonthSymbols[calendar.component(.month, from: date) - 1]
         }
     }
 }

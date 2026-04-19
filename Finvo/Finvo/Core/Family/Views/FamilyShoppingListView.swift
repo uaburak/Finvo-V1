@@ -87,7 +87,7 @@ struct FamilyShoppingListView: View {
                 newItemAmount = ""
                 
             } label: {
-                Text("Ekle")
+                Text(L10n("Ekle"))
                     .font(.headline.bold())
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)

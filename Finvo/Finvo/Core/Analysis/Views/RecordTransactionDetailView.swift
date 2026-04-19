@@ -43,11 +43,11 @@ struct RecordTransactionDetailView: View {
                     
                     // Detay Kartı
                     VStack(spacing: 0) {
-                        DetailRow(icon: tx.categoryIcon, title: "Kategori", value: tx.mainCategoryName, color: theme.brandPrimary)
+                        DetailRow(icon: tx.categoryIcon, title: L10n("Kategori"), value: tx.mainCategoryName, color: theme.brandPrimary)
                         Divider().padding(.leading, 56)
-                        DetailRow(icon: "calendar", title: "Tarih", value: tx.date.formatted(date: .abbreviated, time: .omitted), color: .blue)
+                        DetailRow(icon: "calendar", title: L10n("Tarih"), value: tx.date.formatted(date: .abbreviated, time: .omitted), color: .blue)
                         Divider().padding(.leading, 56)
-                        DetailRow(icon: "creditcard.fill", title: "Tip", value: tx.type == .expense ? "Gider" : "Gelir", color: tx.type == .expense ? theme.expense : theme.income)
+                        DetailRow(icon: "creditcard.fill", title: L10n("İşlem Tipi"), value: tx.type == .expense ? L10n("Gider") : L10n("Gelir"), color: tx.type == .expense ? theme.expense : theme.income)
                     }
                     .padding(.vertical, 8)
                     .glassEffect(in: .rect(cornerRadius: 24))

@@ -18,7 +18,7 @@ enum AppThemeColor: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .neonGreen: return "Finvo Yeşil (Mevcut)"
+        case .neonGreen: return "Finvo Yeşil"
         case .blue: return "Mavi"
         case .pink: return "Pembe"
         case .orange: return "Turuncu"

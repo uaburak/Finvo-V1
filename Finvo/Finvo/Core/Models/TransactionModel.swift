@@ -13,6 +13,15 @@ enum RecurrenceInterval: String, Codable, CaseIterable {
     case weekly = "Haftalık"
     case monthly = "Aylık"
     case yearly = "Yıllık"
+    
+    var localizedTitle: String {
+        let appLang = UserDefaults.standard.string(forKey: "appLanguage") ?? "tr"
+        if let path = Bundle.main.path(forResource: appLang, ofType: "lproj"),
+           let bundle = Bundle(path: path) {
+            return bundle.localizedString(forKey: self.rawValue, value: nil, table: nil)
+        }
+        return NSLocalizedString(self.rawValue, comment: "")
+    }
 }
 
 struct TransactionModel: Codable, Identifiable, Equatable, Hashable {

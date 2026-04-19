@@ -64,8 +64,8 @@ struct CurrencySelectionSheet: View {
                 }
             }
             .listStyle(.plain)
-            .searchable(text: $searchText, prompt: "Para Birimi Ara (Dolar, Euro vb.)")
-            .navigationTitle("Para Birimi Seç")
+            .searchable(text: $searchText, prompt: Text(L10n("Para Birimi Ara (Dolar, Euro vb.)")))
+            .navigationTitle(L10n("Para Birimi Seç"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {

@@ -14,7 +14,7 @@ struct RecentTransactionsListView: View {
             
             // Başlık Alanı
             HStack {
-                Text("Son İşlemler")
+                Text(L10n("Son İşlemler"))
                     .font(.title3)
                     .fontWeight(.semibold)
                     .foregroundColor(theme.labelPrimary)
@@ -27,7 +27,7 @@ struct RecentTransactionsListView: View {
                         .environmentObject(transactionManager)
                         .environmentObject(authManager)
                 } label: {
-                    Text("Tümü")
+                    Text(L10n("Tümü"))
                         .font(.subheadline)
                         .fontWeight(.medium)
                         .foregroundColor(theme.brandPrimary)

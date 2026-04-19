@@ -36,7 +36,7 @@ struct AddCategorySheet: View {
                     
                     VStack(spacing: 20) {
                         
-                        TextField("Kategori Adı", text: $categoryName)
+                        TextField(L10n("Kategori Adı"), text: $categoryName)
                             .padding(.horizontal, 20)
                             .padding(.vertical, 16)
                             .background(Color.white.opacity(0.05))
@@ -45,9 +45,9 @@ struct AddCategorySheet: View {
                                 Capsule().stroke(theme.separator, lineWidth: 1)
                             )
                         
-                        Picker("Kategori Tipi", selection: $selectedType) {
-                            Text("Gider").tag(TransactionType.expense)
-                            Text("Gelir").tag(TransactionType.income)
+                        Picker(L10n("Kategori Tipi"), selection: $selectedType) {
+                            Text(L10n("Gider")).tag(TransactionType.expense)
+                            Text(L10n("Gelir")).tag(TransactionType.income)
                         }
                         .pickerStyle(.segmented)
                         .controlSize(.large)
@@ -129,10 +129,10 @@ struct AddCategorySheet: View {
                 .padding(.top, 12)
                 .padding(.horizontal, 24)
             }
-            .navigationTitle(categoryToEdit == nil ? "Yeni Kategori" : "Kategoriyi Düzenle")
+            .navigationTitle(categoryToEdit == nil ? L10n("Yeni Kategori") : L10n("Kategoriyi Düzenle"))
             .navigationBarTitleDisplayMode(.inline)
-            .alert("Kategori Mevcut", isPresented: $showDuplicateAlert) {
-                Button("Tamam", role: .cancel) { }
+            .alert(L10n("Kategori Mevcut"), isPresented: $showDuplicateAlert) {
+                Button(L10n("Tamam"), role: .cancel) { }
             } message: {
                 Text("'\(categoryName)' adında bir kategori zaten mevcut. Lütfen farklı bir isim seçin.")
             }

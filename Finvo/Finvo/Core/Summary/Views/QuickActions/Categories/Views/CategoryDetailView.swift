@@ -100,7 +100,7 @@ struct CategoryDetailView: View {
                         .font(.headline)
                         .foregroundColor(theme.labelPrimary)
                     
-                    Text("\(category.subCategories.count) Alt Kategori • \(category.type == .expense ? "Gider" : "Gelir")")
+                    Text("\(category.subCategories.count) Alt Kategori • \(category.type == .expense ? L10n("Gider") : L10n("Gelir"))")
                         .font(.footnote)
                         .foregroundColor(theme.labelSecondary)
                 }
@@ -154,7 +154,7 @@ struct CategoryDetailView: View {
                 .presentationDragIndicator(.hidden)
         }
         .alert("Pro Üyelik Gerekli", isPresented: $categoryManager.showProAlert) {
-            Button("Tamam", role: .cancel) { }
+            Button(L10n("Tamam"), role: .cancel) { }
             Button("Pro'ya Geç") {
                 // Ileride pro ekrani eklenecek
             }
@@ -174,13 +174,13 @@ struct CategoryDetailView: View {
             Text("Alt kategori eklemek için bu cüzdanda 'Admin' veya 'Kurucu' yetkisine sahip olmanız gerekmektedir.")
         }
         .alert("İstek Gönderildi", isPresented: $showRoleRequestSentAlert) {
-            Button("Tamam", role: .cancel) { }
+            Button(L10n("Tamam"), role: .cancel) { }
         } message: {
             Text("Yönetici yetkisi isteğiniz cüzdan sahibine iletildi.")
         }
         .alert("Alt Kategoriyi Sil?", isPresented: $showDeleteConfirmation) {
             Button("Vazgeç", role: .cancel) { }
-            Button("Sil", role: .destructive) {
+            Button(L10n("Sil"), role: .destructive) {
                 if let sub = subCategoryToDelete {
                     performDelete(sub)
                 }

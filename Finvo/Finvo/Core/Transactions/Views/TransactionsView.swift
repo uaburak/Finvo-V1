@@ -3,6 +3,15 @@ import SwiftUI
 enum TransactionsViewMode: String, CaseIterable {
     case list = "Liste"
     case calendar = "Takvim"
+    
+    var localizedTitle: String {
+        let appLang = UserDefaults.standard.string(forKey: "appLanguage") ?? "tr"
+        if let path = Bundle.main.path(forResource: appLang, ofType: "lproj"),
+           let bundle = Bundle(path: path) {
+            return bundle.localizedString(forKey: self.rawValue, value: nil, table: nil)
+        }
+        return NSLocalizedString(self.rawValue, comment: "")
+    }
 }
 
 enum DateFilterMode: String, CaseIterable {
@@ -11,6 +20,15 @@ enum DateFilterMode: String, CaseIterable {
     case monthly = "Aylık"
     case yearly = "Yıllık"
     case custom = "Özel Aralık"
+    
+    var localizedTitle: String {
+        let appLang = UserDefaults.standard.string(forKey: "appLanguage") ?? "tr"
+        if let path = Bundle.main.path(forResource: appLang, ofType: "lproj"),
+           let bundle = Bundle(path: path) {
+            return bundle.localizedString(forKey: self.rawValue, value: nil, table: nil)
+        }
+        return NSLocalizedString(self.rawValue, comment: "")
+    }
 }
 
 struct TransactionsView: View {
@@ -142,17 +160,18 @@ struct TransactionsView: View {
                 return cat.name
             }
         }
-        return "Kategoriler"
+        return L10n("Kategoriler")
     }
     
     private var dateFilterLabel: String {
         if dateFilterMode == .custom {
+            let appLang = UserDefaults.standard.string(forKey: "appLanguage") ?? "tr"
             let formatter = DateFormatter()
-            formatter.dateFormat = "d MMM"
-            formatter.locale = Locale(identifier: "tr_TR")
+            formatter.locale = Locale(identifier: appLang)
+            formatter.setLocalizedDateFormatFromTemplate("d MMM")
             return "\(formatter.string(from: startDate)) - \(formatter.string(from: endDate))"
         } else {
-            return dateFilterMode.rawValue
+            return dateFilterMode.localizedTitle
         }
     }
 
@@ -176,9 +195,9 @@ struct TransactionsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                Picker("İşlem Tipi", selection: $selectedType) {
-                    Text("Gider").tag(TransactionType.expense)
-                    Text("Gelir").tag(TransactionType.income)
+                Picker(L10n("İşlem Tipi"), selection: $selectedType) {
+                    Text(L10n("Gider")).tag(TransactionType.expense)
+                    Text(L10n("Gelir")).tag(TransactionType.income)
                 }
                 .pickerStyle(.segmented)
                 .frame(width: 160)
@@ -198,9 +217,9 @@ struct TransactionsView: View {
                     VStack(alignment: .leading, spacing: 20) {
                         
                         // 1. Görünüm (Açıkta kalan Segmented Control - İstediğin gibi)
-                        Picker("Görünüm", selection: $viewMode) {
+                        Picker(L10n("Görünüm"), selection: $viewMode) {
                             ForEach(TransactionsViewMode.allCases, id: \.self) { mode in
-                                Text(mode.rawValue).tag(mode)
+                                Text(mode.localizedTitle).tag(mode)
                             }
                         }
                         .pickerStyle(.segmented)
@@ -209,8 +228,8 @@ struct TransactionsView: View {
                         
                         // 2. Kategori Seçimi (Menü içine alındı)
                         Menu {
-                            Picker("Kategori", selection: $selectedCategory) {
-                                Text("Tüm Kategoriler").tag(Optional<String>.none)
+                            Picker(L10n("Kategori"), selection: $selectedCategory) {
+                                Text(L10n("Tüm Kategoriler")).tag(Optional<String>.none)
                                 let availableCategories = CategoryManager.shared.categories.isEmpty ? CategoriesMockData.data : CategoryManager.shared.categories
                                 ForEach(availableCategories.filter { $0.type == selectedType }) { cat in
                                     Text(cat.name).tag(Optional(cat.id))
@@ -231,18 +250,18 @@ struct TransactionsView: View {
                         
                         // 3. Zaman Filtresi (Menü içine alındı)
                         Menu {
-                            Picker("Zaman Filtresi", selection: $dateFilterMode) {
-                                Text("Tümü").tag(DateFilterMode.all)
-                                Text("Haftalık").tag(DateFilterMode.weekly)
-                                Text("Aylık").tag(DateFilterMode.monthly)
-                                Text("Yıllık").tag(DateFilterMode.yearly)
+                            Picker(L10n("Zaman Filtresi"), selection: $dateFilterMode) {
+                                Text(L10n("Tümü")).tag(DateFilterMode.all)
+                                Text(L10n("Haftalık")).tag(DateFilterMode.weekly)
+                                Text(L10n("Aylık")).tag(DateFilterMode.monthly)
+                                Text(L10n("Yıllık")).tag(DateFilterMode.yearly)
                                 if dateFilterMode == .custom {
                                     Text(dateFilterLabel).tag(DateFilterMode.custom)
                                 }
                             }
                         } label: {
                             HStack {
-                                Label(dateFilterMode == .custom ? dateFilterLabel : (dateFilterMode == .all ? "Zaman Filtresi" : dateFilterMode.rawValue), systemImage: "calendar.badge.clock")
+                                Label(dateFilterMode == .custom ? dateFilterLabel : (dateFilterMode == .all ? L10n("Zaman Filtresi") : dateFilterMode.localizedTitle), systemImage: "calendar.badge.clock")
                                     .foregroundStyle(theme.labelPrimary)
                                 Spacer()
                                 Image(systemName: "chevron.up.chevron.down")
@@ -255,7 +274,7 @@ struct TransactionsView: View {
                         
                         // 4. Tarih Aralığı (HStack İçinde Yan Yana - İstediğin gibi bozulmadı)
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Tarih Aralığı")
+                            Text(L10n("Tarih Aralığı"))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             
@@ -267,7 +286,7 @@ struct TransactionsView: View {
                                 
                                 Text("-")
                                 
-                                DatePicker("Bitiş", selection: $endDate, displayedComponents: .date)
+                                DatePicker(L10n("Bitiş"), selection: $endDate, displayedComponents: .date)
                                     .labelsHidden()
                                     .datePickerStyle(.compact)
                                     .onChange(of: endDate) { _, _ in dateFilterMode = .custom }
@@ -284,7 +303,7 @@ struct TransactionsView: View {
                             } label: {
                                 HStack {
                                     Spacer()
-                                    Label("Filtreleri Sıfırla", systemImage: "xmark.circle")
+                                    Label(L10n("Filtreleri Sıfırla"), systemImage: "xmark.circle")
                                     Spacer()
                                 }
                             }
@@ -296,18 +315,18 @@ struct TransactionsView: View {
                 }
             }
         }
-        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Ara")
-        .confirmationDialog("İşlemi Sil", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
-            Button("Sil", role: .destructive) {
+        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic), prompt: Text(L10n("Ara")))
+        .confirmationDialog(L10n("İşlemi Sil"), isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
+            Button(L10n("Sil"), role: .destructive) {
                 if let transaction = transactionToDelete, let id = transaction.id {
                     Task {
                         FirestoreService.shared.deleteTransaction(walletId: transaction.walletId, transactionId: id)
                     }
                 }
             }
-            Button("Vazgeç", role: .cancel) { }
+            Button(L10n("Vazgeç"), role: .cancel) { }
         } message: {
-            Text("Bu işlemi silmek istediğinize emin misiniz? Bu işlem geri alınamaz.")
+            Text(L10n("Bu işlemi silmek istediğinize emin misiniz? Bu işlem geri alınamaz."))
         }
         .onAppear {
             filterTransactions()
@@ -327,8 +346,8 @@ struct TransactionsView: View {
             if filteredItems.isEmpty {
                 VStack {
                     Spacer()
-                    ContentUnavailableView("İşlem Bulunamadı", systemImage: "list.bullet",
-                                          description: Text("Bu kriterlere uygun işlem bulunamadı."))
+                    ContentUnavailableView(L10n("İşlem Bulunamadı"), systemImage: "list.bullet",
+                                          description: Text(L10n("Bu kriterlere uygun işlem bulunamadı.")))
                     Spacer()
                 }
             } else {
@@ -399,7 +418,7 @@ struct TransactionsView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "chevron.up.chevron.down")
                             .font(.system(size: 14, weight: .bold))
-                        Text("Bugün")
+                        Text(L10n("Bugün"))
                             .font(.system(size: 14, weight: .bold))
                     }
                     .foregroundColor(theme.labelPrimary)
@@ -423,8 +442,10 @@ struct TransactionsView: View {
     
     // MARK: - View Helpers
     private func listRow(for transaction: TransactionModel, isFirst: Bool) -> some View {
+        let appLang = UserDefaults.standard.string(forKey: "appLanguage") ?? "tr"
+        let locale = Locale(identifier: appLang)
         let mainTitle = transaction.resolvedSubCategoryName ?? transaction.resolvedMainCategoryName
-        let subtitleText = transaction.resolvedSubCategoryName != nil ? transaction.resolvedMainCategoryName : transaction.date.formatted(date: .abbreviated, time: .shortened)
+        let subtitleText = transaction.resolvedSubCategoryName != nil ? transaction.resolvedMainCategoryName : transaction.date.formatted(.dateTime.locale(locale).day().month().year().hour().minute())
         
         return ZStack {
             NavigationLink(destination: TransactionDetailView(transaction: transaction)
@@ -442,7 +463,7 @@ struct TransactionsView: View {
                 subtitle: LocalizedStringKey(subtitleText),
                 value: (transaction.type == .income ? "+" : "-") + (transaction.currency?.symbol ?? appCurrency.symbol) + transaction.amount.formatted(.number.grouping(.automatic).precision(.fractionLength(0))),
                 valueColor: transaction.type == .income ? theme.income : theme.expense,
-                secondaryInfo: transaction.date.formatted(date: .abbreviated, time: .shortened)
+                secondaryInfo: transaction.date.formatted(.dateTime.locale(locale).day().month().year().hour().minute())
             )
             .padding(.leading)
         }
@@ -496,7 +517,7 @@ struct TransactionsView: View {
     private var emptyRow: some View {
         HStack(spacing: 12) {
             Circle().fill(.gray.opacity(0.2)).frame(width: 4, height: 4)
-            Text("İşlem Yok").font(.caption2).foregroundColor(.secondary.opacity(0.5))
+            Text(L10n("İşlem Yok")).font(.caption2).foregroundColor(.secondary.opacity(0.5))
         }
         .listRowBackground(Color.clear).listRowSeparator(.hidden)
     }

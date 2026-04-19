@@ -96,7 +96,7 @@ struct AnalysisView: View {
                 // Advanced Filter Menu
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        Picker("İşlem Tipi", selection: $selectedFilterType) {
+                        Picker(L10n("İşlem Tipi"), selection: $selectedFilterType) {
                             ForEach(TransactionTypeFilter.allCases, id: \.self) { type in
                                 Text(type.rawValue).tag(type)
                             }

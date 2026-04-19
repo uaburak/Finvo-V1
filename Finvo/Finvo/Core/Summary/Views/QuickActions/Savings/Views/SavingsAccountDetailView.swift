@@ -252,8 +252,8 @@ struct SavingsAccountDetailView: View {
             }
         }
         .alert("Hesabı Sil", isPresented: $showDeleteConfirm) {
-            Button("İptal", role: .cancel) { }
-            Button("Sil", role: .destructive) { deleteAccount() }
+            Button(L10n("İptal"), role: .cancel) { }
+            Button(L10n("Sil"), role: .destructive) { deleteAccount() }
         } message: {
             Text("\(account.name) hesabını silmek istediğinize emin misiniz? Bu işlem geri alınamaz.")
         }

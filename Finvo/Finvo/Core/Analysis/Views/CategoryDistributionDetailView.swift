@@ -13,7 +13,7 @@ struct CategoryDistributionDetailView: View {
                     
                     // Large Donut Chart Focus
                     VStack(spacing: 16) {
-                        Text("Gider Dağılımı")
+                        Text(L10n("Gider Dağılımı"))
                             .font(.headline)
                             .foregroundColor(theme.labelPrimary)
                         
@@ -33,7 +33,7 @@ struct CategoryDistributionDetailView: View {
                     
                     // Detail List
                     VStack(spacing: 12) {
-                        Text("Kategori Detayları")
+                        Text(L10n("Kategori Detayları"))
                             .font(.title3.bold())
                             .foregroundColor(theme.labelPrimary)
                             .frame(maxWidth: .infinity, alignment: .leading)

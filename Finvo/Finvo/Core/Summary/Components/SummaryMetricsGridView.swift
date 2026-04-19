@@ -7,6 +7,15 @@ enum CalendarFilterType: String, CaseIterable {
     case yearly = "Yıllık"
     case transactionsOnly = "İşlemler"
     
+    var localizedTitle: String {
+        let appLang = UserDefaults.standard.string(forKey: "appLanguage") ?? "tr"
+        if let path = Bundle.main.path(forResource: appLang, ofType: "lproj"),
+           let bundle = Bundle(path: path) {
+            return bundle.localizedString(forKey: self.rawValue, value: nil, table: nil)
+        }
+        return NSLocalizedString(self.rawValue, comment: "")
+    }
+    
     var icon: String {
         switch self {
         case .weekly: return "calendar.day.timeline.left"
@@ -59,12 +68,12 @@ struct SummaryMetricsGridView: View {
         let upcomingTotal = upcomingList.reduce(0) { $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: appCurrency) }
 
         LazyVGrid(columns: columns, spacing: 16) {
-            MetricCardView(title: "Harcama Limiti", amount: "\(appCurrency.symbol)\(spent.formatted(.number.precision(.fractionLength(0)))) / \(appCurrency.symbol)\(limit.formatted(.number.precision(.fractionLength(0))))", iconName: "creditcard.fill", iconColor: theme.expense, progress: progress)
+            MetricCardView(title: LocalizedStringKey(L10n("Harcama Limiti")), amount: "\(appCurrency.symbol)\(spent.formatted(.number.precision(.fractionLength(0)))) / \(appCurrency.symbol)\(limit.formatted(.number.precision(.fractionLength(0))))", iconName: "creditcard.fill", iconColor: theme.expense, progress: progress)
             
             MetricCardView(title: "En Çok Harcama", amount: LocalizedStringKey(topCat?.name ?? "Belirsiz"), iconName: topCat?.icon ?? "cart.fill", iconColor: topCat?.uiColor ?? .blue, progress: nil)
             
             NavigationLink(value: "PaymentCalendar") {
-                MetricCardView(title: "Ödeme Takvimi", amount: upcomingList.count > 0 ? "\(upcomingList.count) Ödeme (\(appCurrency.symbol)\(upcomingTotal.formatted(.number.precision(.fractionLength(0)))))" : "Yaklaşan Yok", iconName: "calendar.badge.clock", iconColor: .orange, progress: upcomingList.count > 0 ? 1.0 : nil)
+                MetricCardView(title: LocalizedStringKey(L10n("Ödeme Takvimi")), amount: LocalizedStringKey(upcomingList.count > 0 ? "\(upcomingList.count) \(L10n("Ödeme")) (\(appCurrency.symbol)\(upcomingTotal.formatted(.number.precision(.fractionLength(0)))))" : L10n("Yaklaşan Yok")), iconName: "calendar.badge.clock", iconColor: .orange, progress: upcomingList.count > 0 ? 1.0 : nil)
             }
             .buttonStyle(.plain)
             
@@ -207,7 +216,7 @@ struct PaymentCalendarDetailView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "chevron.up.chevron.down")
                             .font(.system(size: 14, weight: .bold))
-                        Text("Bugün")
+                        Text(L10n("Bugün"))
                             .font(.system(size: 14, weight: .bold))
                     }
                     .foregroundColor(theme.labelPrimary)
@@ -216,13 +225,13 @@ struct PaymentCalendarDetailView: View {
                 .padding(.trailing, 20)
                 .padding(.bottom, 20) // Tabbar'ın hemen üzerinde
             }
-            .navigationTitle("Ödeme Takvimi")
+            .navigationTitle(L10n("Ödeme Takvimi"))
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        Picker("Görünüm", selection: $filterType) {
+                        Picker(L10n("Görünüm"), selection: $filterType) {
                             ForEach(CalendarFilterType.allCases, id: \.self) { type in
-                                Label(type.rawValue, systemImage: type.icon)
+                                Label(type.localizedTitle, systemImage: type.icon)
                                     .tag(type)
                             }
                         }
@@ -252,13 +261,13 @@ struct PaymentCalendarDetailView: View {
     private var emptyRow: some View {
         HStack {
             Circle().fill(.gray.opacity(0.2)).frame(width: 4, height: 4)
-            Text("Ödeme Yok").font(.caption2).foregroundColor(.secondary.opacity(0.5))
+            Text(L10n("Ödeme Yok")).font(.caption2).foregroundColor(.secondary.opacity(0.5))
         }
         .listRowBackground(Color.clear).listRowSeparator(.hidden)
     }
     
     private func calendarRow(_ tx: TransactionModel) -> some View {
-        let converted = ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: appCurrency)
+        let _ = ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: appCurrency)
         let days = Calendar.current.daysFromToday(to: tx.date)
         let isPastPayment = tx.isPaid
         
@@ -270,26 +279,26 @@ struct PaymentCalendarDetailView: View {
         if tx.isDebt {
             let installmentNum = tx.installmentNumber ?? ((tx.paidInstallments ?? 0) + 1)
             let total = tx.totalInstallments ?? 0
-            rowSubtitle = "\(installmentNum). Taksit / \(total) (\(tx.mainCategoryName))"
+            rowSubtitle = "\(installmentNum). \(L10n("Taksit")) / \(total) (\(tx.mainCategoryName))"
         } else if tx.isRecurring {
             let occurrenceNum = tx.installmentNumber ?? 1
-            rowSubtitle = "\(occurrenceNum). Ödeme (\(tx.mainCategoryName))"
+            rowSubtitle = "\(occurrenceNum). \(L10n("Ödeme")) (\(tx.mainCategoryName))"
         }
         
         // Tarih durum bilgisi: Geçmiş ödemeler "Ödendi", gelecek olanlar gün sayısı
         let statusText: String
         let statusColor: Color
         if isPastPayment {
-            statusText = "Ödendi"
+            statusText = L10n("Ödendi")
             statusColor = theme.income
         } else if days == 0 {
-            statusText = "Bugün"
+            statusText = L10n("Bugün")
             statusColor = theme.expense
         } else if days < 0 {
-            statusText = "Gecikti"
+            statusText = L10n("Gecikti")
             statusColor = theme.expense
         } else {
-            statusText = "\(days) gün"
+            statusText = "\(days) \(L10n("gün"))"
             statusColor = days <= 3 ? theme.expense : .secondary
         }
         
@@ -330,16 +339,19 @@ struct HorizontalWeekView: View {
     @Binding var selectedDate: Date
     var onDateTapped: (Date) -> Void
     
-    private let weekDays = ["P", "S", "Ç", "P", "C", "C", "P"]
-    
     var body: some View {
-        HStack(spacing: 0) {
+        let appLang = UserDefaults.standard.string(forKey: "appLanguage") ?? "tr"
+        var userCalendar = Calendar.current
+        userCalendar.locale = Locale(identifier: appLang)
+        
+        return HStack(spacing: 0) {
             ForEach(selectedDate.daysInWeek, id: \.self) { date in
                 let isSelected = date.isSameDay(as: selectedDate)
-                let dayIndex = (Calendar.current.component(.weekday, from: date) + 5) % 7
+                let dayIndex = userCalendar.component(.weekday, from: date) - 1
+                let symbol = userCalendar.veryShortWeekdaySymbols[dayIndex]
                 
                 VStack(spacing: 8) {
-                    Text(weekDays[dayIndex]).font(.system(size: 10, weight: .medium)).foregroundColor(theme.labelSecondary)
+                    Text(symbol).font(.system(size: 10, weight: .medium)).foregroundColor(theme.labelSecondary)
                     Text("\(Calendar.current.component(.day, from: date))")
                         .font(.system(size: 14, weight: .bold))
                         .foregroundColor(isSelected ? theme.onBrandPrimary : theme.labelPrimary)
@@ -403,8 +415,17 @@ extension Date {
     func isSameDay(as other: Date) -> Bool { Calendar.current.isDate(self, inSameDayAs: other) }
     
     var calendarHeaderString: String {
-        if isToday { return "Bugün" }
-        let f = DateFormatter(); f.locale = Locale(identifier: "tr_TR"); f.dateFormat = "d MMMM EEEE"
+        let appLang = UserDefaults.standard.string(forKey: "appLanguage") ?? "tr"
+        if isToday {
+            if let path = Bundle.main.path(forResource: appLang, ofType: "lproj"),
+               let bundle = Bundle(path: path) {
+                return bundle.localizedString(forKey: "Bugün", value: nil, table: nil)
+            }
+            return NSLocalizedString("Bugün", comment: "")
+        }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: appLang)
+        f.setLocalizedDateFormatFromTemplate("d MMMM EEEE")
         return f.string(from: self)
     }
 }

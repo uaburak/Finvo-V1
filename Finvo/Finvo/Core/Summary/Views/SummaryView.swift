@@ -29,7 +29,7 @@ struct SummaryView: View {
                                 .environmentObject(authManager)
                                 .environmentObject(transactionManager)
                         } label: {
-                            IncomeExpenseCardView(title: "Gelir", amount: "\(appCurrency.symbol)\(transactionManager.totalIncome.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))", isIncome: true)
+                            IncomeExpenseCardView(title: LocalizedStringKey(L10n("Gelir")), amount: "\(appCurrency.symbol)\(transactionManager.totalIncome.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))", isIncome: true)
                         }
                         .buttonStyle(.plain)
                         
@@ -39,7 +39,7 @@ struct SummaryView: View {
                                 .environmentObject(authManager)
                                 .environmentObject(transactionManager)
                         } label: {
-                            IncomeExpenseCardView(title: "Gider", amount: "\(appCurrency.symbol)\(transactionManager.totalExpense.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))", isIncome: false)
+                            IncomeExpenseCardView(title: LocalizedStringKey(L10n("Gider")), amount: "\(appCurrency.symbol)\(transactionManager.totalExpense.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))", isIncome: false)
                         }
                         .buttonStyle(.plain)
                     }

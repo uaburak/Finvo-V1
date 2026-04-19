@@ -22,7 +22,7 @@ struct AnalysisMiniCards: View {
                     HStack(spacing: 6) {
                         Image(systemName: "repeat")
                             .foregroundColor(.blue) 
-                        Text("Tekrarlayan")
+                        Text(L10n("Tekrarlayan"))
                             .font(.caption)
                             .foregroundColor(theme.labelSecondary)
                     }

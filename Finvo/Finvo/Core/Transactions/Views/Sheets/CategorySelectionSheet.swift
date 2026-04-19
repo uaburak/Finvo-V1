@@ -24,11 +24,11 @@ struct CategorySelectionSheet: View {
             }
             .scrollContentBackground(.hidden)
             .background(theme.background1)
-            .navigationTitle("Kategori Seçin")
+            .navigationTitle(L10n("Kategori Seçin"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Kapat") { dismiss() }
+                    Button(L10n("Kapat")) { dismiss() }
                 }
             }
         }

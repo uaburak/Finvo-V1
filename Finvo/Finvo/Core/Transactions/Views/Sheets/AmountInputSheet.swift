@@ -17,10 +17,10 @@ struct AmountInputSheet: View {
             VStack(spacing: 16) {
                 if let currencyBinding = currencyBinding {
                     HStack {
-                        Text("Para Birimi")
+                        Text(L10n("Para Birimi"))
                             .foregroundStyle(theme.labelSecondary)
                         Spacer()
-                        Picker("Para Birimi", selection: currencyBinding) {
+                        Picker(L10n("Para Birimi"), selection: currencyBinding) {
                             ForEach(exchangeRateManager.allCurrencies.filter { $0.assetType == "Döviz" }, id: \.self) { currency in
                                 Text(currency.code).tag(currency)
                             }
@@ -108,7 +108,7 @@ struct AmountInputSheet: View {
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 dismiss()
             } label: {
-                Text("Tamam")
+                Text(L10n("Tamam"))
                     .font(.headline)
                     .foregroundStyle(theme.onBrandPrimary)
                     .frame(maxWidth: .infinity, minHeight: 48)
@@ -118,7 +118,7 @@ struct AmountInputSheet: View {
             .padding(.bottom, 8)
         }
         .padding(.top, 24)
-        .navigationTitle("Tutar Girin")
+        .navigationTitle(L10n("Tutar Girin"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
