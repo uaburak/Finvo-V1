@@ -3,6 +3,7 @@ import SwiftUI
 struct ProSubscriptionPaywallView: View {
     @Environment(\.theme) var theme
     @Environment(\.openURL) var openURL
+    @Environment(\.dismiss) var dismiss
     @State private var isAnimating: Bool = false
     
     var body: some View {
@@ -126,6 +127,17 @@ struct ProSubscriptionPaywallView: View {
             }
             .navigationTitle("Aile")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(theme.labelSecondary)
+                    }
+                }
+            }
             .onAppear {
                 withAnimation(.easeInOut(duration: 4).repeatForever(autoreverses: true)) {
                     isAnimating = true

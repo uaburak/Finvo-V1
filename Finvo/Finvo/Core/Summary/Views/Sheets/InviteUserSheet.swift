@@ -16,6 +16,9 @@ struct InviteUserSheet: View {
     @State private var searchCompleted = false
     @State private var searchTask: Task<Void, Never>? = nil
     
+    @State private var showLimitAlert = false
+    @State private var showPaywall = false
+    
     var body: some View {
         NavigationStack {
             VStack(spacing: 24) {
@@ -84,8 +87,18 @@ struct InviteUserSheet: View {
                 }
             }
         }
+        .alert("Pro Yükseltmesi Gerekli", isPresented: $showLimitAlert) {
+            Button("Pro Ol") {
+                showPaywall = true
+            }
+            Button("Vazgeç", role: .cancel) { }
+        } message: {
+            Text("Ücretsiz sürümdeki bir paylaşımlı cüzdanda en fazla 2 kişi olabilirsiniz. Daha fazla üye davet etmek için Pro üyelik sahibi olmalısınız.")
+        }
+        .fullScreenCover(isPresented: $showPaywall) {
+            ProSubscriptionPaywallView()
+        }
     }
-    
     private func userCard(_ user: UserModel) -> some View {
         HStack(spacing: 16) {
             if let photoUrl = user.photoUrl, let url = URL(string: photoUrl) {
@@ -116,6 +129,19 @@ struct InviteUserSheet: View {
             Button {
                 let feedback = UIImpactFeedbackGenerator(style: .medium)
                 feedback.prepare()
+                
+                let walletMembers = walletManager.wallets.first(where: { $0.id == walletId })?.members ?? []
+                let hasProMember = walletMembers.contains { memberUsername in
+                    if memberUsername == authManager.currentUserProfile?.username {
+                        return authManager.currentUserProfile?.isPro == true
+                    }
+                    return walletManager.usersProStatus[memberUsername] == true
+                }
+                
+                if !hasProMember && walletMembers.count >= 2 {
+                    showLimitAlert = true
+                    return
+                }
                 
                 // 1. Cüzdana yeni üyeyi .pending (Davet Bekliyor) durumunda ekle
                 walletManager.addMember(to: walletId, memberId: user.username, role: .pending)

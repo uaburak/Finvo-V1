@@ -120,6 +120,8 @@ struct AddTransactionsView: View {
         var title: String { titleKey.localized }
     }
 
+    @State private var showPaywall = false
+
     enum ActiveSheet: Identifiable {
         case category, amount, currency
         var id: Int { hashValue }
@@ -135,10 +137,31 @@ struct AddTransactionsView: View {
         GridItem(.flexible(), spacing: 16),
         GridItem(.flexible(), spacing: 16)
     ]
+    
+    private var isLocked: Bool {
+        if let wallet = walletManager.activeWallet, wallet.type == .shared {
+            if wallet.members.count > 2 {
+                // Kendi profilime bak: Ben Pro isem kilit açık
+                if authManager.currentUserProfile?.isPro == true { return false }
+                
+                // Benim dışımdaki üyelere bak: Biri bile Pro ise kilit açık
+                let hasProMember = wallet.members.contains { memberUsername in
+                    if memberUsername == authManager.currentUserProfile?.username { return false }
+                    return walletManager.usersProStatus[memberUsername] == true
+                }
+                
+                return !hasProMember
+            }
+        }
+        return false
+    }
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
+            if isLocked {
+                lockedWalletView
+            } else {
+                VStack(spacing: 0) {
 
                     ScrollView(showsIndicators: false) {
                         VStack(alignment: .leading, spacing: 24) {
@@ -183,14 +206,17 @@ struct AddTransactionsView: View {
                         }
                     }
                 }
-            } // Ends NavigationStack
+            } // Ends else
+        } // Ends NavigationStack
+            .fullScreenCover(isPresented: $showPaywall) {
+                ProSubscriptionPaywallView()
+            }
             // Dinamik Sheet Yüksekliği (Animasyonla Geçiş)
             .presentationDetents([.height(280), .height(650)], selection: $selectedDetent)
             .presentationDragIndicator(.hidden)
             // Bütün steplerde hiçbir arka plan rengi yok (Tamamen Şeffaf)
             .presentationBackground(.clear) 
             .onAppear {
-                // Görünüm göründüğünde ek bir şey gerekmiyor.
                 // Global UISegmentedControl renkleri FinvoApp.swift'te merkezi olarak ayarlandı.
             }
             .sheet(item: $activeSheet) { sheet in
@@ -698,6 +724,46 @@ struct AddTransactionsView: View {
         }
     }
     
+    // MARK: - Locked View
+    private var lockedWalletView: some View {
+        VStack(spacing: 24) {
+            Image(systemName: "lock.shield.fill")
+                .font(.system(size: 80))
+                .foregroundColor(.orange)
+            
+            Text("Cüzdan Kilitli")
+                .font(.title2.weight(.bold))
+            
+            Text("Bu paylaşımlı cüzdanda 2'den fazla üye olduğu için işlem ekleme özelliği devre dışı bırakıldı. Devam etmek için Pro'ya geçin veya üye sayısını azaltın.")
+                .multilineTextAlignment(.center)
+                .foregroundColor(.gray)
+                .padding(.horizontal, 32)
+            
+            Button {
+                showPaywall = true
+            } label: {
+                Text("Pro'ya Yükselt")
+                    .fontWeight(.bold)
+                    .foregroundStyle(theme.onBrandPrimary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(theme.brandPrimary)
+                    .clipShape(Capsule())
+            }
+            .padding(.horizontal, 40)
+            .padding(.top, 16)
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                if transactionToEdit == nil {
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark")
+                            .foregroundColor(theme.labelPrimary)
+                    }
+                }
+            }
+        }
+    }
 }
 
 extension LocalizedStringKey {

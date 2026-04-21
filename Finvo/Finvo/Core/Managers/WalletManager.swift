@@ -6,6 +6,7 @@ import FirebaseAuth
 class WalletManager: ObservableObject {
     @Published var wallets: [WalletModel] = []
     @Published var activeWallet: WalletModel?
+    @Published var usersProStatus: [String: Bool] = [:]
 
     /// Son seçilen cüzdan ID'sini cihazda kalıcı olarak saklar
     private var lastActiveWalletId: String {
@@ -22,6 +23,7 @@ class WalletManager: ObservableObject {
             .sink { [weak self] newWallets in
                 guard let self else { return }
                 self.wallets = newWallets
+                self.fetchMemberProStatuses(for: newWallets)
                 
                 if let currentActive = self.activeWallet {
                     if let updated = newWallets.first(where: { $0.id == currentActive.id }) {
@@ -65,6 +67,29 @@ class WalletManager: ObservableObject {
     func selectWallet(_ wallet: WalletModel) {
         self.activeWallet = wallet
         self.lastActiveWalletId = wallet.id ?? ""
+    }
+    
+    private func fetchMemberProStatuses(for _wallets: [WalletModel]) {
+        let currentUsername = AuthenticationManager.shared.currentUserProfile?.username ?? ""
+        var membersToFetch = Set<String>()
+        
+        for wallet in _wallets where wallet.type == .shared {
+            for member in wallet.members {
+                if member != currentUsername, self.usersProStatus[member] == nil {
+                    membersToFetch.insert(member)
+                }
+            }
+        }
+        
+        for member in membersToFetch {
+            Task {
+                if let profile = try? await FirestoreService.shared.getUserProfileByUsername(member) {
+                    await MainActor.run {
+                        self.usersProStatus[member] = profile.isPro
+                    }
+                }
+            }
+        }
     }
     
     // MARK: - Firestore Proxy API

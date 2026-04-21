@@ -7,6 +7,7 @@ struct SettingsView: View {
     @EnvironmentObject var walletManager: WalletManager
     @StateObject private var exchangeRateManager = ExchangeRateManager.shared
     @State private var isGenerating = false
+    @State private var showPaywall = false
     
     // Seçilen dili cihazda System Defaults olarak saklar
     @AppStorage("appLanguage") private var appLanguage: String = "tr"
@@ -86,29 +87,40 @@ struct SettingsView: View {
                 
                 // MARK: - Abonelik
                 Section(header: Text("Abonelik")) {
-                    HStack {
-                        Label("Pro Üyelik", systemImage: "crown.fill")
-                            .foregroundColor(authManager.currentUserProfile?.isPro == true ? .yellow : .gray)
-                        Spacer()
-                        if authManager.currentUserProfile?.isPro == true {
-                            Text("Aktif")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        } else {
-                            Text("Pasif")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
+                    Button {
+                        showPaywall = true
+                    } label: {
+                        HStack {
+                            Label("Pro Üyelik", systemImage: "crown.fill")
+                                .foregroundColor(authManager.currentUserProfile?.isPro == true ? .yellow : .gray)
+                            Spacer()
+                            if authManager.currentUserProfile?.isPro == true {
+                                Text("Aktif")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            } else {
+                                Text("Aboneliği Başlat")
+                                    .font(.subheadline)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(theme.brandPrimary)
+                            }
                         }
                     }
-
-                    if authManager.currentUserProfile?.isPro == false {
-                        Button {
-                            // Satın alma akışı
-                        } label: {
-                            Text("Pro'ya Yükselt")
-                                .fontWeight(.bold)
-                                .foregroundColor(theme.brandPrimary)
+                    .buttonStyle(.plain)
+                    
+                    // TEST TOGGLE
+                    Toggle(isOn: Binding(
+                        get: { authManager.currentUserProfile?.isPro ?? false },
+                        set: { newValue in
+                            authManager.currentUserProfile?.isPro = newValue
+                            if let profile = authManager.currentUserProfile {
+                                Task {
+                                    try? await FirestoreService.shared.saveUserProfile(profile)
+                                }
+                            }
                         }
+                    )) {
+                        Label("Test: Pro Modu", systemImage: "testtube.2")
                     }
                 }
                 
@@ -141,6 +153,9 @@ struct SettingsView: View {
             }
             .listStyle(.insetGrouped)
             .navigationTitle("Ayarlar")
+            .fullScreenCover(isPresented: $showPaywall) {
+                ProSubscriptionPaywallView()
+            }
         }
     }
 }

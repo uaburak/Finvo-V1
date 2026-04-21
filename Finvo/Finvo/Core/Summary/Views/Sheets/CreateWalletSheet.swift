@@ -4,10 +4,14 @@ struct CreateWalletSheet: View {
     @Environment(\.theme) var theme
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var walletManager: WalletManager
+    @EnvironmentObject var authManager: AuthenticationManager
     
     @State private var walletName: String = ""
     @State private var selectedType: WalletType = .personal
     @State private var selectedContext: WalletContext = .general
+    
+    @State private var showLimitAlert = false
+    @State private var showPaywall = false
     
     var body: some View {
         NavigationStack {
@@ -53,6 +57,17 @@ struct CreateWalletSheet: View {
                         
                         guard !walletName.isEmpty else { return }
                         
+                        if let user = authManager.currentUserProfile, !user.isPro {
+                            let ownedWallets = walletManager.wallets.filter { $0.ownerId == user.username }
+                            let isOverTotalLimit = ownedWallets.count >= 2
+                            let isOverSharedLimit = selectedType == .shared && ownedWallets.contains(where: { $0.type == .shared })
+                            
+                            if isOverTotalLimit || isOverSharedLimit {
+                                showLimitAlert = true
+                                return
+                            }
+                        }
+                        
                         // Cüzdanı oluştur
                         walletManager.createWallet(
                             name: walletName,
@@ -90,6 +105,21 @@ struct CreateWalletSheet: View {
                 }
             }
         }
+        .alert("Pro Yükseltmesi Gerekli", isPresented: $showLimitAlert) {
+            Button("Pro Ol") {
+                showPaywall = true
+            }
+            Button("Vazgeç", role: .cancel) { }
+        } message: {
+            if selectedType == .shared && walletManager.wallets.contains(where: { $0.ownerId == authManager.currentUserProfile?.username && $0.type == .shared }) {
+                Text("En fazla 1 adet paylaşımlı cüzdan oluşturabilirsiniz. Daha fazlası için Pro'ya geçin.")
+            } else {
+                Text("Ücretsiz sürümde en fazla 2 adet cüzdan oluşturabilirsiniz. Daha fazlası için Pro'ya geçin.")
+            }
+        }
+        .fullScreenCover(isPresented: $showPaywall) {
+            ProSubscriptionPaywallView()
+        }
     }
 }
 
@@ -97,4 +127,5 @@ struct CreateWalletSheet: View {
     CreateWalletSheet()
         .environment(\.theme, DefaultTheme())
         .environmentObject(WalletManager())
+        .environmentObject(AuthenticationManager.shared)
 }
