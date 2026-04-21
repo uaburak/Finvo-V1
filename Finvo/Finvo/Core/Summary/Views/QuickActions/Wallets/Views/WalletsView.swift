@@ -21,7 +21,7 @@ struct WalletsView: View {
                         }
                         
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(wallet.name)
+                            Text(LocalizedStringKey(wallet.name))
                                 .font(.body)
                                 .fontWeight(.medium)
                                 .foregroundStyle(theme.labelPrimary)

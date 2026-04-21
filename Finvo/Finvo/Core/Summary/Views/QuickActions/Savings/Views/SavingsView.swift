@@ -127,7 +127,7 @@ struct SavingsView: View {
             }
             
             VStack(alignment: .leading, spacing: 4) {
-                Text(account.name)
+                Text(LocalizedStringKey(account.name))
                     .font(.body.weight(.medium))
                     .foregroundColor(theme.labelPrimary)
                     .lineLimit(1)

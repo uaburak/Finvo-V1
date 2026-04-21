@@ -6,6 +6,13 @@ import FirebaseFirestore
 enum TransactionType: String, Codable, CaseIterable {
     case income
     case expense
+    
+    var localizedTitle: String {
+        switch self {
+        case .income: return "Gelir".localized
+        case .expense: return "Gider".localized
+        }
+    }
 }
 
 enum RecurrenceInterval: String, Codable, CaseIterable {

@@ -37,7 +37,7 @@ struct RecurringAnalysisDetailView: View {
                             let typeTxs = transactions.filter { $0.type == selectedType }
                             
                             if typeTxs.isEmpty {
-                                Text("\(selectedType == .expense ? "Gider" : "Gelir") türünde abonelik işlemi yok.")
+                                Text(verbatim: "\(selectedType.localizedTitle) \("türünde abonelik işlemi yok.".localized)")
                                     .font(.subheadline)
                                     .foregroundColor(theme.labelSecondary)
                                     .frame(maxWidth: .infinity, alignment: .center)
@@ -90,7 +90,7 @@ struct RecurringAnalysisDetailView: View {
                                             }
                                             
                                             VStack(alignment: .leading, spacing: 4) {
-                                                Text(cat.name)
+                                                Text(LocalizedStringKey(cat.name))
                                                     .font(.headline)
                                                     .foregroundColor(theme.labelPrimary)
                                                 Text("\(cat.count) İşlem")

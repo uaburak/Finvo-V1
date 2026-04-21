@@ -194,7 +194,7 @@ struct SavingsDepositSheet: View {
                                 .foregroundColor(theme.labelPrimary)
                         }
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(currency.name)
+                            Text(LocalizedStringKey(currency.name))
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundColor(theme.labelPrimary)
                             Text(currency.code)

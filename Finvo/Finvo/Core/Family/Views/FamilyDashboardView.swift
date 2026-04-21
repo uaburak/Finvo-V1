@@ -312,7 +312,7 @@ struct FamilyDashboardView: View {
             }
             
             VStack(alignment: .leading, spacing: 4) {
-                Text(saving.name)
+                Text(LocalizedStringKey(saving.name))
                     .font(.headline)
                     .foregroundStyle(theme.labelPrimary)
                     .lineLimit(1)

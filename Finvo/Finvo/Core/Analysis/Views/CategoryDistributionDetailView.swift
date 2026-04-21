@@ -55,7 +55,7 @@ struct CategoryDistributionDetailView: View {
                                 }
                                 
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(summary.name)
+                                    Text(LocalizedStringKey(summary.name))
                                         .font(.headline)
                                         .foregroundColor(theme.labelPrimary)
                                     Text("\(summary.transactionCount) İşlem")

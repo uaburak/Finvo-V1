@@ -70,7 +70,7 @@ struct MemberTransactionsDetailView: View {
                                     }
                                     
                                     VStack(alignment: .leading, spacing: 4) {
-                                        Text(cat.name)
+                                        Text(LocalizedStringKey(cat.name))
                                             .font(.headline)
                                             .foregroundColor(theme.labelPrimary)
                                         Text("\(cat.count) İşlem")

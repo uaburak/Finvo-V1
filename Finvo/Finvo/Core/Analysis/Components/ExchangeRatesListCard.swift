@@ -49,7 +49,7 @@ struct ExchangeRatesListCard: View {
                 if let data = exchangeRateManager.marketData[currency] {
                     HStack {
                         HStack(spacing: 8) {
-                            Text(currency.name)
+                            Text(LocalizedStringKey(currency.name))
                                 .font(.subheadline.weight(.medium))
                                 .foregroundColor(theme.labelPrimary)
                         }

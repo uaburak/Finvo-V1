@@ -67,7 +67,7 @@ struct SummaryView: View {
                         walletManager.selectWallet(wallet)
                     } label: {
                         HStack {
-                            Text(wallet.name)
+                            Text(LocalizedStringKey(wallet.name))
                             if walletManager.activeWallet?.id == wallet.id {
                                 Image(systemName: "checkmark")
                             }

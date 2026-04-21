@@ -74,7 +74,7 @@ struct AnalysisPDFReportView: View {
                 } else {
                     ForEach(categorySummaries.prefix(8)) { summary in
                         HStack {
-                            Text(summary.name)
+                            Text(LocalizedStringKey(summary.name))
                                 .font(.body.bold())
                                 .foregroundColor(.black)
                             Spacer()

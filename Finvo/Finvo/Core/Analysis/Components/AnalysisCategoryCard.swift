@@ -38,7 +38,7 @@ struct AnalysisCategoryCard: View {
                                         .font(.caption)
                                         .foregroundColor(theme.brandPrimary)
                                         .frame(width: 20)
-                                    Text(summary.name)
+                                    Text(LocalizedStringKey(summary.name))
                                         .font(.subheadline)
                                         .lineLimit(1)
                                         .foregroundColor(theme.labelPrimary)

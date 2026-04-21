@@ -83,7 +83,7 @@ struct SavingsAccountDetailView: View {
                         .foregroundColor(.white)
                 }
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(account.name)
+                    Text(LocalizedStringKey(account.name))
                         .font(.title3.bold())
                         .foregroundColor(theme.labelPrimary)
                     Text("Hedef: \(appCurrency.symbol)\(formatAmount(dynamicGoalAmount))")

@@ -166,7 +166,7 @@ struct TransactionDetailView: View {
 
             detailRow(icon: transaction.isIncome ? "arrow.down.left" : "arrow.up.right",
                       title: "Tür",
-                      value: transaction.isIncome ? "Gelir" : "Gider")
+                      value: transaction.type.localizedTitle)
         }
         .glassEffect(in: .rect(cornerRadius: 24.0))
     }
@@ -181,7 +181,7 @@ struct TransactionDetailView: View {
 
             if let total = transaction.totalInstallments, let paid = transaction.paidInstallments {
                 detailRow(icon: "number", title: "Taksit",
-                          value: "\(paid)/\(total) ödendi")
+                          value: "\(paid)/\(total) \("ödendi".localized)")
                 Divider().padding(.horizontal)
 
                 // İlerleme çubuğu
@@ -203,13 +203,13 @@ struct TransactionDetailView: View {
 
             if let dueDay = transaction.dueDay {
                 detailRow(icon: "calendar.badge.clock", title: "Vade Günü",
-                          value: "Her ayın \(dueDay). günü")
+                          value: "Her ayın %@. günü".localized(with: String(dueDay)))
                 Divider().padding(.horizontal)
             }
 
             detailRow(icon: transaction.isPaid ? "checkmark.seal.fill" : "hourglass",
                       title: "Durum",
-                      value: transaction.isPaid ? "Ödendi ✓" : "Devam Ediyor")
+                      value: transaction.isPaid ? "\("Ödendi".localized) ✓" : "Devam Ediyor".localized)
         }
         .glassEffect(in: .rect(cornerRadius: 24.0))
     }
@@ -218,7 +218,7 @@ struct TransactionDetailView: View {
     private var recurringCard: some View {
         VStack(spacing: 0) {
             if let interval = transaction.recurrenceInterval {
-                detailRow(icon: "repeat", title: "Tekrar Sıklığı", value: interval.rawValue)
+                detailRow(icon: "repeat", title: "Tekrar Sıklığı", value: interval.title)
                 Divider().padding(.horizontal)
             }
 
@@ -226,7 +226,7 @@ struct TransactionDetailView: View {
                 detailRow(icon: "calendar.badge.minus", title: "Bitiş Tarihi",
                           value: endDate.formatted(date: .long, time: .omitted))
             } else {
-                detailRow(icon: "infinity", title: "Bitiş", value: "Süresiz")
+                detailRow(icon: "infinity", title: "Bitiş", value: "Süresiz".localized)
             }
         }
         .glassEffect(in: .rect(cornerRadius: 24.0))
@@ -269,7 +269,7 @@ struct TransactionDetailView: View {
     }
 
     // MARK: - Detay Satırı Helper
-    private func detailRow(icon: String, title: String, value: String) -> some View {
+    private func detailRow(icon: String, title: LocalizedStringKey, value: String) -> some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .medium))
