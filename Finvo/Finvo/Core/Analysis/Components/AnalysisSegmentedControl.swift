@@ -9,7 +9,7 @@ struct AnalysisSegmentedControl: View {
     var body: some View {
         Picker("Zaman Dilimi", selection: $selectedTab) {
             ForEach(AnalysisTimeFrame.allCases) { frame in
-                Text(frame.rawValue).tag(frame)
+                Text(frame.title).tag(frame)
             }
         }
         .pickerStyle(.segmented)

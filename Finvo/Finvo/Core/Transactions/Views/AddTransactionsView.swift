@@ -107,8 +107,8 @@ struct AddTransactionsView: View {
         case category = 2
         case subcategory = 3
         case details = 4
-        
-        var title: String {
+
+        var titleKey: String {
             switch self {
             case .type: return "İşlem Türü"
             case .category: return "Kategori Seçin"
@@ -116,6 +116,8 @@ struct AddTransactionsView: View {
             case .details: return "İşlem Detayları"
             }
         }
+
+        var title: String { titleKey.localized }
     }
 
     enum ActiveSheet: Identifiable {
@@ -124,9 +126,9 @@ struct AddTransactionsView: View {
     }
 
     private var categoryRowValue: String {
-        if let sub = selectedSubCategory { return sub.name }
-        if let main = selectedMainCategory { return main.name }
-        return "Seçin"
+        if let sub = selectedSubCategory { return sub.name.localized }
+        if let main = selectedMainCategory { return main.name.localized }
+        return "Seçin".localized
     }
 
     private let columns = [
@@ -147,7 +149,7 @@ struct AddTransactionsView: View {
                         .padding(.bottom, 100)
                     }
                 } // Ends VStack
-                .navigationTitle(currentStep.title)
+                .navigationTitle(LocalizedStringKey(currentStep.titleKey))
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
@@ -247,7 +249,7 @@ struct AddTransactionsView: View {
         LazyVGrid(columns: columns, spacing: 16) {
             let filteredCategories = CategoryManager.shared.categories.isEmpty ? CategoriesMockData.data.filter { $0.type == selectedType } : CategoryManager.shared.categories.filter { $0.type == selectedType }
             ForEach(filteredCategories) { category in
-                SelectionCard(title: category.name, icon: category.icon, color: category.uiColor) {
+                SelectionCard(title: LocalizedStringKey(category.name), icon: category.icon, color: category.uiColor) {
                     selectedMainCategory = category
                     nextStep()
                 }
@@ -259,7 +261,7 @@ struct AddTransactionsView: View {
         LazyVGrid(columns: columns, spacing: 16) {
             if let subCategories = selectedMainCategory?.subCategories {
                 ForEach(subCategories) { sub in
-                    SelectionCard(title: sub.name, icon: sub.icon, color: sub.uiColor) {
+                    SelectionCard(title: LocalizedStringKey(sub.name), icon: sub.icon, color: sub.uiColor) {
                         selectedSubCategory = sub
                         nextStep()
                     }
@@ -424,7 +426,7 @@ struct AddTransactionsView: View {
                         Spacer()
                         Picker("", selection: $recurringFrequency) {
                             ForEach(RecurrenceInterval.allCases, id: \.self) { interval in
-                                Text(interval.rawValue).tag(interval)
+                                Text(interval.title).tag(interval)
                             }
                         }
                         .tint(theme.labelSecondary)
@@ -465,10 +467,16 @@ struct AddTransactionsView: View {
                     saveTransaction()
                 }
             } label: {
-                Text(isSaving ? "Kaydediliyor..." : "Kaydet")
-                    .font(.headline)
-                    .foregroundStyle(theme.onBrandPrimary)
-                    .frame(maxWidth: .infinity, minHeight: 48)
+                Group {
+                    if isSaving {
+                        Text("Kaydediliyor...")
+                    } else {
+                        Text("Kaydet")
+                    }
+                }
+                .font(.headline)
+                .foregroundStyle(theme.onBrandPrimary)
+                .frame(maxWidth: .infinity, minHeight: 48)
             }
             .buttonStyle(.glassProminent)
             .padding(.top, 8)
@@ -533,7 +541,7 @@ struct AddTransactionsView: View {
         }
     }
 
-    private func formRow(_ icon: String, _ title: String, _ value: String, action: @escaping () -> Void) -> some View {
+    private func formRow(_ icon: String, _ title: LocalizedStringKey, _ value: String, action: @escaping () -> Void) -> some View {
         Button {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
             action()
@@ -554,8 +562,8 @@ struct AddTransactionsView: View {
             .padding(.vertical, 16)
         }
     }
-    
-    private func toggleRow(_ icon: String, _ title: String, isOn: Binding<Bool>) -> some View {
+
+    private func toggleRow(_ icon: String, _ title: LocalizedStringKey, isOn: Binding<Bool>) -> some View {
         HStack(spacing: 16) {
             Image(systemName: icon)
                 .font(.system(size: 20))
@@ -706,7 +714,7 @@ extension LocalizedStringKey {
 
 struct SelectionCard: View {
     @Environment(\.theme) var theme
-    let title: String
+    let title: LocalizedStringKey
     let icon: String
     let color: Color
     let action: () -> Void
@@ -717,7 +725,7 @@ struct SelectionCard: View {
                 Image(systemName: icon)
                     .font(.system(size: 32))
                     .foregroundStyle(color)
-                
+
                 Text(title)
                     .font(.subheadline)
                     .fontWeight(.medium)

@@ -7,6 +7,9 @@ enum AnalysisTimeFrame: String, CaseIterable, Identifiable {
     case month = "Ay"
     case year = "Yıl"
     var id: String { self.rawValue }
+
+    // UI için yerelleştirilmiş başlık. rawValue Firestore/karşılaştırma için korunur.
+    var title: String { rawValue.localized }
 }
 
 // MARK: - Models

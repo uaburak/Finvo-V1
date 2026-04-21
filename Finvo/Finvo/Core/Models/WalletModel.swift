@@ -4,27 +4,32 @@ import FirebaseFirestore
 enum WalletType: String, Codable, CaseIterable {
     case personal = "personal"
     case shared = "shared"
-    
-    var title: String {
+
+    // xcstrings'deki Türkçe key. Görüntüde LocalizationManager üzerinden çevrilir.
+    var titleKey: String {
         switch self {
         case .personal: return "Kişisel"
         case .shared: return "Paylaşımlı"
         }
     }
+
+    var title: String { titleKey.localized }
 }
 
 enum WalletContext: String, Codable, CaseIterable {
     case general = "general"
     case business = "business"
     case savings = "savings"
-    
-    var title: String {
+
+    var titleKey: String {
         switch self {
         case .general: return "Genel Kullanım"
         case .business: return "İş / Ticari"
         case .savings: return "Birikim"
         }
     }
+
+    var title: String { titleKey.localized }
 }
 
 enum WalletRole: String, Codable {
@@ -33,8 +38,8 @@ enum WalletRole: String, Codable {
     case member = "member"   // İşlem ekleme/silme (Sadece kendi işlemleri)
     case viewer = "viewer"   // Sadece okuma yetkisi
     case pending = "pending" // Davet bekleyen kullanıcı
-    
-    var displayName: String {
+
+    var displayNameKey: String {
         switch self {
         case .owner: return "Kurucu"
         case .admin: return "Yönetici"
@@ -43,6 +48,8 @@ enum WalletRole: String, Codable {
         case .pending: return "Davet Bekleniyor"
         }
     }
+
+    var displayName: String { displayNameKey.localized }
 }
 
 struct SavingsAccountModel: Identifiable, Codable, Equatable {

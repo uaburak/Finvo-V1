@@ -62,7 +62,7 @@ struct SavingsDepositSheet: View {
                     amountInputView
                 }
             }
-            .navigationTitle(navTitle)
+            .navigationTitle(LocalizedStringKey(navTitleKey))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {

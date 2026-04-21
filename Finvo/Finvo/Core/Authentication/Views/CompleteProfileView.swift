@@ -116,13 +116,19 @@ struct CompleteProfileView: View {
                         Button {
                             completeProfile()
                         } label: {
-                            Text(isSaving ? "Kaydediliyor..." : "Devam Et")
-                                .font(.headline)
-                                .foregroundStyle(theme.onBrandPrimary)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 52)
-                                .background(isFormValid ? theme.brandPrimary : theme.brandPrimary.opacity(0.5))
-                                .clipShape(Capsule())
+                            Group {
+                                if isSaving {
+                                    Text("Kaydediliyor...")
+                                } else {
+                                    Text("Devam Et")
+                                }
+                            }
+                            .font(.headline)
+                            .foregroundStyle(theme.onBrandPrimary)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                            .background(isFormValid ? theme.brandPrimary : theme.brandPrimary.opacity(0.5))
+                            .clipShape(Capsule())
                         }
                         .disabled(!isFormValid || isSaving)
                         .padding(.horizontal, 24)
@@ -180,13 +186,19 @@ struct CompleteProfileView: View {
                         Button {
                             completeWallet()
                         } label: {
-                            Text(isSaving ? "Oluşturuluyor..." : "Tamamla ve Başla")
-                                .font(.headline)
-                                .foregroundStyle(theme.onBrandPrimary)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 52)
-                                .background(walletName.isEmpty ? theme.brandPrimary.opacity(0.5) : theme.brandPrimary)
-                                .clipShape(Capsule())
+                            Group {
+                                if isSaving {
+                                    Text("Oluşturuluyor...")
+                                } else {
+                                    Text("Tamamla ve Başla")
+                                }
+                            }
+                            .font(.headline)
+                            .foregroundStyle(theme.onBrandPrimary)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                            .background(walletName.isEmpty ? theme.brandPrimary.opacity(0.5) : theme.brandPrimary)
+                            .clipShape(Capsule())
                         }
                         .disabled(walletName.isEmpty || isSaving)
                         .padding(.horizontal, 24)
@@ -212,12 +224,12 @@ struct CompleteProfileView: View {
 }
     
     // Reusable TextField
-    private func formField(title: String, text: Binding<String>, placeholder: String) -> some View {
+    private func formField(title: LocalizedStringKey, text: Binding<String>, placeholder: LocalizedStringKey) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.subheadline)
                 .foregroundStyle(theme.labelSecondary)
-            
+
             TextField(placeholder, text: text)
                 .padding()
                 .background(theme.cardBackground)
@@ -297,18 +309,18 @@ struct CompleteProfileView: View {
             } catch {
                 await MainActor.run {
                     self.isSaving = false
-                    self.errorMessage = "Profil kaydedilirken hata oluştu: \(error.localizedDescription)"
+                    self.errorMessage = "\("Profil kaydedilirken hata oluştu".localized): \(error.localizedDescription)"
                 }
             }
         }
     }
-    
+
     // Send Wallet to Firebase
     private func completeWallet() {
         guard authManager.user != nil else { return }
         isSaving = true
         errorMessage = nil
-        
+
         Task {
             let initialWallet = WalletModel(
                 name: walletName,
@@ -318,14 +330,14 @@ struct CompleteProfileView: View {
                 members: [self.username],
                 permissions: [self.username: WalletRole.owner.rawValue]
             )
-            
+
             do {
                 try await FirestoreService.shared.createWallet(initialWallet)
                 await authManager.checkUserProfile()
             } catch {
                 await MainActor.run {
                     self.isSaving = false
-                    self.errorMessage = "Cüzdan oluşturulamadı: \(error.localizedDescription)"
+                    self.errorMessage = "\("Cüzdan oluşturulamadı".localized): \(error.localizedDescription)"
                 }
             }
         }

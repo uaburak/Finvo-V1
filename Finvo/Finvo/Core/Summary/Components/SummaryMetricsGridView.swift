@@ -6,7 +6,7 @@ enum CalendarFilterType: String, CaseIterable {
     case monthly = "Aylık"
     case yearly = "Yıllık"
     case transactionsOnly = "İşlemler"
-    
+
     var icon: String {
         switch self {
         case .weekly: return "calendar.day.timeline.left"
@@ -15,6 +15,8 @@ enum CalendarFilterType: String, CaseIterable {
         case .transactionsOnly: return "list.bullet.indent"
         }
     }
+
+    var title: String { rawValue.localized }
 }
 
 struct HeaderDateEntry: Equatable {
@@ -60,14 +62,19 @@ struct SummaryMetricsGridView: View {
 
         LazyVGrid(columns: columns, spacing: 16) {
             MetricCardView(title: "Harcama Limiti", amount: "\(appCurrency.symbol)\(spent.formatted(.number.precision(.fractionLength(0)))) / \(appCurrency.symbol)\(limit.formatted(.number.precision(.fractionLength(0))))", iconName: "creditcard.fill", iconColor: theme.expense, progress: progress)
-            
+
             MetricCardView(title: "En Çok Harcama", amount: LocalizedStringKey(topCat?.name ?? "Belirsiz"), iconName: topCat?.icon ?? "cart.fill", iconColor: topCat?.uiColor ?? .blue, progress: nil)
-            
+
             NavigationLink(value: "PaymentCalendar") {
-                MetricCardView(title: "Ödeme Takvimi", amount: upcomingList.count > 0 ? "\(upcomingList.count) Ödeme (\(appCurrency.symbol)\(upcomingTotal.formatted(.number.precision(.fractionLength(0)))))" : "Yaklaşan Yok", iconName: "calendar.badge.clock", iconColor: .orange, progress: upcomingList.count > 0 ? 1.0 : nil)
+                if upcomingList.count > 0 {
+                    let amount: LocalizedStringKey = "\(upcomingList.count) Ödeme (\(appCurrency.symbol)\(upcomingTotal.formatted(.number.precision(.fractionLength(0)))))"
+                    MetricCardView(title: "Ödeme Takvimi", amount: amount, iconName: "calendar.badge.clock", iconColor: .orange, progress: 1.0)
+                } else {
+                    MetricCardView(title: "Ödeme Takvimi", amount: "Yaklaşan Yok", iconName: "calendar.badge.clock", iconColor: .orange, progress: nil)
+                }
             }
             .buttonStyle(.plain)
-            
+
             MetricCardView(title: "Akıllı İpuçları", amount: "Sistem Hazır", iconName: "lightbulb.fill", iconColor: .yellow, progress: nil)
         }
     }
@@ -222,7 +229,7 @@ struct PaymentCalendarDetailView: View {
                     Menu {
                         Picker("Görünüm", selection: $filterType) {
                             ForEach(CalendarFilterType.allCases, id: \.self) { type in
-                                Label(type.rawValue, systemImage: type.icon)
+                                Label(type.title, systemImage: type.icon)
                                     .tag(type)
                             }
                         }
@@ -403,8 +410,9 @@ extension Date {
     func isSameDay(as other: Date) -> Bool { Calendar.current.isDate(self, inSameDayAs: other) }
     
     var calendarHeaderString: String {
-        if isToday { return "Bugün" }
-        let f = DateFormatter(); f.locale = Locale(identifier: "tr_TR"); f.dateFormat = "d MMMM EEEE"
+        if isToday { return "Bugün".localized }
+        let appLanguage = UserDefaults.standard.string(forKey: "appLanguage") ?? "tr"
+        let f = DateFormatter(); f.locale = Locale(identifier: appLanguage); f.dateFormat = "d MMMM EEEE"
         return f.string(from: self)
     }
 }

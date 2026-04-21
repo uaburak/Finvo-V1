@@ -13,6 +13,10 @@ enum RecurrenceInterval: String, Codable, CaseIterable {
     case weekly = "Haftalık"
     case monthly = "Aylık"
     case yearly = "Yıllık"
+
+    // Firestore'da halihazırda Türkçe rawValue olarak kayıtlı olduğu için rawValue
+    // değişmiyor. UI gösterimi için `title` üzerinden yerelleştirme yapılır.
+    var title: String { rawValue.localized }
 }
 
 struct TransactionModel: Codable, Identifiable, Equatable, Hashable {

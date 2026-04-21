@@ -29,11 +29,15 @@ struct FinvoApp: App {
     init() {
         // Konsoldaki gereksiz AutoLayout ve klavye uyarılarını gizlemek için
         UserDefaults.standard.set(false, forKey: "_UIConstraintBasedLayoutLogUnsatisfiable")
-        
+
+        // Uygulama dilini, Bundle swizzling üzerinden uygula (çalışma zamanında dil değişimi)
+        let savedLanguage = UserDefaults.standard.string(forKey: "appLanguage") ?? "tr"
+        LocalizationManager.setLanguage(savedLanguage)
+
         // Segment Control: Başlangıç temasına göre ayarla
         let themeStr = UserDefaults.standard.string(forKey: "appThemeColor") ?? AppThemeColor.neonGreen.rawValue
         let selectedTheme = AppThemeColor(rawValue: themeStr) ?? .neonGreen
-        
+
         UISegmentedControl.appearance().selectedSegmentTintColor = selectedTheme.uiColor
         UISegmentedControl.appearance().setTitleTextAttributes(
             [.foregroundColor: selectedTheme.uiOnBrandPrimary], for: .selected
@@ -67,6 +71,12 @@ struct FinvoApp: App {
             .environmentObject(authManager)
             .environment(\.locale, Locale(identifier: appLanguage))
             .environment(\.theme, DefaultTheme(colorIdentifier: appThemeColor))
+            // appLanguage değişince tüm view hiyerarşisi yeniden kurulsun.
+            // Bundle.setLanguage(...) üzerinden localizedString kaynağı zaten değişiyor.
+            .id(appLanguage)
+            .onChange(of: appLanguage) { newLanguage in
+                LocalizationManager.setLanguage(newLanguage)
+            }
             .onChange(of: appThemeColor) { newValue in
                 let newTheme = AppThemeColor(rawValue: newValue) ?? .neonGreen
                 UISegmentedControl.appearance().selectedSegmentTintColor = newTheme.uiColor

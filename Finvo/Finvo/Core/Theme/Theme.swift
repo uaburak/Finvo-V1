@@ -16,7 +16,7 @@ enum AppThemeColor: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var title: String {
+    var titleKey: String {
         switch self {
         case .neonGreen: return "Finvo Yeşil (Mevcut)"
         case .blue: return "Mavi"
@@ -24,6 +24,8 @@ enum AppThemeColor: String, CaseIterable, Identifiable {
         case .orange: return "Turuncu"
         }
     }
+
+    var title: String { titleKey.localized }
     var color: Color {
         switch self {
         case .neonGreen: return Color(hex: "AEFF23")

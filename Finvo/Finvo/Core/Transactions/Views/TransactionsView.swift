@@ -3,6 +3,8 @@ import SwiftUI
 enum TransactionsViewMode: String, CaseIterable {
     case list = "Liste"
     case calendar = "Takvim"
+
+    var title: String { rawValue.localized }
 }
 
 enum DateFilterMode: String, CaseIterable {
@@ -11,6 +13,8 @@ enum DateFilterMode: String, CaseIterable {
     case monthly = "Aylık"
     case yearly = "Yıllık"
     case custom = "Özel Aralık"
+
+    var title: String { rawValue.localized }
 }
 
 struct TransactionsView: View {
@@ -139,21 +143,28 @@ struct TransactionsView: View {
         if let catId = selectedCategory {
             let availableCategories = CategoryManager.shared.categories.isEmpty ? CategoriesMockData.data : CategoryManager.shared.categories
             if let cat = availableCategories.first(where: { $0.id == catId }) {
-                return cat.name
+                return cat.name.localized
             }
         }
-        return "Kategoriler"
+        return "Kategoriler".localized
     }
-    
+
     private var dateFilterLabel: String {
         if dateFilterMode == .custom {
+            let appLanguage = UserDefaults.standard.string(forKey: "appLanguage") ?? "tr"
             let formatter = DateFormatter()
             formatter.dateFormat = "d MMM"
-            formatter.locale = Locale(identifier: "tr_TR")
+            formatter.locale = Locale(identifier: appLanguage)
             return "\(formatter.string(from: startDate)) - \(formatter.string(from: endDate))"
         } else {
-            return dateFilterMode.rawValue
+            return dateFilterMode.title
         }
+    }
+
+    private var dateFilterLabelForToolbar: String {
+        if dateFilterMode == .custom { return dateFilterLabel }
+        if dateFilterMode == .all { return "Zaman Filtresi".localized }
+        return dateFilterMode.title
     }
 
     var body: some View {
@@ -200,7 +211,7 @@ struct TransactionsView: View {
                         // 1. Görünüm (Açıkta kalan Segmented Control - İstediğin gibi)
                         Picker("Görünüm", selection: $viewMode) {
                             ForEach(TransactionsViewMode.allCases, id: \.self) { mode in
-                                Text(mode.rawValue).tag(mode)
+                                Text(mode.title).tag(mode)
                             }
                         }
                         .pickerStyle(.segmented)
@@ -213,7 +224,7 @@ struct TransactionsView: View {
                                 Text("Tüm Kategoriler").tag(Optional<String>.none)
                                 let availableCategories = CategoryManager.shared.categories.isEmpty ? CategoriesMockData.data : CategoryManager.shared.categories
                                 ForEach(availableCategories.filter { $0.type == selectedType }) { cat in
-                                    Text(cat.name).tag(Optional(cat.id))
+                                    Text(LocalizedStringKey(cat.name)).tag(Optional(cat.id))
                                 }
                             }
                         } label: {
@@ -226,9 +237,9 @@ struct TransactionsView: View {
                                     .foregroundStyle(.secondary)
                             }
                         }
-                        
+
                         Divider()
-                        
+
                         // 3. Zaman Filtresi (Menü içine alındı)
                         Menu {
                             Picker("Zaman Filtresi", selection: $dateFilterMode) {
@@ -242,7 +253,7 @@ struct TransactionsView: View {
                             }
                         } label: {
                             HStack {
-                                Label(dateFilterMode == .custom ? dateFilterLabel : (dateFilterMode == .all ? "Zaman Filtresi" : dateFilterMode.rawValue), systemImage: "calendar.badge.clock")
+                                Label(dateFilterLabelForToolbar, systemImage: "calendar.badge.clock")
                                     .foregroundStyle(theme.labelPrimary)
                                 Spacer()
                                 Image(systemName: "chevron.up.chevron.down")
