@@ -71,9 +71,7 @@ struct FinvoApp: App {
             .environmentObject(authManager)
             .environment(\.locale, Locale(identifier: appLanguage))
             .environment(\.theme, DefaultTheme(colorIdentifier: appThemeColor))
-            // appLanguage değişince tüm view hiyerarşisi yeniden kurulsun.
             // Bundle.setLanguage(...) üzerinden localizedString kaynağı zaten değişiyor.
-            .id(appLanguage)
             .onChange(of: appLanguage) { _, newLanguage in
                 LocalizationManager.setLanguage(newLanguage)
             }

@@ -62,6 +62,7 @@ struct SettingsView: View {
                     } label: {
                         Label("Uygulama Dili", systemImage: "globe")
                     }
+                    .tint(theme.labelPrimary)
                     
                     Picker(selection: $appThemeColor) {
                         ForEach(AppThemeColor.allCases) { themeColor in
@@ -70,6 +71,7 @@ struct SettingsView: View {
                     } label: {
                         Label("Tema Rengi", systemImage: "paintpalette")
                     }
+                    .tint(theme.labelPrimary)
                     
                     Picker(selection: $appCurrency) {
                         let allowedFiatCodes = ["TRY", "USD", "EUR", "GBP", "CHF", "CAD", "RUB"]
@@ -79,6 +81,7 @@ struct SettingsView: View {
                     } label: {
                         Label("Para Birimi", systemImage: "coloncurrencysign.circle")
                     }
+                    .tint(theme.labelPrimary)
                 }
                 
                 // MARK: - Abonelik

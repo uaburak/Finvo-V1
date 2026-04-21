@@ -16,7 +16,7 @@ struct CurrencyType: RawRepresentable, Codable, Hashable, Identifiable {
     var rawValue: String { code }
     
     var name: String {
-        if let n = customName, !n.isEmpty { return n }
+        if let n = customName, !n.isEmpty { return n.localized }
         return code
     }
     
@@ -31,12 +31,34 @@ struct CurrencyType: RawRepresentable, Codable, Hashable, Identifiable {
     var icon: String {
         switch code {
         case "TRY": return "turkishlirasign"
-        case "USD", "CAD", "AUD": return "dollarsign"
+        case "USD", "CAD", "NZD", "HKD", "TWD": return "dollarsign"
         case "EUR": return "eurosign"
         case "GBP": return "sterlingsign"
         case "CHF": return "francsign"
-        case "JPY": return "yensign"
         case "RUB": return "rublesign"
+        case "AUD": return "australiandollarsign"
+        case "DKK": return "danishkronesign"
+        case "SEK": return "swedishkronasign"
+        case "NOK": return "norwegiankronesign"
+        case "JPY": return "yensign"
+        case "ILS": return "shekelsign"
+        case "INR": return "indianrupeesign"
+        case "MXN", "ARS", "CLP", "COP", "PHP", "UYU": return "pesosign"
+        case "BRL": return "brazilianrealsign"
+        case "IDR", "LKR", "PKR": return "rupeesign"
+        case "PLN": return "polishzlotysign"
+        case "CNY": return "chineseyuanrenminbisign"
+        case "AZN": return "manatsign"
+        case "CRC": return "coloncurrencysign"
+        case "KRW": return "wonsign"
+        case "KZT": return "tengesign"
+        case "MYR": return "malaysianringgitsign"
+        case "PEN": return "peruviansolessign"
+        case "SGD": return "singaporedollarsign"
+        case "THB": return "bahtsign"
+        case "UAH": return "hryvniasign"
+        case "GEL": return "larisign"
+        case "DBITCOIN": return "bitcoinsign"
         case "gram-altin", "ceyrek-altin", "yarim-altin", "tam-altin", "cumhuriyet-altini", "ata-altin": return "medal.fill"
         case "gumus": return "circle.hexagongrid.fill"
         default: return "globe"

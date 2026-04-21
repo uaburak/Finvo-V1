@@ -100,13 +100,13 @@ struct TransactionDetailView: View {
             }
 
             VStack(alignment: .center, spacing: 4) {
-                Text(transaction.resolvedSubCategoryName ?? transaction.resolvedMainCategoryName)
+                Text(LocalizedStringKey(transaction.resolvedSubCategoryName ?? transaction.resolvedMainCategoryName))
                     .font(.title2)
                     .fontWeight(.bold)
                     .foregroundColor(theme.labelPrimary)
                 
                 if transaction.resolvedSubCategoryName != nil {
-                    Text(transaction.resolvedMainCategoryName)
+                    Text(LocalizedStringKey(transaction.resolvedMainCategoryName))
                         .font(.subheadline)
                         .foregroundColor(theme.labelSecondary)
                 }

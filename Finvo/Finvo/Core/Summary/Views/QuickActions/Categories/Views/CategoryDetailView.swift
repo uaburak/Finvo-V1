@@ -186,7 +186,7 @@ struct CategoryDetailView: View {
                 }
             }
         } message: {
-            Text("'\(subCategoryToDelete?.name ?? "")' \("alt kategorisini ve ona bağlı tüm verileri silmek istediğinizden emin misiniz?".localized)\n\n\(impactSummary)")
+            Text("'\(subCategoryToDelete?.name.localized ?? "")' \("alt kategorisini ve ona bağlı tüm verileri silmek istediğinizden emin misiniz?".localized)\n\n\(impactSummary)")
         }
     }
     

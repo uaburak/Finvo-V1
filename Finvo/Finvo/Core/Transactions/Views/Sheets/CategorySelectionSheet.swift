@@ -17,7 +17,7 @@ struct CategorySelectionSheet: View {
         NavigationStack {
             List(categories) { category in
                 NavigationLink(destination: subCategoryView(for: category)) {
-                    Label(category.name, systemImage: category.icon)
+                    Label(category.localizedName, systemImage: category.icon)
                         .foregroundStyle(theme.labelPrimary)
                 }
                 .listRowBackground(theme.cardBackground)
@@ -41,7 +41,7 @@ struct CategorySelectionSheet: View {
                 selectedSubCategory = sub
                 dismiss()
             } label: {
-                Label(sub.name, systemImage: sub.icon)
+                Label(sub.localizedName, systemImage: sub.icon)
                     .foregroundStyle(theme.labelPrimary)
             }
             .listRowBackground(theme.cardBackground)

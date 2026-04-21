@@ -1,0 +1,95 @@
+Netflix
+Disney+
+YouTube Premium
+Amazon Prime
+BluTV
+MUBI
+Gain / Exxen
+Spotify
+Apple Music
+Tidal / Deezer
+PlayStation Plus
+Xbox Game Pass
+Nintendo Online
+EA Play
+Gemini Advanced
+ChatGPT Plus
+Claude Pro
+GitHub Copilot
+Midjourney
+Cursor IDE
+Adobe Creative Cloud
+Figma Pro
+Canva Pro
+Notion
+iCloud+
+Google One
+Dropbox
+Vercel / Supabase
+Kredi Kartı Ödemesi
+İhtiyaç Kredisi
+Araç / Konut Kredisi
+KMH / Artı Para
+EFT / Havale Ücreti
+Banka Aidatı
+Akaryakıt / LPG
+Periyodik Bakım & Servis
+Trafik Sigortası & Kasko
+Otopark & HGS
+Oto Yıkama
+Taksi & Toplu Taşıma
+Kira
+Elektrik
+Su
+Doğalgaz / Isınma
+İnternet
+Telefon Faturası
+Aidat
+Süpermarket
+Kasap & Manav
+Damacana Su
+Temizlik Malzemeleri
+Tekel & Atıştırmalık
+Restoran & Yemek
+Kahve & Çay
+Fast Food
+Dışarıda Eğlence & Bar
+Uygulama İçi Satın Alma
+Domain & Hosting (Yıllık)
+Asset & Plugin Alımı
+Elektronik Cihaz
+Konsol Oyunu Satın Alma
+Steam / Epic Alışverişi
+Oyun İçi Satın Alma
+Aksesuar (Kol, Kulaklık)
+Mobilya & Dekorasyon
+Akıllı Ev Cihazları
+Ev Tamirat & Tadilat
+Eczane & İlaç
+Hastane & Doktor
+Kuaför & Berber
+Kişisel Bakım & Kozmetik
+Kıyafet
+Ayakkabı
+Çanta & Takı
+Kurs & Udemy
+Kitap & Dergi
+Seminer & Etkinlik
+Uçak / Otobüs Bileti
+Otel / Konaklama
+Vize & Pasaport
+Yolculuk Harcamaları
+Enstrüman Ekipmanı
+Konser & Etkinlik
+Diğer Hobiler
+Hediye Alımları
+Bağış & Yardımlaşma
+Maaş
+Prim / Bonus
+Yol / Yemek Yardımı
+App Store / IAP Geliri
+Dış Proje / Web Tasarım
+UI/UX Tasarım Satışı
+Cashback / İadeler
+İkinci El Satış
+Hediye / Diğer

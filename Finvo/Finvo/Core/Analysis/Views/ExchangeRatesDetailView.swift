@@ -17,8 +17,9 @@ struct ExchangeRatesDetailView: View {
             }
         }
         
+        let priorityMap: [String: Int] = ["TRY": 0, "USD": 1, "EUR": 2]
+        
         return baseList.sorted { a, b in
-            let priorityMap: [String: Int] = ["TRY": 0, "USD": 1, "EUR": 2]
             let aPriority = priorityMap[a.code] ?? 99
             let bPriority = priorityMap[b.code] ?? 99
             
@@ -30,11 +31,14 @@ struct ExchangeRatesDetailView: View {
     }
     
     var body: some View {
+        let currentFilteredCurrencies = filteredCurrencies
+        let firstCurrencyId = currentFilteredCurrencies.first?.id
+        
         VStack(spacing: 0) {
             List {
-                ForEach(filteredCurrencies) { currency in
+                ForEach(currentFilteredCurrencies) { currency in
                     if let data = exchangeRateManager.marketData[currency] {
-                        let isFirst = currency.id == filteredCurrencies.first?.id
+                        let isFirst = currency.id == firstCurrencyId
                         let isPositive = data.change.starts(with: "%-") == false && data.change != "%0,00"
                         let resolvedColor = isPositive ? theme.brandPrimary : theme.expense
                         
