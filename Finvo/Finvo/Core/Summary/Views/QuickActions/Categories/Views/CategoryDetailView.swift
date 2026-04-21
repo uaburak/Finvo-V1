@@ -96,11 +96,11 @@ struct CategoryDetailView: View {
                 }
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(category.name)
+                    Text(category.localizedName)
                         .font(.headline)
                         .foregroundColor(theme.labelPrimary)
                     
-                    Text("\(category.subCategories.count) Alt Kategori • \(category.type == .expense ? L10n("Gider") : L10n("Gelir"))")
+                    Text("\(category.subCategories.count) \(L10n("Alt Kategori")) • \(category.type == .expense ? L10n("Gider") : L10n("Gelir"))")
                         .font(.footnote)
                         .foregroundColor(theme.labelSecondary)
                 }
@@ -118,7 +118,7 @@ struct CategoryDetailView: View {
             .glassEffect(in: .rect(cornerRadius: 24.0))
             .padding(.horizontal, 16)
         }
-        .navigationTitle(category.name)
+        .navigationTitle(category.localizedName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

@@ -8,12 +8,12 @@ enum CalendarFilterType: String, CaseIterable {
     case transactionsOnly = "İşlemler"
     
     var localizedTitle: String {
-        let appLang = UserDefaults.standard.string(forKey: "appLanguage") ?? "tr"
-        if let path = Bundle.main.path(forResource: appLang, ofType: "lproj"),
-           let bundle = Bundle(path: path) {
-            return bundle.localizedString(forKey: self.rawValue, value: nil, table: nil)
+        switch self {
+        case .weekly: return L10n("Haftalık")
+        case .monthly: return L10n("Aylık")
+        case .yearly: return L10n("Yıllık")
+        case .transactionsOnly: return L10n("İşlemler")
         }
-        return NSLocalizedString(self.rawValue, comment: "")
     }
     
     var icon: String {
