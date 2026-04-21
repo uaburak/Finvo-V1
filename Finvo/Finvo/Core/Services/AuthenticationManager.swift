@@ -182,3 +182,77 @@ class AuthenticationManager: ObservableObject {
         self.user = authResult.user
     }
 }
+
+// MARK: - ImageCacheManager
+import SwiftUI
+
+class ImageCacheManager {
+    static let shared = ImageCacheManager()
+    
+    private init() {}
+    
+    // NSCache, bellekte (RAM) tutup hızlıca geri getirmeyi sağlar.
+    private let cache = NSCache<NSString, UIImage>()
+    
+    /// Resmi hem belleğe hem diske kaydeder
+    func saveImage(image: UIImage, for urlString: String) {
+        // 1. Belleğe kaydet
+        cache.setObject(image, forKey: urlString as NSString)
+        
+        // 2. Diske kaydet
+        let path = getImagePath(for: urlString)
+        if let data = image.jpegData(compressionQuality: 0.8) {
+            try? data.write(to: path)
+        }
+    }
+    
+    /// Resmi bellekte arar, bulamazsa diskte arar
+    func getImage(for urlString: String) -> UIImage? {
+        // 1. Bellekte var mı?
+        if let cachedImage = cache.object(forKey: urlString as NSString) {
+            return cachedImage
+        }
+        
+        // 2. Diskte var mı?
+        let path = getImagePath(for: urlString)
+        if let data = try? Data(contentsOf: path), let image = UIImage(data: data) {
+            // Bir dahaki sefere daha hızlı gelmesi için belleğe de atalım
+            cache.setObject(image, forKey: urlString as NSString)
+            return image
+        }
+        
+        // Hiçbir yerde yok
+        return nil
+    }
+    
+    /// URL üzerinden güvenli bir yerel dosya yolu (URL) oluşturur
+    private func getImagePath(for urlString: String) -> URL {
+        let folderName = "profile_images"
+        let fileManager = FileManager.default
+        let cachesDirectory = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        let folderURL = cachesDirectory.appendingPathComponent(folderName)
+        
+        // Klasör yoksa oluştur
+        if !fileManager.fileExists(atPath: folderURL.path) {
+            try? fileManager.createDirectory(at: folderURL, withIntermediateDirectories: true, attributes: nil)
+        }
+        
+        // URL karakterleri dosya sistemi için geçerli olmayabilir, o yüzden temiz ve eşsiz bir ad yapalım
+        let rawBase64 = urlString.data(using: .utf8)?.base64EncodedString() ?? UUID().uuidString
+        let safeImageName = rawBase64.components(separatedBy: .alphanumerics.inverted).joined()
+        
+        return folderURL.appendingPathComponent(safeImageName + ".jpg")
+    }
+    
+    /// Tüm önbelleği temizler (Gerekirse ayarlar veya çıkış yaparken kullanılabilir)
+    func clearCache() {
+        cache.removeAllObjects()
+        
+        let folderName = "profile_images"
+        let fileManager = FileManager.default
+        guard let cachesDirectory = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first else { return }
+        
+        let folderURL = cachesDirectory.appendingPathComponent(folderName)
+        try? fileManager.removeItem(at: folderURL)
+    }
+}

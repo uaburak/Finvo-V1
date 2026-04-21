@@ -7,7 +7,6 @@ struct SettingsView: View {
     @EnvironmentObject var walletManager: WalletManager
     @StateObject private var exchangeRateManager = ExchangeRateManager.shared
     @State private var isGenerating = false
-    @State private var showProfileSheet = false
     
     // Seçilen dili cihazda System Defaults olarak saklar
     @AppStorage("appLanguage") private var appLanguage: String = "tr"
@@ -27,14 +26,20 @@ struct SettingsView: View {
             List {
                 // MARK: - Profil Özeti
                 Section {
-                    Button {
-                        showProfileSheet = true
+                    NavigationLink {
+                        ProfileSettingsView()
+                            .environmentObject(authManager)
+                            .environmentObject(walletManager)
                     } label: {
-                        HStack(spacing: 16) {
-                            ProfileImageView(photoURL: authManager.user?.photoURL)
-                                .frame(width: 60, height: 60)
+                        HStack(spacing: 12) {
+                            CachedProfileImage(
+                                urlString: authManager.currentUserProfile?.photoUrl,
+                                width: 56,
+                                height: 56,
+                                fallbackIconSize: 28
+                            )
 
-                            VStack(alignment: .leading, spacing: 4) {
+                            VStack(alignment: .leading, spacing: 2) {
                                 Text(authManager.currentUserProfile?.fullName ?? "Finvo Kullanıcısı".localized)
                                     .font(.headline)
                                     .foregroundColor(theme.labelPrimary)
@@ -43,15 +48,9 @@ struct SettingsView: View {
                                     .font(.subheadline)
                                     .foregroundColor(theme.labelSecondary)
                             }
-
-                            Spacer()
-
-                            Image(systemName: "chevron.right")
-                                .font(.caption.weight(.bold))
-                                .foregroundColor(theme.labelSecondary)
                         }
-                        .padding(.vertical, 8)
                     }
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 }
                 
                 // MARK: - Uygulama Ayarları
@@ -138,12 +137,6 @@ struct SettingsView: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("Ayarlar")
-            .sheet(isPresented: $showProfileSheet) {
-                ProfileSettingsView()
-                    .environmentObject(authManager)
-                    .environmentObject(walletManager)
-            }
             .navigationTitle("Ayarlar")
         }
     }

@@ -49,7 +49,7 @@ struct CategoryDetailView: View {
                             Button(role: .destructive) {
                                 if authManager.currentUserProfile?.isPro == true {
                                     let impact = transactionManager.getImpact(mainCategoryId: category.id, subCategoryId: sub.id)
-                                    impactSummary = "\(impact.transactionCount) işlem girişi ve \(impact.recurringCount) tekrarlayan işleminiz silinecek."
+                                    impactSummary = String(format: "%d %@ %d %@", impact.transactionCount, "işlem girişi ve".localized, impact.recurringCount, "tekrarlayan işleminiz silinecek.".localized)
                                     subCategoryToDelete = sub
                                     showDeleteConfirmation = true
                                 } else {
@@ -100,7 +100,7 @@ struct CategoryDetailView: View {
                         .font(.headline)
                         .foregroundColor(theme.labelPrimary)
                     
-                    Text("\(category.subCategories.count) ") + Text("Alt Kategori") + Text(verbatim: " • ") + Text(category.type.localizedTitle)
+                    Text("\(category.subCategories.count) \(Text(LocalizedStringKey("Alt Kategori"))) • \(Text(category.type.localizedTitle))")
                         .font(.footnote)
                         .foregroundColor(theme.labelSecondary)
                 }
@@ -153,17 +153,17 @@ struct CategoryDetailView: View {
                 .presentationBackground(.clear)
                 .presentationDragIndicator(.hidden)
         }
-        .alert("Pro Üyelik Gerekli", isPresented: $categoryManager.showProAlert) {
-            Button("Tamam", role: .cancel) { }
-            Button("Pro'ya Geç") {
+        .alert(LocalizedStringKey("Pro Üyelik Gerekli"), isPresented: $categoryManager.showProAlert) {
+            Button(LocalizedStringKey("Tamam"), role: .cancel) { }
+            Button(LocalizedStringKey("Pro'ya Geç")) {
                 // Ileride pro ekrani eklenecek
             }
         } message: {
-            Text("Alt kategori ekleme, silme ve düzenleme işlemleri sadece Pro üyelerimiz içindir.")
+            Text(LocalizedStringKey("Alt kategori ekleme, silme ve düzenleme işlemleri sadece Pro üyelerimiz içindir."))
         }
-        .alert("Yetki Gerekli", isPresented: $showPermissionAlert) {
-            Button("Vazgeç", role: .cancel) { }
-            Button("Yetki İste (Admin)") {
+        .alert(LocalizedStringKey("Yetki Gerekli"), isPresented: $showPermissionAlert) {
+            Button(LocalizedStringKey("Vazgeç"), role: .cancel) { }
+            Button(LocalizedStringKey("Yetki İste (Admin)")) {
                 if let activeWallet = walletManager.activeWallet, let walletId = activeWallet.id {
                     notificationManager.sendRoleRequest(walletId: walletId, walletName: activeWallet.name, ownerUsername: activeWallet.ownerId, requestedRole: .admin)
                     hapticNotification.notificationOccurred(.success)
@@ -171,22 +171,22 @@ struct CategoryDetailView: View {
                 }
             }
         } message: {
-            Text("Alt kategori eklemek için bu cüzdanda 'Admin' veya 'Kurucu' yetkisine sahip olmanız gerekmektedir.")
+            Text(LocalizedStringKey("Alt kategori eklemek için bu cüzdanda 'Admin' veya 'Kurucu' yetkisine sahip olmanız gerekmektedir."))
         }
-        .alert("İstek Gönderildi", isPresented: $showRoleRequestSentAlert) {
-            Button("Tamam", role: .cancel) { }
+        .alert(LocalizedStringKey("İstek Gönderildi"), isPresented: $showRoleRequestSentAlert) {
+            Button(LocalizedStringKey("Tamam"), role: .cancel) { }
         } message: {
-            Text("Yönetici yetkisi isteğiniz cüzdan sahibine iletildi.")
+            Text(LocalizedStringKey("Yönetici yetkisi isteğiniz cüzdan sahibine iletildi."))
         }
-        .alert("Alt Kategoriyi Sil?", isPresented: $showDeleteConfirmation) {
-            Button("Vazgeç", role: .cancel) { }
-            Button("Sil", role: .destructive) {
+        .alert(LocalizedStringKey("Alt Kategoriyi Sil?"), isPresented: $showDeleteConfirmation) {
+            Button(LocalizedStringKey("Vazgeç"), role: .cancel) { }
+            Button(LocalizedStringKey("Sil"), role: .destructive) {
                 if let sub = subCategoryToDelete {
                     performDelete(sub)
                 }
             }
         } message: {
-            Text("'\(subCategoryToDelete?.name ?? "")' alt kategorisini ve ona bağlı tüm verileri silmek istediğinizden emin misiniz?\n\n\(impactSummary)")
+            Text("'\(subCategoryToDelete?.name ?? "")' \("alt kategorisini ve ona bağlı tüm verileri silmek istediğinizden emin misiniz?".localized)\n\n\(impactSummary)")
         }
     }
     

@@ -96,7 +96,7 @@ struct SummaryView: View {
                     .presentationBackground(.clear)
                     .presentationDragIndicator(.hidden)
             }
-            .sheet(isPresented: $showSettings) {
+            .navigationDestination(isPresented: $showSettings) {
                 ProfileSettingsView()
                     .environmentObject(authManager)
                     .environmentObject(walletManager)
@@ -171,7 +171,7 @@ struct SummaryView: View {
         // SwiftUI 16'da TitleMenu destekleniyor. Önceki principal item'ı siliyoruz)
         // Sağ Bölüm (Profil / Avatar)
         ToolbarItem(placement: .topBarTrailing) {
-            ProfileImageView(photoURL: authManager.user?.photoURL)
+            ProfileImageView(photoURLString: authManager.currentUserProfile?.photoUrl)
                 .onTapGesture {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
                     showSettings = true

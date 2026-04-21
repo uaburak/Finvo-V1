@@ -74,10 +74,10 @@ struct FinvoApp: App {
             // appLanguage değişince tüm view hiyerarşisi yeniden kurulsun.
             // Bundle.setLanguage(...) üzerinden localizedString kaynağı zaten değişiyor.
             .id(appLanguage)
-            .onChange(of: appLanguage) { newLanguage in
+            .onChange(of: appLanguage) { _, newLanguage in
                 LocalizationManager.setLanguage(newLanguage)
             }
-            .onChange(of: appThemeColor) { newValue in
+            .onChange(of: appThemeColor) { _, newValue in
                 let newTheme = AppThemeColor(rawValue: newValue) ?? .neonGreen
                 UISegmentedControl.appearance().selectedSegmentTintColor = newTheme.uiColor
                 UISegmentedControl.appearance().setTitleTextAttributes(

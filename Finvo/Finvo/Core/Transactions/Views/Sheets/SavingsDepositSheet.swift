@@ -91,7 +91,7 @@ struct SavingsDepositSheet: View {
         .presentationBackground(.clear)
     }
     
-    var navTitle: String {
+    var navTitleKey: String {
         switch currentStep {
         case .direction: return "İşlem Yap"
         case .type:   return isAdding ? "Para Ekle" : "Para Çıkar"
@@ -214,7 +214,7 @@ struct SavingsDepositSheet: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .searchable(text: $searchText, prompt: "Varlık Ara")
+        .searchable(text: $searchText, prompt: LocalizedStringKey("Varlık Ara"))
     }
     
     // MARK: - Step 3: Miktar
@@ -222,10 +222,10 @@ struct SavingsDepositSheet: View {
         VStack(spacing: 24) {
             if let asset = selectedAsset {
                 HStack {
-                    Text("Seçilen Varlık:")
+                    Text(LocalizedStringKey("Seçilen Varlık:"))
                         .foregroundColor(theme.labelSecondary)
                     Spacer()
-                    Text("\(asset.name) (\(asset.code))")
+                    Text("\(asset.name.localized) (\(asset.code))")
                         .fontWeight(.semibold)
                         .foregroundColor(theme.labelPrimary)
                 }
@@ -292,7 +292,7 @@ struct SavingsDepositSheet: View {
                     dismiss()
                 }
             } label: {
-                Text(isAdding ? "Ekle" : "Çıkar")
+                Text(LocalizedStringKey(isAdding ? "Ekle" : "Çıkar"))
                     .font(.headline)
                     .foregroundStyle(theme.onBrandPrimary)
                     .frame(maxWidth: .infinity, minHeight: 48)

@@ -67,7 +67,7 @@ struct SummaryMetricsGridView: View {
 
             NavigationLink(value: "PaymentCalendar") {
                 if upcomingList.count > 0 {
-                    let amount: LocalizedStringKey = "\(upcomingList.count) Ödeme (\(appCurrency.symbol)\(upcomingTotal.formatted(.number.precision(.fractionLength(0)))))"
+                    let amount: LocalizedStringKey = "\(upcomingList.count) \("Ödeme".localized) (\(appCurrency.symbol)\(upcomingTotal.formatted(.number.precision(.fractionLength(0)))))"
                     MetricCardView(title: "Ödeme Takvimi", amount: amount, iconName: "calendar.badge.clock", iconColor: .orange, progress: 1.0)
                 } else {
                     MetricCardView(title: "Ödeme Takvimi", amount: "Yaklaşan Yok", iconName: "calendar.badge.clock", iconColor: .orange, progress: nil)
@@ -214,7 +214,7 @@ struct PaymentCalendarDetailView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "chevron.up.chevron.down")
                             .font(.system(size: 14, weight: .bold))
-                        Text("Bugün")
+                        Text(LocalizedStringKey("Bugün"))
                             .font(.system(size: 14, weight: .bold))
                     }
                     .foregroundColor(theme.labelPrimary)
@@ -227,7 +227,7 @@ struct PaymentCalendarDetailView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        Picker("Görünüm", selection: $filterType) {
+                        Picker(LocalizedStringKey("Görünüm"), selection: $filterType) {
                             ForEach(CalendarFilterType.allCases, id: \.self) { type in
                                 Label(type.title, systemImage: type.icon)
                                     .tag(type)
@@ -259,13 +259,13 @@ struct PaymentCalendarDetailView: View {
     private var emptyRow: some View {
         HStack {
             Circle().fill(.gray.opacity(0.2)).frame(width: 4, height: 4)
-            Text("Ödeme Yok").font(.caption2).foregroundColor(.secondary.opacity(0.5))
+            Text(LocalizedStringKey("Ödeme Yok")).font(.caption2).foregroundColor(.secondary.opacity(0.5))
         }
         .listRowBackground(Color.clear).listRowSeparator(.hidden)
     }
     
     private func calendarRow(_ tx: TransactionModel) -> some View {
-        let converted = ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: appCurrency)
+        _ = ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: appCurrency)
         let days = Calendar.current.daysFromToday(to: tx.date)
         let isPastPayment = tx.isPaid
         
@@ -287,16 +287,16 @@ struct PaymentCalendarDetailView: View {
         let statusText: String
         let statusColor: Color
         if isPastPayment {
-            statusText = "Ödendi"
+            statusText = "Ödendi".localized
             statusColor = theme.income
         } else if days == 0 {
-            statusText = "Bugün"
+            statusText = "Bugün".localized
             statusColor = theme.expense
         } else if days < 0 {
-            statusText = "Gecikti"
+            statusText = "Gecikti".localized
             statusColor = theme.expense
         } else {
-            statusText = "\(days) gün"
+            statusText = "\(days) \("gün".localized)"
             statusColor = days <= 3 ? theme.expense : .secondary
         }
         
