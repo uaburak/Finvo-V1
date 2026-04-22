@@ -1,5 +1,4 @@
 import SwiftUI
-
 struct ListItem: View {
     // Left Icon Configuration
     let icon: String
@@ -8,20 +7,22 @@ struct ListItem: View {
     // Main Content
     let title: LocalizedStringKey
     let subtitle: LocalizedStringKey
-    let username: String? // New
-    let isRecurring: Bool // New
+    let username: String?
+    let isRecurring: Bool
     
     // Right Side Content (Optional)
     var value: String? = nil
     var valueColor: Color = .primary
     var secondaryInfo: String? = nil
-    var secondaryInfoColor: Color = .gray // New property
-    var isOn: Binding<Bool>? = nil // New: Toggle support
-    var iconForegroundColor: Color = .white // New: Icon color support
+    var secondaryInfoColor: Color = .gray
+    var isOn: Binding<Bool>? = nil
+    var iconForegroundColor: Color = .white
     
-    // Init with defaults for new properties to keep backward compatibility if needed, 
-    // or just update since I control all calls.
-    init(icon: String, iconColor: Color, title: LocalizedStringKey, subtitle: LocalizedStringKey, username: String? = nil, isRecurring: Bool = false, value: String? = nil, valueColor: Color = .primary, secondaryInfo: String? = nil, secondaryInfoColor: Color = .gray, isOn: Binding<Bool>? = nil, iconForegroundColor: Color = .white) {
+    // Flexible Additions
+    var middleView: AnyView? = nil
+    var customTrailingView: AnyView? = nil
+    
+    init(icon: String, iconColor: Color, title: LocalizedStringKey, subtitle: LocalizedStringKey, username: String? = nil, isRecurring: Bool = false, value: String? = nil, valueColor: Color = .primary, secondaryInfo: String? = nil, secondaryInfoColor: Color = .gray, isOn: Binding<Bool>? = nil, iconForegroundColor: Color = .white, middleView: AnyView? = nil, customTrailingView: AnyView? = nil) {
         self.icon = icon
         self.iconColor = iconColor
         self.title = title
@@ -34,10 +35,12 @@ struct ListItem: View {
         self.secondaryInfoColor = secondaryInfoColor
         self.isOn = isOn
         self.iconForegroundColor = iconForegroundColor
+        self.middleView = middleView
+        self.customTrailingView = customTrailingView
     }
     
     var body: some View {
-        HStack(spacing: 10) { // Reduced spacing further (12 -> 10)
+        HStack(spacing: 10) { 
             // Icon Box
             ZStack(alignment: .topTrailing) {
                 ZStack {
@@ -64,7 +67,7 @@ struct ListItem: View {
                 }
             }
             
-            VStack(alignment: .leading, spacing: 2) { // Increased spacing slightly (0 -> 2)
+            VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.primary)
@@ -84,14 +87,20 @@ struct ListItem: View {
             
             Spacer()
             
+            if let customMiddle = middleView {
+                customMiddle
+            }
+            
             // Right: Value & Info OR Toggle
-            if let isOn = isOn {
+            if let customTrailing = customTrailingView {
+                customTrailing
+            } else if let isOn = isOn {
                 Toggle("", isOn: isOn)
                     .labelsHidden()
                     .tint(.blue)
                     .scaleEffect(0.95)
             } else {
-                VStack(alignment: .trailing, spacing: 2) { // Increased spacing slightly (0 -> 2)
+                VStack(alignment: .trailing, spacing: 2) {
                     if let value = value {
                         Text(value)
                             .font(.system(size: 14, weight: .bold))
@@ -106,10 +115,9 @@ struct ListItem: View {
                 }
             }
         }
-        .padding(.vertical, 2) // Reduced padding further (4 -> 2)
+        .padding(.vertical, 2)
     }
 }
-
 #Preview {
     List {
         ListItem(

@@ -2,8 +2,10 @@ import SwiftUI
 
 struct MemberTransactionsDetailView: View {
     @Environment(\.theme) var theme
+    @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
     let username: String
     let transactions: [TransactionModel]
+
     
     var body: some View {
         ZStack {
@@ -30,10 +32,11 @@ struct MemberTransactionsDetailView: View {
                                 .font(.title3.bold())
                                 .foregroundColor(theme.labelPrimary)
                             
-                            let total = transactions.reduce(0) { $0 + $1.amount }
-                            Text("Hacim: ₺\(total.formatted(.number.precision(.fractionLength(0))))")
+                            let total = transactions.reduce(0) { $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: appCurrency) }
+                            Text("Hacim: \(appCurrency.symbol)\(total.formatted(.number.precision(.fractionLength(0))))")
                                 .font(.subheadline)
                                 .foregroundColor(theme.labelSecondary)
+
                         }
                         .padding(.vertical, 24)
                         .frame(maxWidth: .infinity)
@@ -52,11 +55,12 @@ struct MemberTransactionsDetailView: View {
                             
                             let grouped = Dictionary(grouping: transactions, by: { $0.mainCategoryName })
                             let categorySummaries = grouped.map { key, txs in
-                                let total = txs.reduce(0) { $0 + $1.amount }
+                                let total = txs.reduce(0) { $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: appCurrency) }
                                 let icon = txs.first?.categoryIcon ?? "bag"
                                 let type = txs.first?.type ?? .expense
                                 return (name: key, amount: total, icon: icon, type: type, count: txs.count)
                             }.sorted(by: { $0.amount > $1.amount })
+
                             
                             ForEach(categorySummaries, id: \.name) { cat in
                                 HStack(spacing: 16) {
@@ -80,9 +84,10 @@ struct MemberTransactionsDetailView: View {
                                     
                                     Spacer()
                                     
-                                    Text("\(cat.type == .income ? "+" : "-")₺\(cat.amount.formatted(.number.precision(.fractionLength(0))))")
+                                    Text("\(cat.type == .income ? "+" : "-")\(appCurrency.symbol)\(cat.amount.formatted(.number.precision(.fractionLength(0))))")
                                         .font(.headline.bold())
                                         .foregroundColor(cat.type == .income ? theme.income : theme.labelPrimary)
+
                                 }
                                 .padding(.horizontal, 20)
                                 .padding(.vertical, 12)

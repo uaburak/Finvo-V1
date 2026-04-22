@@ -2,8 +2,10 @@ import SwiftUI
 
 struct AnalysisCollaboratorCard: View {
     @Environment(\.theme) var theme
+    @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
     let contributions: [MemberContribution]
     let allTransactions: [TransactionModel] // Needed for detail view routing
+
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -45,9 +47,10 @@ struct AnalysisCollaboratorCard: View {
                                             .foregroundColor(theme.labelPrimary)
                                             .lineLimit(1)
                                         Spacer()
-                                        Text("₺\(member.amount.formatted(.number.precision(.fractionLength(0))))")
+                                        Text("\(appCurrency.symbol)\(member.amount.formatted(.number.precision(.fractionLength(0))))")
                                             .font(.subheadline.bold())
                                             .foregroundColor(theme.labelPrimary)
+
                                     }
                                     
                                     // Progress Bar
@@ -87,14 +90,13 @@ struct MemberAvatarView: View {
     
     var body: some View {
         ZStack {
-            if let photoUrl = photoUrl, let url = URL(string: photoUrl) {
-                AsyncImage(url: url) { image in
-                    image.resizable().scaledToFill()
-                } placeholder: {
-                    ProgressView()
-                }
-                .frame(width: size, height: size)
-                .clipShape(Circle())
+            if let photoUrl = photoUrl, let _ = URL(string: photoUrl) {
+                CachedProfileImage(
+                    urlString: photoUrl,
+                    width: size,
+                    height: size,
+                    fallbackIconSize: size * 0.4
+                )
             } else {
                 Circle()
                     .fill(theme.brandPrimary.opacity(0.15))
@@ -105,9 +107,22 @@ struct MemberAvatarView: View {
             }
         }
         .task {
-            if let user = try? await FirestoreService.shared.getUserProfileByUsername(username) {
-                self.photoUrl = user.photoUrl
-            }
+            self.photoUrl = await MemberProfileCacheManager.shared.getPhotoUrl(username: username)
         }
+    }
+}
+
+class MemberProfileCacheManager {
+    static let shared = MemberProfileCacheManager()
+    private var photoUrlCache: [String: String?] = [:]
+    
+    func getPhotoUrl(username: String) async -> String? {
+        if let cached = photoUrlCache[username] {
+            return cached
+        }
+        
+        let url = (try? await FirestoreService.shared.getUserProfileByUsername(username))?.photoUrl
+        photoUrlCache[username] = url
+        return url
     }
 }

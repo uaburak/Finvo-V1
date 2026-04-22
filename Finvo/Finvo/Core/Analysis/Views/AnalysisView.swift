@@ -11,15 +11,15 @@ struct AnalysisView: View {
     @Environment(\.theme) var theme
     @EnvironmentObject var transactionManager: TransactionManager
     @EnvironmentObject var walletManager: WalletManager
+    @EnvironmentObject var authManager: AuthenticationManager
     
     // UI States
     @State private var selectedTab: AnalysisTimeFrame = .month
     
-    // Chart Toggles
-    @State private var isLineGraph: Bool = true
     
     // Core Data
     @State private var flowData: [FlowData] = []
+    @State private var globalMaxAmount: Double = 1000
     @State private var biggestTransaction: TransactionModel? = nil
     @State private var recurringTransactions: [TransactionModel] = []
     @State private var categorySummaries: [CategorySummary] = []
@@ -29,6 +29,49 @@ struct AnalysisView: View {
     @State private var selectedFilterType: TransactionTypeFilter = .all
     @State private var isSharingPDF: Bool = false
     @State private var pdfURL: URL? = nil
+    
+    // Gelişmiş Filtre State'leri
+    @State private var showFilterMenu = false
+    @State private var dateFilterMode: DateFilterMode = .all
+    @State private var startDate = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
+    @State private var endDate = Date()
+    @State private var selectedCategory: String? = nil
+    
+    // Pro Limits
+    @State private var showProAlert = false
+    @State private var showPaywall = false
+    
+    private var isFilterActive: Bool {
+        selectedCategory != nil || dateFilterMode != .all || selectedFilterType != .all
+    }
+    
+    private var categoryFilterLabel: String {
+        if let catId = selectedCategory {
+            let availableCategories = CategoryManager.shared.categories.isEmpty ? CategoriesMockData.data : CategoryManager.shared.categories
+            if let cat = availableCategories.first(where: { $0.id == catId }) {
+                return cat.name.localized
+            }
+        }
+        return "Kategoriler".localized
+    }
+
+    private var dateFilterLabel: String {
+        if dateFilterMode == .custom {
+            let appLanguage = UserDefaults.standard.string(forKey: "appLanguage") ?? "tr"
+            let formatter = DateFormatter()
+            formatter.dateFormat = "d MMM"
+            formatter.locale = Locale(identifier: appLanguage)
+            return "\(formatter.string(from: startDate)) - \(formatter.string(from: endDate))"
+        } else {
+            return dateFilterMode.title
+        }
+    }
+
+    private var dateFilterLabelForToolbar: String {
+        if dateFilterMode == .custom { return dateFilterLabel }
+        if dateFilterMode == .all { return "Zaman Filtresi".localized }
+        return dateFilterMode.title
+    }
     
     var body: some View {
         NavigationStack {
@@ -43,8 +86,8 @@ struct AnalysisView: View {
                         AnalysisChartCard(
                             flowData: flowData,
                             chartUnit: chartUnit,
-                            isLineGraph: $isLineGraph,
-                            selectedTab: selectedTab
+                            selectedTab: selectedTab,
+                            globalMaxAmount: globalMaxAmount
                         )
                         .padding(.horizontal, 20)
                         
@@ -95,22 +138,130 @@ struct AnalysisView: View {
                 
                 // Advanced Filter Menu
                 ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Picker("İşlem Tipi", selection: $selectedFilterType) {
-                            ForEach(TransactionTypeFilter.allCases, id: \.self) { type in
-                                Text(type.rawValue).tag(type)
+                    Button {
+                        showFilterMenu.toggle()
+                    } label: {
+                        Image(systemName: isFilterActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                            .foregroundColor(isFilterActive ? Color.accentColor : theme.labelPrimary)
+                            .font(.system(size: 18))
+                    }
+                    .popover(isPresented: $showFilterMenu) {
+                        VStack(alignment: .leading, spacing: 20) {
+                            
+                            // İşlem Tipi Seçimi
+                            Picker("İşlem Tipi", selection: $selectedFilterType) {
+                                ForEach(TransactionTypeFilter.allCases, id: \.self) { type in
+                                    Text(type.rawValue.localized).tag(type)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            
+                            Divider()
+                            
+                            // Kategori Seçimi
+                            Menu {
+                                Picker("Kategori", selection: $selectedCategory) {
+                                    Text("Tüm Kategoriler").tag(Optional<String>.none)
+                                    let availableCategories = CategoryManager.shared.categories.isEmpty ? CategoriesMockData.data : CategoryManager.shared.categories
+                                    ForEach(availableCategories) { cat in
+                                        Text(LocalizedStringKey(cat.name)).tag(Optional(cat.id))
+                                    }
+                                }
+                            } label: {
+                                HStack {
+                                    Label(categoryFilterLabel, systemImage: "folder")
+                                        .foregroundStyle(theme.labelPrimary)
+                                    Spacer()
+                                    Image(systemName: "chevron.up.chevron.down")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+
+                            Divider()
+
+                            // Zaman Filtresi
+                            Menu {
+                                Picker("Zaman Filtresi", selection: $dateFilterMode) {
+                                    Text("Tümü").tag(DateFilterMode.all)
+                                    Text("Haftalık").tag(DateFilterMode.weekly)
+                                    Text("Aylık").tag(DateFilterMode.monthly)
+                                    Text("Yıllık").tag(DateFilterMode.yearly)
+                                    if dateFilterMode == .custom {
+                                        Text(dateFilterLabel).tag(DateFilterMode.custom)
+                                    }
+                                }
+                            } label: {
+                                HStack {
+                                    Label(dateFilterLabelForToolbar, systemImage: "calendar.badge.clock")
+                                        .foregroundStyle(theme.labelPrimary)
+                                    Spacer()
+                                    Image(systemName: "chevron.up.chevron.down")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            
+                            Divider()
+                            
+                            // Tarih Aralığı
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Tarih Aralığı")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                
+                                HStack {
+                                    DatePicker("Başlangıç", selection: $startDate, displayedComponents: .date)
+                                        .labelsHidden()
+                                        .datePickerStyle(.compact)
+                                        .onChange(of: startDate) { _, _ in handleCustomDateSelection() }
+                                    
+                                    Text("-")
+                                    
+                                    DatePicker("Bitiş", selection: $endDate, displayedComponents: .date)
+                                        .labelsHidden()
+                                        .datePickerStyle(.compact)
+                                        .onChange(of: endDate) { _, _ in handleCustomDateSelection() }
+                                }
+                            }
+                            
+                            if isFilterActive {
+                                Divider()
+                                Button(role: .destructive) {
+                                    selectedCategory = nil
+                                    dateFilterMode = .all
+                                    selectedFilterType = .all
+                                    showFilterMenu = false
+                                } label: {
+                                    HStack {
+                                        Spacer()
+                                        Label("Filtreleri Sıfırla", systemImage: "xmark.circle")
+                                        Spacer()
+                                    }
+                                }
                             }
                         }
-                    } label: {
-                        Image(systemName: selectedFilterType == .all ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
-                            .foregroundColor(theme.labelPrimary)
-                            .font(.system(size: 18))
+                        .padding()
+                        .frame(minWidth: 280)
+                        .presentationCompactAdaptation(.popover)
                     }
                 }
             }
             .onAppear {
                 updateData(startAnimation: true)
             }
+            .alert("Pro Yükseltmesi Gerekli", isPresented: $showProAlert) {
+                Button("Pro Ol") {
+                    showPaywall = true
+                }
+                Button("Vazgeç", role: .cancel) { }
+            } message: {
+                Text("Özel tarih aralığı filtreleme ve PDF raporları oluşturma yalnızca Pro üyeler içindir.")
+            }
+            .fullScreenCover(isPresented: $showPaywall) {
+                ProSubscriptionPaywallView()
+            }
+
             .onChange(of: selectedTab) {
                 updateData(startAnimation: true)
             }
@@ -120,6 +271,19 @@ struct AnalysisView: View {
             .onChange(of: selectedFilterType) {
                 updateData(startAnimation: true)
             }
+            .onChange(of: selectedCategory) {
+                updateData(startAnimation: true)
+            }
+            .onChange(of: dateFilterMode) {
+                updateData(startAnimation: true)
+            }
+            .onChange(of: startDate) {
+                updateData(startAnimation: true)
+            }
+            .onChange(of: endDate) {
+                updateData(startAnimation: true)
+            }
+
             .sheet(isPresented: .init(get: { pdfURL != nil }, set: { if !$0 { pdfURL = nil } })) {
                 if let url = pdfURL {
                     ShareSheet(activityItems: [url])
@@ -129,19 +293,53 @@ struct AnalysisView: View {
         }
     }
     
+    // MARK: - Handlers
+    private func handleCustomDateSelection() {
+        if authManager.currentUserProfile?.isPro == true {
+            dateFilterMode = .custom
+        } else {
+            // Revert changes if not pro
+            dateFilterMode = .all
+            showProAlert = true
+        }
+    }
+    
     // MARK: - Data Engine
     private func updateData(startAnimation: Bool = false) {
-        let range = selectedTab
-        let allTxs = transactionManager.transactions
+        var range = selectedTab
+        if dateFilterMode == .weekly { range = .week }
+        else if dateFilterMode == .monthly { range = .month }
+        else if dateFilterMode == .yearly { range = .year }
+        
+        var baseTxs = transactionManager.transactions
+        // Seçili kategori varsa daralt
+        if let catId = selectedCategory {
+            baseTxs = baseTxs.filter { $0.mainCategoryId == catId || $0.mainCategoryName == catId }
+        }
+        
+        let allTxs = baseTxs
         let calendar = Calendar.current
         let now = Date()
         
         var newFlowData: [FlowData] = []
         var filteredTxs: [TransactionModel] = []
         
-        // 1. Seçili Zamana Göre Boş Çatıları (Slotları) Oluştur ve İşlemleri Filtrele
-        switch range {
-        case .day:
+        // 1. İşlemleri Filtrele ve Boş Çatıları (Slotları) Oluştur
+        if dateFilterMode == .custom {
+            let startOfFilter = calendar.startOfDay(for: startDate)
+            let endOfFilter = calendar.date(bySettingHour: 23, minute: 59, second: 59, of: endDate) ?? endDate
+            filteredTxs = allTxs.filter { $0.date >= startOfFilter && $0.date <= endOfFilter }
+            
+            let diffDays = calendar.dateComponents([.day], from: startOfFilter, to: calendar.startOfDay(for: endDate)).day ?? 0
+            let maxDays = max(0, diffDays)
+            for day in 0...maxDays {
+                guard let d = calendar.date(byAdding: .day, value: day, to: startOfFilter) else { continue }
+                newFlowData.append(FlowData(id: d, date: d, netAmount: 0))
+            }
+        } else {
+            switch range {
+            case .day:
+
             let startOfDay = calendar.startOfDay(for: now)
             filteredTxs = allTxs.filter { calendar.isDate($0.date, inSameDayAs: now) }
             for hour in 0..<24 {
@@ -171,20 +369,25 @@ struct AnalysisView: View {
                 guard let d = calendar.date(byAdding: .day, value: day, to: startOfMonth) else { continue }
                 newFlowData.append(FlowData(id: d, date: d, netAmount: 0))
             }
-        case .year:
-            let startOfYear = calendar.dateInterval(of: .year, for: now)?.start ?? now
-            filteredTxs = allTxs.filter {
-                calendar.isDate($0.date, equalTo: now, toGranularity: .year)
-            }
-            for month in 0..<12 {
-                guard let d = calendar.date(byAdding: .month, value: month, to: startOfYear) else { continue }
-                newFlowData.append(FlowData(id: d, date: d, netAmount: 0))
+            case .year:
+                let startOfYear = calendar.dateInterval(of: .year, for: now)?.start ?? now
+                filteredTxs = allTxs.filter {
+                    calendar.isDate($0.date, equalTo: now, toGranularity: .year)
+                }
+                for month in 0..<12 {
+                    guard let d = calendar.date(byAdding: .month, value: month, to: startOfYear) else { continue }
+                    newFlowData.append(FlowData(id: d, date: d, netAmount: 0))
+                }
             }
         }
-        
+
         let baseCurrency = UserDefaults.standard.string(forKey: "appCurrency").flatMap { CurrencyType(rawValue: $0) } ?? .tryCurrency
         
         // 2. Net Nakit Akışını Yuvalara Yerleştir (Gelir - Gider)
+        var monthDict: [Date: Double] = [:]
+        var dayDict: [Date: Double] = [:]
+        var hourDict: [Date: Double] = [:]
+        
         for tx in filteredTxs {
             if tx.isDebt { continue } // Borç işlemleri grafikte hesaplanmaz, taksitleri hesaplanır.
             if selectedFilterType == .income && tx.type != .income { continue }
@@ -199,6 +402,32 @@ struct AnalysisView: View {
                 newFlowData[index].netAmount += value
             }
         }
+        
+        for tx in allTxs {
+            if tx.isDebt { continue } 
+            if selectedFilterType == .income && tx.type != .income { continue }
+            if selectedFilterType == .expense && tx.type != .expense { continue }
+            
+            let convertedAmount = ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: baseCurrency)
+            let value = tx.type == .income ? convertedAmount : -convertedAmount
+            
+            let monthStart = calendar.dateInterval(of: .month, for: tx.date)?.start ?? tx.date
+            monthDict[monthStart, default: 0] += value
+            
+            let dayStart = calendar.startOfDay(for: tx.date)
+            dayDict[dayStart, default: 0] += value
+            
+            if let hourStart = calendar.dateInterval(of: .hour, for: tx.date)?.start {
+                hourDict[hourStart, default: 0] += value
+            }
+        }
+        
+        let maxMonth = monthDict.values.map { abs($0) }.max() ?? 0
+        let maxDay = dayDict.values.map { abs($0) }.max() ?? 0
+        let maxHour = hourDict.values.map { abs($0) }.max() ?? 0
+        
+        let highest = max(maxMonth, maxDay, maxHour)
+        let newGlobalMax = highest == 0 ? 1000 : highest
             
         // 3. Mini Kart Verileri
         let biggestActive = filteredTxs.filter {
@@ -250,6 +479,7 @@ struct AnalysisView: View {
         
         // State Ataması
         self.flowData = newFlowData
+        self.globalMaxAmount = newGlobalMax
         self.biggestTransaction = biggestActive
         self.recurringTransactions = recurring
         self.categorySummaries = newCatSums
@@ -275,18 +505,29 @@ struct AnalysisView: View {
     }
     
     private var chartUnit: Calendar.Component {
-        switch selectedTab {
+        if dateFilterMode == .custom { return .day }
+        let range = (dateFilterMode != .all && dateFilterMode != .custom) ? 
+                    (dateFilterMode == .weekly ? AnalysisTimeFrame.week : (dateFilterMode == .monthly ? AnalysisTimeFrame.month : AnalysisTimeFrame.year)) : selectedTab
+        
+        switch range {
         case .day: return .hour
         case .week: return .day
         case .month: return .day
         case .year: return .month
         }
     }
+
     
     // MARK: - PDF Export Engine
     @MainActor
     private func sharePDF() {
+        if authManager.currentUserProfile?.isPro != true {
+            showProAlert = true
+            return
+        }
+        
         isSharingPDF = true
+
         
         // Raporlanacak datanın UI'ını Main Actor garantisinde yakala
         let reportDetails = AnalysisPDFReportView(

@@ -11,53 +11,62 @@ struct AnalysisMiniCards: View {
     }
     
     var body: some View {
+        let recAmount = recurringTransactions.reduce(0) { 
+            $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: baseCurrency) 
+        }
+        
         HStack(spacing: 16) {
-            
             // TEKRARLAYAN İŞLEMLER
             NavigationLink(destination: RecurringAnalysisDetailView(transactions: recurringTransactions)) {
-                let recAmount = recurringTransactions.reduce(0) { 
-                    $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: baseCurrency) 
-                }
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "repeat")
-                            .foregroundColor(.blue) 
-                        Text("Tekrarlayan")
-                            .font(.caption)
-                            .foregroundColor(theme.labelSecondary)
-                    }
-                    Text("\(recAmount.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))) \(baseCurrency.symbol)")
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundColor(theme.labelPrimary)
-                        .contentTransition(.numericText())
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(16)
-                .glassEffect(in: .rect(cornerRadius: 20))
+                miniCard(
+                    icon: "repeat",
+                    iconColor: .blue,
+                    label: "Tekrarlayan",
+                    amount: recAmount,
+                    currencySymbol: baseCurrency.symbol
+                )
             }
             .buttonStyle(.plain)
             
             // REKOR İŞLEM
             NavigationLink(destination: RecordTransactionDetailView(transaction: biggestTransaction)) {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "flame.fill")
-                            .foregroundColor(.red) 
-                        Text("Rekor İşlem")
-                            .font(.caption)
-                            .foregroundColor(theme.labelSecondary)
-                    }
-                    let recordSymbol = biggestTransaction?.currency?.symbol ?? baseCurrency.symbol
-                    Text("\((biggestTransaction?.amount ?? 0).formatted(.number.grouping(.automatic).precision(.fractionLength(0)))) \(recordSymbol)")
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundColor(theme.labelPrimary)
-                        .contentTransition(.numericText())
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(16)
-                .glassEffect(in: .rect(cornerRadius: 20))
+                miniCard(
+                    icon: "flame.fill",
+                    iconColor: .red,
+                    label: "Rekor İşlem",
+                    amount: biggestTransaction?.amount ?? 0,
+                    currencySymbol: biggestTransaction?.currency?.symbol ?? baseCurrency.symbol
+                )
             }
             .buttonStyle(.plain)
         }
     }
+    
+    @ViewBuilder
+    private func miniCard(icon: String, iconColor: Color, label: String, amount: Double, currencySymbol: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(iconColor)
+                    .frame(width: 20, height: 20)
+                
+                Text(LocalizedStringKey(label))
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(theme.labelSecondary)
+            }
+            
+            Text("\(amount.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))) \(currencySymbol)")
+                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .foregroundColor(theme.labelPrimary)
+                .contentTransition(.numericText())
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, minHeight: 80, alignment: .leading)
+        .padding(.horizontal, 16)
+        .glassEffect(in: .rect(cornerRadius: 24))
+    }
 }
+
+

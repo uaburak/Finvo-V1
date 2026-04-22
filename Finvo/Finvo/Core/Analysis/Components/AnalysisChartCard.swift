@@ -5,47 +5,22 @@ struct AnalysisChartCard: View {
     @Environment(\.theme) var theme
     let flowData: [FlowData]
     let chartUnit: Calendar.Component
-    @Binding var isLineGraph: Bool
     let selectedTab: AnalysisTimeFrame
+    let globalMaxAmount: Double
     
     @State private var currentActiveItem: FlowData? = nil
+    @State private var rawSelectedDate: Date? = nil
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             
-            // Header: Total Net Kazanç
-            let totalValue = flowData.reduce(0.0) { $0 + $1.netAmount }
+            // Header: Total Net Kazanç (Placeholder)
             HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Net Akış")
-                        .font(.subheadline)
-                        .foregroundColor(theme.labelSecondary)
-                    
-                    Text("\(totalValue >= 0 ? "+" : "")₺\(totalValue.formatted(.number.precision(.fractionLength(0))))")
-                        .font(.title2.bold())
-                        .foregroundColor(totalValue >= 0 ? theme.income : theme.expense)
-                        .contentTransition(.numericText())
-                }
-                
+                dynamicHeader(for: nil)
+                    .opacity(0)
                 Spacer()
-                
-                Menu {
-                    Button {
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        withAnimation(.spring()) {
-                            isLineGraph.toggle()
-                        }
-                    } label: {
-                        Label(isLineGraph ? "Sütun Grafiğine Geç" : "Çizgi Grafiğine Geç", systemImage: isLineGraph ? "chart.bar" : "chart.xyaxis.line")
-                    }
-                } label: {
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(theme.labelSecondary)
-                        .frame(width: 36, height: 36)
-                        .contentShape(Rectangle())
-                }
             }
+            .zIndex(0)
             
             if flowData.isEmpty {
                 Text("Bu dönem için akış verisi yok.")
@@ -54,7 +29,7 @@ struct AnalysisChartCard: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .frame(height: 180)
             } else {
-                let maxAbs = flowData.map { abs($0.netAmount) }.max() ?? 1000
+                let maxAbs = globalMaxAmount
                 let paddedMax = maxAbs == 0 ? 1000 : maxAbs * 1.2
                 
                 ZStack {
@@ -72,62 +47,71 @@ struct AnalysisChartCard: View {
                         }
                         .allowsHitTesting(false)
                     
-                    // 2. BASE CHART KATMANI (Gridler, Eksenler, Tooltip ve Dokunma Alanı, Şeffaf Çizgiler)
+                    // 2. BASE CHART KATMANI
                     Chart {
                         chartMarks(isMask: false)
                         
+                        // RuleMark line pointing to selected bar
                         if let active = currentActiveItem {
                             RuleMark(x: .value("Tarih", active.date, unit: chartUnit))
                                 .lineStyle(.init(lineWidth: 1, miterLimit: 2, dash: [4], dashPhase: 5))
                                 .foregroundStyle(theme.labelSecondary)
-                                .annotation(
-                                    position: .top,
-                                    spacing: 0,
-                                    overflowResolution: .init(x: .fit(to: .chart), y: .disabled)
-                                ) {
-                                    let amount = active.netAmount
-                                    let bgColor: Color = amount > 0 ? theme.income : (amount < 0 ? theme.expense : .orange)
-                                    
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        Text(xAxisLabel(for: active.date, isTooltip: true))
-                                            .font(.caption2)
-                                            .foregroundColor(Color.white.opacity(0.8))
-                                        
-                                        Text("\(amount > 0 ? "+" : "")₺\(amount.formatted(.number.precision(.fractionLength(0))))")
-                                            .font(.subheadline.bold())
-                                            .foregroundColor(Color.white)
-                                    }
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 8)
-                                    .background(bgColor, in: RoundedRectangle(cornerRadius: 12))
-                                    .shadow(color: bgColor.opacity(0.4), radius: 8, y: 4)
-                                }
                         }
                     }
                     .chartOverlay { proxy in
-                        GeometryReader { innerProxy in
-                            // CATCH TOUCH
-                            Rectangle()
-                                .fill(.clear).contentShape(Rectangle())
-                                .gesture(
-                                    DragGesture(minimumDistance: 0)
-                                        .onChanged { value in
-                                            let locationX = max(0, min(value.location.x, proxy.plotSize.width))
-                                            if let date: Date = proxy.value(atX: locationX) {
-                                                if let closest = findClosestItem(to: date) {
-                                                    if self.currentActiveItem?.date != closest.date {
-                                                        UISelectionFeedbackGenerator().selectionChanged()
-                                                        self.currentActiveItem = closest
-                                                    }
-                                                }
-                                            }
+                        GeometryReader { geo in
+                            let isActive = currentActiveItem != nil
+                            
+                            let barCenter: CGFloat = {
+                                guard let active = currentActiveItem else { return 0 }
+                                return proxy.position(forX: active.date) ?? 0
+                            }()
+                            
+                            ZStack(alignment: .leading) {
+                                Color.clear.frame(width: geo.size.width, height: 1)
+                                
+                                // 👇 MANUEL ALIGNMENT (İNCE AYAR) 👇
+                                // Tooltip'in merkezini kesik çizgiye göre manuel hizalamak için burayı değiştirin.
+                                // Pozitif değer (ör: 32) sağa kaydırırken, Negatif değer sola kaydırır.
+                                let manualTooltipOffset: CGFloat = 32
+                                
+                                dynamicHeader(for: currentActiveItem)
+                                    .fixedSize(horizontal: true, vertical: true)
+                                    .alignmentGuide(.leading) { d in
+                                        if isActive {
+                                            let wCenter = d.width / 2
+                                            let targetCenter = barCenter + manualTooltipOffset
+                                            // Limit the tooltip center so its left edge doesn't go below X=0, and right doesn't go off-screen
+                                            let clampedCenter = min(max(targetCenter, wCenter), geo.size.width - wCenter)
+                                            return -(clampedCenter - wCenter)
+                                        } else {
+                                            return 0
                                         }
-                                        .onEnded { _ in
-                                            withAnimation(.easeInOut(duration: 0.2)) {
-                                                self.currentActiveItem = nil
-                                            }
+                                    }
+                            }
+                            .offset(y: -84)
+                        }
+                    }
+                    .chartXSelection(value: $rawSelectedDate)
+                    .onChange(of: rawSelectedDate) { _, newValue in
+                        if let date = newValue {
+                            if let closest = findClosestItem(to: date) {
+                                if self.currentActiveItem?.date != closest.date {
+                                    UISelectionFeedbackGenerator().selectionChanged()
+                                    // If already active, jump instantly (no lag). Otherwise, slide smoothly.
+                                    if self.currentActiveItem == nil {
+                                        withAnimation(.snappy(duration: 0.4)) {
+                                            self.currentActiveItem = closest
                                         }
-                                )
+                                    } else {
+                                        self.currentActiveItem = closest
+                                    }
+                                }
+                            }
+                        } else {
+                            withAnimation(.snappy(duration: 0.4)) {
+                                self.currentActiveItem = nil
+                            }
                         }
                     }
                     .frame(height: 240)
@@ -147,30 +131,15 @@ struct AnalysisChartCard: View {
     @ChartContentBuilder
     private func chartMarks(isMask: Bool) -> some ChartContent {
         ForEach(flowData) { item in
-            if isLineGraph {
-                LineMark(
-                    x: .value("Tarih", item.date, unit: chartUnit),
-                    y: .value("Tutar", item.animate ? item.netAmount : 0)
-                )
-                .foregroundStyle(isMask ? Color.black : Color.clear)
-                .interpolationMethod(.catmullRom)
-                .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
-                
-                AreaMark(
-                    x: .value("Tarih", item.date, unit: chartUnit),
-                    yStart: .value("Sıfır", 0),
-                    yEnd: .value("Tutar", item.animate ? item.netAmount : 0)
-                )
-                .foregroundStyle(isMask ? Color.black.opacity(0.3) : Color.clear)
-                .interpolationMethod(.catmullRom)
-            } else {
-                BarMark(
-                    x: .value("Tarih", item.date, unit: chartUnit),
-                    y: .value("Tutar", item.animate ? item.netAmount : 0)
-                )
-                .foregroundStyle(isMask ? Color.black : Color.clear)
-                .cornerRadius(4)
-            }
+            let isPositive = item.netAmount >= 0
+            let microOffset: Double = item.animate ? (isPositive ? 0.001 : -0.001) : 0.001
+            BarMark(
+                x: .value("Tarih", item.date, unit: chartUnit),
+                yStart: .value("Taban", microOffset),
+                yEnd: .value("Tutar", item.animate ? item.netAmount : microOffset)
+            )
+            .foregroundStyle(isMask ? Color.black : Color.clear)
+            .cornerRadius(100)
         }
     }
     
@@ -248,7 +217,11 @@ struct AnalysisChartCard: View {
     // MARK: - Helpers
     
     private func findClosestItem(to date: Date) -> FlowData? {
-        flowData.min(by: { abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date)) })
+        let calendar = Calendar.current
+        if let exactMatch = flowData.first(where: { calendar.isDate($0.date, equalTo: date, toGranularity: chartUnit) }) {
+            return exactMatch
+        }
+        return flowData.min(by: { abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date)) })
     }
     
     private func xAxisLabel(for date: Date, isTooltip: Bool = false) -> String {
@@ -259,10 +232,36 @@ struct AnalysisChartCard: View {
         case .week: 
             return isTooltip ? date.formatted(.dateTime.weekday().day()) : calendar.shortWeekdaySymbols[calendar.component(.weekday, from: date) - 1]
         case .month: 
-            return isTooltip ? date.formatted(.dateTime.month().day()) : "\(calendar.component(.day, from: date))"
+            return isTooltip ? date.formatted(.dateTime.day().month(.wide)) : "\(calendar.component(.day, from: date))"
         case .year: 
-            return isTooltip ? date.formatted(.dateTime.month(.wide).year()) : calendar.shortMonthSymbols[calendar.component(.month, from: date) - 1]
+            return isTooltip ? date.formatted(.dateTime.month(.wide)) : calendar.shortMonthSymbols[calendar.component(.month, from: date) - 1]
         }
+    }
+    
+    @ViewBuilder
+    private func dynamicHeader(for activeItem: FlowData?) -> some View {
+        let isTooltip = activeItem != nil
+        let amount = activeItem?.netAmount ?? flowData.reduce(0.0) { $0 + $1.netAmount }
+        let title = isTooltip ? xAxisLabel(for: activeItem!.date, isTooltip: true) : "Net Akış"
+        
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.subheadline)
+                .foregroundColor(theme.labelSecondary)
+                .contentTransition(.numericText())
+                .animation(.snappy, value: title)
+            
+            Text("\(amount >= 0 ? "+" : "")₺\(amount.formatted(.number.precision(.fractionLength(0))))")
+                .font(.title2.bold())
+                .foregroundColor(amount >= 0 ? theme.income : theme.expense)
+                .contentTransition(.numericText())
+                .animation(.snappy, value: amount)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(theme.background2, in: RoundedRectangle(cornerRadius: 12))
+        .shadow(color: Color.black.opacity(0.1), radius: 8, y: 4)
+        .geometryGroup()
     }
 }
 
@@ -280,8 +279,8 @@ struct AnalysisChartCard: View {
     return AnalysisChartCard(
         flowData: fakeData,
         chartUnit: .day,
-        isLineGraph: .constant(true),
-        selectedTab: .week
+        selectedTab: .week,
+        globalMaxAmount: 20000
     )
     .environment(\.theme, DefaultTheme())
     .padding()
