@@ -5,9 +5,10 @@ import Charts
 struct AnalysisCategoryCard: View {
     @Environment(\.theme) var theme
     let categorySummaries: [CategorySummary]
+    let transactions: [TransactionModel]
     
     var body: some View {
-        NavigationLink(destination: CategoryDistributionDetailView(categorySummaries: categorySummaries)) {
+        NavigationLink(destination: CategoryDistributionDetailView(transactions: transactions)) {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
                     Text("Kategori Dağılımı")
@@ -36,7 +37,7 @@ struct AnalysisCategoryCard: View {
                                 HStack {
                                     Image(systemName: summary.icon)
                                         .font(.caption)
-                                        .foregroundColor(theme.brandPrimary)
+                                        .foregroundColor(summary.color)
                                         .frame(width: 20)
                                     Text(LocalizedStringKey(summary.name))
                                         .font(.subheadline)
@@ -64,14 +65,9 @@ struct AnalysisCategoryCard: View {
 // MARK: - iOS 16 Compatible Native Donut Chart
 struct NativeDonutChart: View {
     let data: [CategorySummary]
-    // Distinct vibrant colors for categories
-    static let colors: [Color] = [
-        .blue, .green, .orange, .purple, .pink, .indigo, .red, .teal, .mint, .yellow
-    ]
-    
     var body: some View {
         Chart {
-            ForEach(Array(data.enumerated()), id: \.element.id) { index, item in
+            ForEach(data) { item in
                 SectorMark(
                     angle: .value("Tutar", item.amount),
                     innerRadius: .ratio(0.65),
@@ -79,7 +75,7 @@ struct NativeDonutChart: View {
                     angularInset: 1.5
                 )
                 .cornerRadius(4)
-                .foregroundStyle(index < Self.colors.count ? Self.colors[index] : .gray)
+                .foregroundStyle(item.color)
             }
         }
     }

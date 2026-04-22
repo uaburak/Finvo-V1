@@ -1,6 +1,5 @@
 import Foundation
-
-// MARK: - Enums
+import SwiftUI// MARK: - Enums
 enum AnalysisTimeFrame: String, CaseIterable, Identifiable {
     case day = "Gün"
     case week = "Haftalık"
@@ -9,7 +8,14 @@ enum AnalysisTimeFrame: String, CaseIterable, Identifiable {
     var id: String { self.rawValue }
 
     // UI için yerelleştirilmiş başlık. rawValue Firestore/karşılaştırma için korunur.
-    var title: String { rawValue.localized }
+    var localizedKey: LocalizedStringKey {
+        switch self {
+        case .day: return "Günlük"
+        case .week: return "Haftalık"
+        case .month: return "Aylık"
+        case .year: return "Yıllık"
+        }
+    }
 }
 
 // MARK: - Models
@@ -27,6 +33,8 @@ struct CategorySummary: Identifiable, Equatable {
     let icon: String
     let percentage: Double
     let transactionCount: Int
+    let color: Color
+    let members: [String]
 }
 
 struct MemberContribution: Identifiable, Equatable {

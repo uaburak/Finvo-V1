@@ -23,6 +23,7 @@ struct AnalysisView: View {
     @State private var biggestTransaction: TransactionModel? = nil
     @State private var recurringTransactions: [TransactionModel] = []
     @State private var categorySummaries: [CategorySummary] = []
+    @State private var categoryTransactions: [TransactionModel] = []
     @State private var memberContributions: [MemberContribution] = []
     
     // Filter & Export States
@@ -93,26 +94,29 @@ struct AnalysisView: View {
                         
                         AnalysisMiniCards(
                             recurringTransactions: recurringTransactions,
-                            biggestTransaction: biggestTransaction
+                            biggestTransaction: biggestTransaction,
+                            allTransactions: categoryTransactions
                         )
                         .padding(.horizontal, 20)
+                        
+                        // Sadece paylaşımlı cüzdanlarda (veya üye sayısı 1'den büyükse) Liderlik tablosunu göster
+                        if let wallet = walletManager.activeWallet, (wallet.type == .shared || wallet.members.count > 1) {
+                            AnalysisCollaboratorCard(
+                                contributions: memberContributions,
+                                allTransactions: transactionManager.transactions
+                            )
+                            .padding(.horizontal, 20)
+                        }
+                        
                         AnalysisCategoryCard(
-                            categorySummaries: categorySummaries
+                            categorySummaries: categorySummaries,
+                            transactions: categoryTransactions
                         )
                         .padding(.horizontal, 20)
                         
                         ExchangeRatesListCard()
                             .padding(.horizontal, 20)
                             .padding(.top, 8)
-                        
-                        // Sadece paylaşımlı cüzdanlarda (veya üye sayısı 1'den büyükse) Liderlik tablosunu göster
-                        if let wallet = walletManager.activeWallet, (wallet.type == .shared || wallet.members.count > 1) {
-                            AnalysisCollaboratorCard(
-                                contributions: memberContributions,
-                                allTransactions: transactionManager.transactions // Filtrelenmemiş gerçek tüm veri listesi gönderiliyor ki detay ekranında tarihe göre süzebilsin
-                            )
-                            .padding(.horizontal, 20)
-                        }
                         
                     }
                     .safeAreaPadding(.bottom, 60)
@@ -146,103 +150,97 @@ struct AnalysisView: View {
                             .font(.system(size: 18))
                     }
                     .popover(isPresented: $showFilterMenu) {
-                        VStack(alignment: .leading, spacing: 20) {
+                        VStack(alignment: .leading, spacing: 0) {
                             
-                            // İşlem Tipi Seçimi
-                            Picker("İşlem Tipi", selection: $selectedFilterType) {
-                                ForEach(TransactionTypeFilter.allCases, id: \.self) { type in
-                                    Text(type.rawValue.localized).tag(type)
-                                }
-                            }
-                            .pickerStyle(.segmented)
-                            
-                            Divider()
-                            
-                            // Kategori Seçimi
-                            Menu {
-                                Picker("Kategori", selection: $selectedCategory) {
-                                    Text("Tüm Kategoriler").tag(Optional<String>.none)
-                                    let availableCategories = CategoryManager.shared.categories.isEmpty ? CategoriesMockData.data : CategoryManager.shared.categories
-                                    ForEach(availableCategories) { cat in
-                                        Text(LocalizedStringKey(cat.name)).tag(Optional(cat.id))
+                            // BAŞLIK
+                            HStack {
+                                Text("Filtreler")
+                                    .font(.headline)
+                                    .fontWeight(.bold)
+                                Spacer()
+                                if isFilterActive {
+                                    Button {
+                                        selectedCategory = nil
+                                        dateFilterMode = .all
+                                        selectedFilterType = .all
+                                        showFilterMenu = false
+                                    } label: {
+                                        Text("Sıfırla")
+                                            .font(.subheadline)
+                                            .foregroundStyle(.red)
                                     }
                                 }
-                            } label: {
-                                HStack {
-                                    Label(categoryFilterLabel, systemImage: "folder")
-                                        .foregroundStyle(theme.labelPrimary)
-                                    Spacer()
-                                    Image(systemName: "chevron.up.chevron.down")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
                             }
-
-                            Divider()
-
-                            // Zaman Filtresi
-                            Menu {
-                                Picker("Zaman Filtresi", selection: $dateFilterMode) {
-                                    Text("Tümü").tag(DateFilterMode.all)
-                                    Text("Haftalık").tag(DateFilterMode.weekly)
-                                    Text("Aylık").tag(DateFilterMode.monthly)
-                                    Text("Yıllık").tag(DateFilterMode.yearly)
-                                    if dateFilterMode == .custom {
-                                        Text(dateFilterLabel).tag(DateFilterMode.custom)
-                                    }
-                                }
-                            } label: {
-                                HStack {
-                                    Label(dateFilterLabelForToolbar, systemImage: "calendar.badge.clock")
-                                        .foregroundStyle(theme.labelPrimary)
-                                    Spacer()
-                                    Image(systemName: "chevron.up.chevron.down")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
+                            .padding(.horizontal)
+                            .padding(.top, 16)
+                            .padding(.bottom, 12)
                             
                             Divider()
                             
-                            // Tarih Aralığı
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Tarih Aralığı")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                
-                                HStack {
-                                    DatePicker("Başlangıç", selection: $startDate, displayedComponents: .date)
-                                        .labelsHidden()
-                                        .datePickerStyle(.compact)
-                                        .onChange(of: startDate) { _, _ in handleCustomDateSelection() }
+                            ScrollView(showsIndicators: false) {
+                                VStack(alignment: .leading, spacing: 20) {
                                     
-                                    Text("-")
+                                    // 1. İŞLEM TÜRÜ
+                                    VStack(alignment: .leading, spacing: 10) {
+                                        Label("İşlem Türü", systemImage: "arrow.left.arrow.right")
+                                            .font(.subheadline.bold())
+                                            .foregroundStyle(.secondary)
+                                        
+                                        Picker("İşlem Tipi", selection: $selectedFilterType) {
+                                            ForEach(TransactionTypeFilter.allCases, id: \.self) { type in
+                                                Text(type.rawValue.localized).tag(type)
+                                            }
+                                        }
+                                        .pickerStyle(.segmented)
+                                    }
                                     
-                                    DatePicker("Bitiş", selection: $endDate, displayedComponents: .date)
-                                        .labelsHidden()
-                                        .datePickerStyle(.compact)
-                                        .onChange(of: endDate) { _, _ in handleCustomDateSelection() }
-                                }
-                            }
-                            
-                            if isFilterActive {
-                                Divider()
-                                Button(role: .destructive) {
-                                    selectedCategory = nil
-                                    dateFilterMode = .all
-                                    selectedFilterType = .all
-                                    showFilterMenu = false
-                                } label: {
-                                    HStack {
-                                        Spacer()
-                                        Label("Filtreleri Sıfırla", systemImage: "xmark.circle")
-                                        Spacer()
+                                    Divider()
+                                    
+                                    // 2. KATEGORİ
+                                    VStack(alignment: .leading, spacing: 10) {
+                                        Label("Kategori", systemImage: "folder")
+                                            .font(.subheadline.bold())
+                                            .foregroundStyle(.secondary)
+                                        
+                                        let allCategories = CategoryManager.shared.categories.isEmpty
+                                            ? CategoriesMockData.data
+                                            : CategoryManager.shared.categories
+                                        let availableCategories: [CategoryModel] = {
+                                            switch selectedFilterType {
+                                            case .all:     return allCategories
+                                            case .income:  return allCategories.filter { $0.type == .income }
+                                            case .expense: return allCategories.filter { $0.type == .expense }
+                                            }
+                                        }()
+                                        
+                                        // Seçili kategori artık mevcut filtrede yoksa sıfırla
+                                        let _ = availableCategories
+                                        
+                                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 90), spacing: 8)], spacing: 8) {
+                                            CategoryChip(
+                                                label: "Tümü",
+                                                icon: "square.grid.2x2",
+                                                isSelected: selectedCategory == nil
+                                            ) {
+                                                selectedCategory = nil
+                                            }
+                                            
+                                            ForEach(availableCategories) { cat in
+                                                CategoryChip(
+                                                    label: cat.name.localized,
+                                                    icon: cat.icon,
+                                                    isSelected: selectedCategory == cat.id
+                                                ) {
+                                                    selectedCategory = (selectedCategory == cat.id) ? nil : cat.id
+                                                }
+                                            }
+                                        }
                                     }
                                 }
+                                .padding()
                             }
                         }
-                        .padding()
-                        .frame(minWidth: 280)
+                        .frame(minWidth: 300, maxHeight: 500)
                         .presentationCompactAdaptation(.popover)
                     }
                 }
@@ -268,7 +266,22 @@ struct AnalysisView: View {
             .onChange(of: transactionManager.transactions.count) {
                 updateData(startAnimation: false)
             }
-            .onChange(of: selectedFilterType) {
+            .onChange(of: selectedFilterType) { _, newType in
+                // Seçili kategori yeni transaction tipine ait değilse sıfırla
+                if let catId = selectedCategory {
+                    let allCats = CategoryManager.shared.categories.isEmpty
+                        ? CategoriesMockData.data : CategoryManager.shared.categories
+                    let validCats: [CategoryModel] = {
+                        switch newType {
+                        case .all:     return allCats
+                        case .income:  return allCats.filter { $0.type == .income }
+                        case .expense: return allCats.filter { $0.type == .expense }
+                        }
+                    }()
+                    if !validCats.contains(where: { $0.id == catId }) {
+                        selectedCategory = nil
+                    }
+                }
                 updateData(startAnimation: true)
             }
             .onChange(of: selectedCategory) {
@@ -443,7 +456,7 @@ struct AnalysisView: View {
         let recurring = allTxs.filter { $0.isRecurring }
         
         // 4. Kategori Verileri
-        var catDict: [String: (amount: Double, icon: String, count: Int)] = [:]
+        var catDict: [String: (amount: Double, icon: String, count: Int, color: Color, members: Set<String>)] = [:]
         var memberDict: [String: (amount: Double, count: Int)] = [:]
         
         // Kullanıcı filtreyi gelire çekerse Kategori ve Liderlik Dağılımını sadece Gelirler ile göster!
@@ -457,8 +470,10 @@ struct AnalysisView: View {
             let convertedAmount = ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: baseCurrency)
             // Kategori Toplama
             let cat = tx.mainCategoryName
-            let currentCat = catDict[cat] ?? (amount: 0, icon: tx.categoryIcon, count: 0)
-            catDict[cat] = (amount: currentCat.amount + convertedAmount, icon: tx.categoryIcon, count: currentCat.count + 1)
+            let currentCat = catDict[cat] ?? (amount: 0, icon: tx.categoryIcon, count: 0, color: tx.resolvedColor(), members: [])
+            var members = currentCat.members
+            members.insert(tx.createdBy)
+            catDict[cat] = (amount: currentCat.amount + convertedAmount, icon: tx.categoryIcon, count: currentCat.count + 1, color: currentCat.color, members: members)
             
             // Kişi Toplama
             let currentMember = memberDict[tx.createdBy] ?? (0, 0)
@@ -469,7 +484,9 @@ struct AnalysisView: View {
             CategorySummary(
                 name: $0.key, amount: $0.value.amount, icon: $0.value.icon,
                 percentage: totalTypeAmount > 0 ? ($0.value.amount / totalTypeAmount) * 100 : 0,
-                transactionCount: $0.value.count
+                transactionCount: $0.value.count,
+                color: $0.value.color,
+                members: Array($0.value.members).sorted()
             ) 
         }.sorted(by: { $0.amount > $1.amount })
         
@@ -483,6 +500,7 @@ struct AnalysisView: View {
         self.biggestTransaction = biggestActive
         self.recurringTransactions = recurring
         self.categorySummaries = newCatSums
+        self.categoryTransactions = filteredTxs.filter { !$0.isDebt }
         self.memberContributions = newMemberSums
         
         // Yeniden yüklendiği için animasyon tetikle
@@ -566,6 +584,36 @@ struct ShareSheet: UIViewControllerRepresentable {
         return controller
     }
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+// MARK: - Category Filter Chip
+struct CategoryChip: View {
+    @Environment(\.theme) var theme
+    let label: String
+    let icon: String
+    let isSelected: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .semibold))
+                Text(label)
+                    .font(.system(size: 12, weight: .medium))
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(
+                isSelected ? theme.brandPrimary : Color.gray.opacity(0.12),
+                in: Capsule()
+            )
+            .foregroundColor(isSelected ? theme.onBrandPrimary : .primary)
+            .animation(.easeInOut(duration: 0.15), value: isSelected)
+        }
+        .buttonStyle(.plain)
+    }
 }
 
 #Preview {

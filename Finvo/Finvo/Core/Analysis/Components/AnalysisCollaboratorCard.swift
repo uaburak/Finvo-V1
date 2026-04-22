@@ -34,7 +34,8 @@ struct AnalysisCollaboratorCard: View {
                         NavigationLink(destination: MemberTransactionsDetailView(
                             username: member.username,
                             transactions: allTransactions.filter { $0.createdBy == member.username }
-                                .sorted(by: { $0.amount > $1.amount })
+                                .sorted(by: { $0.amount > $1.amount }),
+                            allTransactions: allTransactions
                         )) {
                             HStack(spacing: 12) {
                                 // Avatar

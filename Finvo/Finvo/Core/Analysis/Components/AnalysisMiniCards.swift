@@ -4,10 +4,22 @@ struct AnalysisMiniCards: View {
     @Environment(\.theme) var theme
     let recurringTransactions: [TransactionModel]
     let biggestTransaction: TransactionModel?
+    let allTransactions: [TransactionModel]
     @AppStorage("appCurrency") private var appCurrencyCode: String = "TRY"
     
     private var baseCurrency: CurrencyType {
         CurrencyType(rawValue: appCurrencyCode) ?? .tryCurrency
+    }
+
+    private var top10Transactions: [TransactionModel] {
+        allTransactions
+            .filter { !$0.isDebt }
+            .sorted {
+                ExchangeRateManager.shared.convert(amount: $0.amount, from: $0.currency ?? .tryCurrency, to: baseCurrency) >
+                ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: baseCurrency)
+            }
+            .prefix(10)
+            .map { $0 }
     }
     
     var body: some View {
@@ -29,7 +41,10 @@ struct AnalysisMiniCards: View {
             .buttonStyle(.plain)
             
             // REKOR İŞLEM
-            NavigationLink(destination: RecordTransactionDetailView(transaction: biggestTransaction)) {
+            NavigationLink(destination: RecordTransactionDetailView(
+                topTransaction: biggestTransaction,
+                allTransactions: top10Transactions
+            )) {
                 miniCard(
                     icon: "flame.fill",
                     iconColor: .red,

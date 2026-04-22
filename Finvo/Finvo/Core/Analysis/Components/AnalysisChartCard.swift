@@ -71,9 +71,15 @@ struct AnalysisChartCard: View {
                                 Color.clear.frame(width: geo.size.width, height: 1)
                                 
                                 // 👇 MANUEL ALIGNMENT (İNCE AYAR) 👇
-                                // Tooltip'in merkezini kesik çizgiye göre manuel hizalamak için burayı değiştirin.
-                                // Pozitif değer (ör: 32) sağa kaydırırken, Negatif değer sola kaydırır.
-                                let manualTooltipOffset: CGFloat = 32
+                                // Tooltip'in merkezini kesik çizgiye göre hizalamak için her sekmeye özel değerler.
+                                let manualTooltipOffset: CGFloat = {
+                                    switch selectedTab {
+                                    case .day: return 32
+                                    case .week: return 48
+                                    case .month: return 30
+                                    case .year: return 36
+                                    }
+                                }()
                                 
                                 dynamicHeader(for: currentActiveItem)
                                     .fixedSize(horizontal: true, vertical: true)
@@ -160,6 +166,32 @@ struct AnalysisChartCard: View {
     
     // MARK: - Axis Builders
     
+    // 👇 X EKSENİ YAZILARI İÇİN İNCE AYAR 👇
+    // Grafiğin altındaki tarih, ay, yıl yazılarının sağa/sola kaydırılmasını sağlar.
+    // Pozitif değer sağa, Negatif değer sola kaydırır.
+    private var xAxisLabelOffset: CGFloat {
+        switch selectedTab {
+        case .day: return -2
+        case .week: return 0
+        case .month: return -2
+        case .year: return 0
+        }
+    }
+    
+    // 👇 ÇİFT HANELİ RAKAM (10 ve ÜZERİ) İÇİN MİKRO KAYDIRMA 👇
+    // Sadece Gün ve Ay sekmelerinde çift haneli rakamlar gelince yazıyı fazladan kaç pixel sola kaydıracağımızı belirler.
+    private func doubleDigitOffset(for date: Date) -> CGFloat {
+        let calendar = Calendar.current
+        if selectedTab == .day {
+            let hour = calendar.component(.hour, from: date)
+            return hour >= 10 ? -3.5 : 0 // -3.5 sola kaydır
+        } else if selectedTab == .month {
+            let day = calendar.component(.day, from: date)
+            return day >= 10 ? -3.5 : 0 // -3.5 sola kaydır
+        }
+        return 0
+    }
+    
     @AxisContentBuilder
     private var yAxisMarks: some AxisContent {
         AxisMarks(position: .leading, values: .automatic(desiredCount: 5)) { value in
@@ -174,13 +206,28 @@ struct AnalysisChartCard: View {
     @AxisContentBuilder
     private var xAxisMarks: some AxisContent {
         let markCount = (selectedTab == .month || selectedTab == .day) ? 4 : 1
+        let isCentered = (selectedTab == .week || selectedTab == .year)
+        
         AxisMarks(values: .stride(by: chartUnit, count: markCount)) { value in
             if let date = value.as(Date.self) {
-                AxisValueLabel {
-                    Text(xAxisLabel(for: date))
-                        .font(.caption2)
-                        .foregroundStyle(theme.labelSecondary)
-                        .fixedSize()
+                if isCentered {
+                    AxisValueLabel(centered: true) {
+                        Text(xAxisLabel(for: date))
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(theme.labelSecondary)
+                            .multilineTextAlignment(.center)
+                            .fixedSize()
+                            .offset(x: xAxisLabelOffset + doubleDigitOffset(for: date))
+                    }
+                } else {
+                    AxisValueLabel(centered: false) {
+                        Text(xAxisLabel(for: date))
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(theme.labelSecondary)
+                            .multilineTextAlignment(.center)
+                            .fixedSize()
+                            .offset(x: xAxisLabelOffset + doubleDigitOffset(for: date))
+                    }
                 }
             }
         }
@@ -202,13 +249,28 @@ struct AnalysisChartCard: View {
     @AxisContentBuilder
     private var xAxisMarksTransparent: some AxisContent {
         let markCount = (selectedTab == .month || selectedTab == .day) ? 4 : 1
+        let isCentered = (selectedTab == .week || selectedTab == .year)
+        
         AxisMarks(values: .stride(by: chartUnit, count: markCount)) { value in
             if let date = value.as(Date.self) {
-                AxisValueLabel {
-                    Text(xAxisLabel(for: date))
-                        .font(.caption2)
-                        .foregroundStyle(Color.clear)
-                        .fixedSize()
+                if isCentered {
+                    AxisValueLabel(centered: true) {
+                        Text(xAxisLabel(for: date))
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(Color.clear)
+                            .multilineTextAlignment(.center)
+                            .fixedSize()
+                            .offset(x: xAxisLabelOffset + doubleDigitOffset(for: date))
+                    }
+                } else {
+                    AxisValueLabel(centered: false) {
+                        Text(xAxisLabel(for: date))
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(Color.clear)
+                            .multilineTextAlignment(.center)
+                            .fixedSize()
+                            .offset(x: xAxisLabelOffset + doubleDigitOffset(for: date))
+                    }
                 }
             }
         }
@@ -225,16 +287,20 @@ struct AnalysisChartCard: View {
     }
     
     private func xAxisLabel(for date: Date, isTooltip: Bool = false) -> String {
-        let calendar = Calendar.current
+        let appLanguage = UserDefaults.standard.string(forKey: "appLanguage") ?? "tr"
+        let locale = Locale(identifier: appLanguage)
+        var calendar = Calendar.current
+        calendar.locale = locale
+        
         switch selectedTab {
         case .day: 
-            return isTooltip ? date.formatted(.dateTime.hour().minute()) : "\(calendar.component(.hour, from: date))"
+            return isTooltip ? date.formatted(.dateTime.hour().minute().locale(locale)) : "\(calendar.component(.hour, from: date))"
         case .week: 
-            return isTooltip ? date.formatted(.dateTime.weekday().day()) : calendar.shortWeekdaySymbols[calendar.component(.weekday, from: date) - 1]
+            return isTooltip ? date.formatted(.dateTime.weekday().day().locale(locale)) : calendar.shortWeekdaySymbols[calendar.component(.weekday, from: date) - 1]
         case .month: 
-            return isTooltip ? date.formatted(.dateTime.day().month(.wide)) : "\(calendar.component(.day, from: date))"
+            return isTooltip ? date.formatted(.dateTime.day().month(.wide).locale(locale)) : "\(calendar.component(.day, from: date))"
         case .year: 
-            return isTooltip ? date.formatted(.dateTime.month(.wide)) : calendar.shortMonthSymbols[calendar.component(.month, from: date) - 1]
+            return isTooltip ? date.formatted(.dateTime.month(.wide).locale(locale)) : calendar.shortMonthSymbols[calendar.component(.month, from: date) - 1]
         }
     }
     
@@ -242,26 +308,27 @@ struct AnalysisChartCard: View {
     private func dynamicHeader(for activeItem: FlowData?) -> some View {
         let isTooltip = activeItem != nil
         let amount = activeItem?.netAmount ?? flowData.reduce(0.0) { $0 + $1.netAmount }
-        let title = isTooltip ? xAxisLabel(for: activeItem!.date, isTooltip: true) : "Net Akış"
+        let title = isTooltip ? xAxisLabel(for: activeItem!.date, isTooltip: true) : "Net Akış".localized
         
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .font(.subheadline)
                 .foregroundColor(theme.labelSecondary)
                 .contentTransition(.numericText())
-                .animation(.snappy, value: title)
+                .animation(.snappy(duration: 0.4), value: title)
             
             Text("\(amount >= 0 ? "+" : "")₺\(amount.formatted(.number.precision(.fractionLength(0))))")
                 .font(.title2.bold())
                 .foregroundColor(amount >= 0 ? theme.income : theme.expense)
                 .contentTransition(.numericText())
-                .animation(.snappy, value: amount)
+                .animation(.snappy(duration: 0.4), value: amount)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(theme.background2, in: RoundedRectangle(cornerRadius: 12))
-        .shadow(color: Color.black.opacity(0.1), radius: 8, y: 4)
+        .glassEffect(in: .rect(cornerRadius: 12))
         .geometryGroup()
+        .animation(.snappy(duration: 0.4), value: amount)
+        .animation(.snappy(duration: 0.4), value: title)
     }
 }
 
