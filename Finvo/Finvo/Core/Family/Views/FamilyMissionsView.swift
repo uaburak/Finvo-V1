@@ -30,7 +30,7 @@ struct FamilyMissionsView: View {
                     List {
                         // Devam Eden
                         if !viewModel.pendingMissions.isEmpty {
-                            sectionHeader(title: "Devam Eden Görevler", count: viewModel.pendingMissions.count)
+                            sectionHeader(title: "Devam Eden Görevler".localized, count: viewModel.pendingMissions.count)
                                 .listRowInsets(EdgeInsets())
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
@@ -41,7 +41,7 @@ struct FamilyMissionsView: View {
 
                         // Tamamlanan
                         if !viewModel.completedMissions.isEmpty {
-                            sectionHeader(title: "Tamamlanan Görevler", count: viewModel.completedMissions.count)
+                            sectionHeader(title: "Tamamlanan Görevler".localized, count: viewModel.completedMissions.count)
                                 .listRowInsets(EdgeInsets())
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
@@ -52,7 +52,7 @@ struct FamilyMissionsView: View {
 
                         // Ödül Verildi
                         if !viewModel.paidMissions.isEmpty {
-                            sectionHeader(title: "Ödül Verildi", count: viewModel.paidMissions.count)
+                            sectionHeader(title: "Ödül Verildi".localized, count: viewModel.paidMissions.count)
                                 .listRowInsets(EdgeInsets())
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
@@ -74,7 +74,7 @@ struct FamilyMissionsView: View {
                 // Input Panel
                 VStack(spacing: 0) {
                     HStack(spacing: 0) {
-                        TextField("Görev nedir?", text: $newMissionTitle)
+                        TextField("Görev nedir?".localized, text: $newMissionTitle)
                             .font(.body)
                             .focused($isTitleFocused)
                             .padding(.horizontal, 14)
@@ -86,15 +86,14 @@ struct FamilyMissionsView: View {
                     .padding(.bottom, 6)
 
                     HStack(spacing: 6) {
-                        // Üye Seçici (Kişi Seçme Sorunu Çözümü)
+                        // Üye Seçici
                         Menu {
-                            Button { selectedAssignee = nil } label: { Label("Herkes", systemImage: selectedAssignee == nil ? "checkmark" : "person.3") }
-                            
-                            if let members = walletManager.activeWallet?.members {
-                                Divider()
-                                ForEach(members, id: \.self) { username in
-                                    Button { selectedAssignee = username } label: {
-                                        if selectedAssignee == username { Label(username, systemImage: "checkmark") } else { Text(username) }
+                            Picker("", selection: $selectedAssignee) {
+                                Text("Herkes".localized).tag(nil as String?)
+                                
+                                if let members = walletManager.activeWallet?.members {
+                                    ForEach(members, id: \.self) { username in
+                                        Text(username).tag(username as String?)
                                     }
                                 }
                             }
@@ -103,7 +102,7 @@ struct FamilyMissionsView: View {
                                 Image(systemName: "person.fill")
                                     .font(.system(size: 12, weight: .medium))
                                     .foregroundStyle(selectedAssignee == nil ? theme.labelSecondary : theme.brandPrimary)
-                                Text(selectedAssignee ?? "Herkes")
+                                Text(selectedAssignee ?? "Herkes".localized)
                                     .font(.subheadline)
                                     .foregroundStyle(selectedAssignee == nil ? theme.labelSecondary : theme.labelPrimary)
                                     .lineLimit(1)
@@ -114,15 +113,15 @@ struct FamilyMissionsView: View {
                             }
                             .padding(.horizontal, 14)
                             .frame(height: inputHeight)
+                            .contentShape(Rectangle())
                             .glassEffect(in: .capsule)
                         }
-                        .buttonStyle(.plain)
 
                         HStack(spacing: 6) {
                             Text(appCurrency.symbol)
                                 .font(.system(size: 13, weight: .semibold))
                                 .foregroundStyle(theme.labelSecondary)
-                            TextField("Ödül", text: $newMissionReward)
+                            TextField("Ödül".localized, text: $newMissionReward)
                                 .keyboardType(.decimalPad)
                                 .font(.body)
                                 .frame(width: 52)
@@ -148,13 +147,13 @@ struct FamilyMissionsView: View {
 
                 // Stats Banner
                 HStack(spacing: 0) {
-                    statCell(value: "\(viewModel.missions.count)", label: "Toplam")
+                    statCell(value: "\(viewModel.missions.count)", label: "Toplam".localized)
                     Divider().frame(height: 28)
-                    statCell(value: "\(viewModel.pendingMissions.count)", label: "Aktif")
+                    statCell(value: "\(viewModel.pendingMissions.count)", label: "Aktif".localized)
                     Divider().frame(height: 28)
-                    statCell(value: "\(viewModel.completedMissions.count)", label: "Biten")
+                    statCell(value: "\(viewModel.completedMissions.count)", label: "Biten".localized)
                     Divider().frame(height: 28)
-                    statCell(value: "\(appCurrency.symbol)\(viewModel.totalRewardGiven.formatted(.number.precision(.fractionLength(0))))", label: "Ödül")
+                    statCell(value: "\(appCurrency.symbol)\(viewModel.totalRewardGiven.formatted(.number.precision(.fractionLength(0))))", label: "Ödül".localized)
                 }
                 .padding(.vertical, 10)
                 .glassEffect(in: .capsule)
@@ -164,7 +163,7 @@ struct FamilyMissionsView: View {
             }
             .padding(.top, 8)
         }
-        .navigationTitle("Görev Panosu")
+        .navigationTitle("Görev Panosu".localized)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             if let walletId = walletManager.activeWallet?.id { viewModel.fetchMissions(for: walletId) }
@@ -185,7 +184,7 @@ struct FamilyMissionsView: View {
         HStack {
             Text(title).font(.footnote.weight(.semibold)).foregroundStyle(theme.labelSecondary)
             Spacer()
-            Text("\(count) görev").font(.footnote).foregroundStyle(theme.labelSecondary)
+            Text("%d görev".localized(with: count)).font(.footnote).foregroundStyle(theme.labelSecondary)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 10)
@@ -214,7 +213,7 @@ struct FamilyMissionsView: View {
             .contentShape(Rectangle())
             .onTapGesture {
                 if section == .pending || section == .completed {
-                    let currentUsername = authManager.currentUserProfile?.username ?? "Bilinmiyor"
+                    let currentUsername = authManager.currentUserProfile?.username ?? "Bilinmiyor".localized
                     viewModel.toggleCompletion(for: item, by: currentUsername)
                 }
             }
@@ -228,7 +227,7 @@ struct FamilyMissionsView: View {
 
                 HStack(spacing: 6) {
                     // Görev Atanan / Tamamlayan Bilgisi (Herkes seçeneği mantığı çözüldü)
-                    let displayUser = item.isCompleted ? (item.completedBy ?? "Bilinmiyor") : (item.assignedTo ?? "Herkes")
+                    let displayUser = item.isCompleted ? (item.completedBy ?? "Bilinmiyor".localized) : (item.assignedTo ?? "Herkes".localized)
                     
                     Text(displayUser)
                         .font(.caption.bold())
@@ -236,13 +235,13 @@ struct FamilyMissionsView: View {
 
                     if item.rewardAmount > 0 {
                         Text("•").font(.caption).foregroundStyle(theme.labelSecondary)
-                        Text("\(appCurrency.symbol)\(item.rewardAmount.formatted(.number.precision(.fractionLength(0)))) ödül")
+                        Text("%@%@ ödül".localized(with: appCurrency.symbol, item.rewardAmount.formatted(.number.precision(.fractionLength(0)))))
                             .font(.caption.bold())
                             .foregroundStyle(section == .paid ? .green : theme.brandPrimary)
                     }
                 }
                 
-                Text("Oluşturan: \(item.createdBy)")
+                Text("Oluşturan: %@".localized(with: item.createdBy))
                     .font(.caption2)
                     .foregroundStyle(theme.labelSecondary)
             }
@@ -264,7 +263,7 @@ struct FamilyMissionsView: View {
         case .completed:
             VStack(spacing: 6) {
                 Button { viewModel.approveMission(for: item) } label: {
-                    Text("ÖDE")
+                    Text("ÖDE".localized)
                         .font(.caption.bold())
                         .foregroundStyle(theme.onBrandPrimary)
                         .padding(.horizontal, 12).padding(.vertical, 7)
@@ -287,8 +286,8 @@ struct FamilyMissionsView: View {
         VStack(spacing: 16) {
             Spacer()
             Image(systemName: "star.fill").font(.system(size: 56)).foregroundStyle(theme.brandPrimary.opacity(0.5))
-            Text("Görev Panosu Boş").font(.title3.bold()).foregroundStyle(theme.labelPrimary)
-            Text("Aile üyelerine ödüllü görevler tanımlayarak motivasyonu artırın.").font(.subheadline).multilineTextAlignment(.center).foregroundStyle(theme.labelSecondary).padding(.horizontal, 32)
+            Text("Görev Panosu Boş".localized).font(.title3.bold()).foregroundStyle(theme.labelPrimary)
+            Text("Aile üyelerine ödüllü görevler tanımlayarak motivasyonu artırın.".localized).font(.subheadline).multilineTextAlignment(.center).foregroundStyle(theme.labelSecondary).padding(.horizontal, 32)
             Spacer()
         }
         .frame(maxHeight: .infinity)

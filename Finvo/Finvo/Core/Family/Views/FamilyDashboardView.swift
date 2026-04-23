@@ -59,9 +59,9 @@ struct FamilyDashboardView: View {
                     isAnimating = true
                 }
                 guard isSharedWalletActive else { return }
-                viewModel.calculateWholesomeDebts(from: transactionManager.transactions)
+                viewModel.calculateWholesomeDebts(from: transactionManager.transactions, targetCurrency: appCurrency)
                 if let members = walletManager.activeWallet?.members {
-                    viewModel.fetchMemberProfiles(uids: members)
+                    viewModel.fetchMemberProfiles(usernames: members)
                 }
                 if let walletId = walletManager.activeWallet?.id {
                     viewModel.startCountListeners(walletId: walletId)
@@ -69,7 +69,7 @@ struct FamilyDashboardView: View {
             }
             .onDisappear { viewModel.stopListeners() }
             .onChange(of: transactionManager.transactions) { _, newTx in
-                if isSharedWalletActive { viewModel.calculateWholesomeDebts(from: newTx) }
+                if isSharedWalletActive { viewModel.calculateWholesomeDebts(from: newTx, targetCurrency: appCurrency) }
             }
         }
     }
@@ -80,14 +80,19 @@ struct FamilyDashboardView: View {
             VStack(spacing: 28) {
                 // 1. Birleşik Cüzdan + Bu Ay Kartı
                 combinedWalletCard
-                // 2. Aile Hedefleri
-                familyGoalsSection
-                // 3. Üye Harcama Dağılımı (Bonus)
-                if !thisMonthMemberSpending.isEmpty { memberSpendingCard }
-                // 4. Aile İçi Durumlar
-                if !viewModel.wholesomeMessages.isEmpty { wholesomeSection }
-                // 5. Özellikler (başlık yok)
+                
+                // 2. Özellikler (Alışveriş & Görevler)
                 featuresGrid
+
+                // 3. Aile Hedefleri
+                familyGoalsSection
+
+                // 4. Üye Harcama Dağılımı (Bonus)
+                if !thisMonthMemberSpending.isEmpty { memberSpendingCard }
+
+                // 5. Aile İçi Durumlar
+                if !viewModel.wholesomeSituations.isEmpty { wholesomeSection }
+
                 Spacer(minLength: 40)
             }
             .padding(.vertical)
@@ -106,36 +111,19 @@ struct FamilyDashboardView: View {
                 Spacer()
 
                 // Profil resimleri — CachedProfileImage direkt (profile.photoUrl zaten elimizde)
-                if !viewModel.memberProfiles.isEmpty {
+                if let members = walletManager.activeWallet?.members, !members.isEmpty {
                     HStack(spacing: -10) {
-                        ForEach(Array(viewModel.memberProfiles.prefix(4))) { profile in
-                            CachedProfileImage(
-                                urlString: profile.photoUrl,
-                                width: 36,
-                                height: 36,
-                                fallbackIconSize: 14
-                            )
-                            .overlay(
-                                Circle()
-                                    .fill(theme.labelPrimary.opacity(0.001)) // hitArea
-                            )
-                            .overlay(Circle().stroke(theme.background1, lineWidth: 2))
+                        ForEach(Array(members.prefix(4)), id: \.self) { username in
+                            MemberAvatarView(username: username, size: 36)
+                                .overlay(Circle().stroke(theme.background1, lineWidth: 2))
                         }
-                        if viewModel.memberProfiles.count > 4 {
+                        if members.count > 4 {
                             ZStack {
                                 Circle().fill(theme.background2).frame(width: 36, height: 36)
                                     .overlay(Circle().stroke(theme.background1, lineWidth: 2))
-                                Text("+\(viewModel.memberProfiles.count - 4)")
+                                Text("+\(members.count - 4)")
                                     .font(.caption.bold()).foregroundStyle(theme.labelPrimary)
                             }
-                        }
-                    }
-                } else if let members = walletManager.activeWallet?.members, !members.isEmpty {
-                    // Yükleniyor placeholder
-                    HStack(spacing: -10) {
-                        ForEach(Array(members.prefix(4).enumerated()), id: \.element) { _, _ in
-                            Circle().fill(theme.brandPrimary.opacity(0.2)).frame(width: 36, height: 36)
-                                .overlay(Circle().stroke(theme.background1, lineWidth: 2))
                         }
                     }
                 }
@@ -151,7 +139,7 @@ struct FamilyDashboardView: View {
                 // Alt: Bu ay harcandı
                 HStack(spacing: 0) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Bu Ay Harcandı")
+                        Text("Bu Ay Harcandı".localized)
                             .font(.caption)
                             .foregroundStyle(theme.labelSecondary)
                         Text("\(appCurrency.symbol)\(thisMonthTotalSpend.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))")
@@ -160,10 +148,10 @@ struct FamilyDashboardView: View {
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 4) {
-                        Text("\(thisMonthMemberSpending.count) üye")
+                        Text("%d üye".localized(with: thisMonthMemberSpending.count))
                             .font(.caption)
                             .foregroundStyle(theme.labelSecondary)
-                        Text("aktif bu ay")
+                        Text("aktif bu ay".localized)
                             .font(.caption.bold())
                             .foregroundStyle(theme.brandPrimary)
                     }
@@ -179,7 +167,7 @@ struct FamilyDashboardView: View {
     // MARK: - Family Goals Section
     private var familyGoalsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Ailenizin Hedefleri")
+            Text("Ailenizin Hedefleri".localized)
                 .font(.title3.weight(.bold)).foregroundStyle(theme.labelPrimary).padding(.horizontal)
 
             if let savings = walletManager.activeWallet?.savingsAccounts, !savings.isEmpty {
@@ -198,12 +186,14 @@ struct FamilyDashboardView: View {
                         }
                     }
                     .padding(.horizontal)
+                    .padding(.vertical, 12)
                 }
+                .scrollClipDisabled()
             } else {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Henüz bir hedef yok").font(.headline).foregroundStyle(theme.labelPrimary)
-                        Text("Ailenizle ortak birikim hedefi belirleyin.").font(.caption).foregroundStyle(theme.labelSecondary)
+                        Text("Henüz bir hedef yok".localized).font(.headline).foregroundStyle(theme.labelPrimary)
+                        Text("Ailenizle ortak birikim hedefi belirleyin.".localized).font(.caption).foregroundStyle(theme.labelSecondary)
                     }
                     Spacer()
                     Image(systemName: "target").font(.title).foregroundStyle(theme.brandPrimary.opacity(0.5))
@@ -217,7 +207,7 @@ struct FamilyDashboardView: View {
     private var memberSpendingCard: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("Bu Ay Üye Harcamaları").font(.headline.bold()).foregroundStyle(theme.labelPrimary)
+                Text("Bu Ay Üye Harcamaları".localized).font(.headline.bold()).foregroundStyle(theme.labelPrimary)
                 Spacer()
                 Image(systemName: "person.3.fill").font(.caption).foregroundStyle(theme.labelSecondary)
             }
@@ -253,30 +243,87 @@ struct FamilyDashboardView: View {
     // MARK: - Wholesome Section
     private var wholesomeSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Aile İçi Durumlar").font(.title3.weight(.bold)).foregroundStyle(theme.labelPrimary).padding(.horizontal)
+            Text("Aile İçi Durumlar".localized).font(.title3.weight(.bold)).foregroundStyle(theme.labelPrimary).padding(.horizontal)
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(viewModel.wholesomeMessages, id: \.self) { msg in
-                        Text(msg).font(.subheadline.weight(.medium)).foregroundStyle(theme.labelPrimary)
-                            .padding(.horizontal, 16).padding(.vertical, 12).glassEffect(in: .capsule)
+                HStack(spacing: 16) {
+                    ForEach(viewModel.wholesomeSituations) { situation in
+                        NavigationLink {
+                            WholesomeDetailView(situation: situation)
+                        } label: {
+                            wholesomeCard(situation: situation)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.horizontal)
+                .padding(.vertical, 12)
+            }
+            .scrollClipDisabled()
+        }
+    }
+
+    private func wholesomeCard(situation: WholesomeSituation) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top) {
+                ZStack {
+                    Circle()
+                        .fill(theme.brandPrimary.opacity(0.1))
+                        .frame(width: 40, height: 40)
+                    Image(systemName: situation.icon)
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(theme.brandPrimary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption2.bold())
+                    .foregroundStyle(theme.labelSecondary.opacity(0.5))
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(situation.title)
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundStyle(theme.labelPrimary)
+                
+                Text(situation.message)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(theme.labelSecondary)
+                    .lineLimit(2)
+            }
+            
+            Spacer(minLength: 0)
+            
+            // Targets Badge Area
+            if !situation.targets.isEmpty {
+                HStack(spacing: -8) {
+                    ForEach(situation.targets.prefix(3), id: \.self) { username in
+                        MemberAvatarView(username: username, size: 24)
+                            .overlay(Circle().stroke(theme.background1, lineWidth: 1))
+                    }
+                    if situation.targets.count > 3 {
+                        ZStack {
+                            Circle().fill(theme.background2).frame(width: 24, height: 24)
+                            Text("+\(situation.targets.count - 3)").font(.system(size: 8, weight: .bold))
+                        }
+                    }
+                }
             }
         }
+        .padding(16)
+        .frame(width: 180, height: 180)
+        .glassEffect(in: .rect(cornerRadius: 24))
     }
 
     // MARK: - Features Grid
     private var featuresGrid: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 16) {
             NavigationLink { FamilyShoppingListView() } label: {
-                featureGridCard(icon: "cart.fill", title: "Alışveriş",
-                    subtitle: viewModel.pendingShoppingItemsCount == 0 ? "Liste boş" : "\(viewModel.pendingShoppingItemsCount) Bekleyen",
+                featureGridCard(icon: "cart.fill", title: "Alışveriş".localized,
+                    subtitle: viewModel.pendingShoppingItemsCount == 0 ? "Liste boş".localized : "%d Bekleyen".localized(with: viewModel.pendingShoppingItemsCount),
                     gradient: [Color.orange.opacity(0.8), Color.orange])
             }
             NavigationLink { FamilyMissionsView() } label: {
-                featureGridCard(icon: "star.fill", title: "Görevler",
-                    subtitle: viewModel.pendingMissionsCount == 0 ? "Görev yok" : "\(viewModel.pendingMissionsCount) Aktif",
+                featureGridCard(icon: "star.fill", title: "Görevler".localized,
+                    subtitle: viewModel.pendingMissionsCount == 0 ? "Görev yok".localized : "%d Aktif".localized(with: viewModel.pendingMissionsCount),
                     gradient: [Color.purple.opacity(0.8), Color.purple])
             }
         }
@@ -357,8 +404,8 @@ struct FamilyDashboardView: View {
         VStack(spacing: 16) {
             Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 40))
                 .foregroundStyle(theme.brandPrimary.opacity(0.8))
-            Text("Paylaşımlı Cüzdan Gerekli").font(.headline).foregroundStyle(theme.labelPrimary)
-            Text("Aile merkezini kullanabilmek için 'Özet' sayfasından paylaşımlı bir cüzdan seçmeli veya yeni bir paylaşımlı cüzdan oluşturmalısınız.")
+            Text("Paylaşımlı Cüzdan Gerekli".localized).font(.headline).foregroundStyle(theme.labelPrimary)
+            Text("Aile merkezini kullanabilmek için 'Özet' sayfasından paylaşımlı bir cüzdan seçmeli veya yeni bir paylaşımlı cüzdan oluşturmalısınız.".localized)
                 .font(.subheadline).multilineTextAlignment(.center)
                 .foregroundStyle(theme.labelSecondary).padding(.horizontal, 32)
         }

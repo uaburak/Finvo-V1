@@ -3,9 +3,18 @@ import Combine
 import FirebaseFirestore
 import SwiftUI
 
+struct WholesomeSituation: Identifiable, Equatable, Hashable {
+    let id = UUID()
+    let title: String
+    let message: String
+    let icon: String
+    let targets: [String] // Kullanıcı isimleri
+    let stats: [String: Double] // Kanıt olarak sunulacak harcama dağılımı
+}
+
 @MainActor
 class FamilyDashboardViewModel: ObservableObject {
-    @Published var wholesomeMessages: [String] = []
+    @Published var wholesomeSituations: [WholesomeSituation] = []
     @Published var pendingMissionsCount: Int = 0
     @Published var pendingShoppingItemsCount: Int = 0
     @Published var memberProfiles: [UserModel] = []
@@ -49,12 +58,12 @@ class FamilyDashboardViewModel: ObservableObject {
     }
 
     // MARK: - Member Profiles
-    func fetchMemberProfiles(uids: [String]) {
-        guard !uids.isEmpty else { return }
+    func fetchMemberProfiles(usernames: [String]) {
+        guard !usernames.isEmpty else { return }
         Task {
             var fetched: [UserModel] = []
-            for uid in uids {
-                if let profile = try? await FirestoreService.shared.getUserProfile(uid: uid) {
+            for username in usernames {
+                if let profile = try? await FirestoreService.shared.getUserProfileByUsername(username) {
                     fetched.append(profile)
                 }
             }
@@ -64,65 +73,126 @@ class FamilyDashboardViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Wholesome Debts
-    let categoryEmojis: [String: String] = [
-        "Kafe": "☕️", "Kahve": "☕️", "Yemek": "🍔",
-        "Restoran": "🍕", "Market": "🛒", "Eğlence": "🍿",
-        "Sinema": "🎬", "Tatlı": "🍦"
-    ]
-
-    let actionWords: [String: String] = [
-        "Kafe": "kahve ısmarlama", "Kahve": "kahve ısmarlama",
-        "Yemek": "yemek ısmarlama", "Restoran": "yemek ısmarlama",
-        "Market": "market alışverişi yapma", "Eğlence": "bilet alma",
-        "Sinema": "mısır ısmarlama", "Tatlı": "tatlı ısmarlama"
-    ]
-
-    func calculateWholesomeDebts(from transactions: [TransactionModel]) {
-        let whitelistedCategories = Set(categoryEmojis.keys)
-
-        let expenses = transactions.filter { tx in
-            tx.type == .expense && !tx.isDebt && whitelistedCategories.contains(tx.mainCategoryName)
+    // MARK: - Wholesome Debts (Aile İçi Durum Analizi)
+    func calculateWholesomeDebts(from transactions: [TransactionModel], targetCurrency: CurrencyType = .tryCurrency) {
+        let calendar = Calendar.current
+        let now = Date()
+        
+        let thisMonthExpenses = transactions.filter { tx in
+            calendar.isDate(tx.date, equalTo: now, toGranularity: .month) &&
+            tx.type == .expense && 
+            !tx.isDebt
+        }
+        
+        guard !thisMonthExpenses.isEmpty else {
+            self.wholesomeSituations = [
+                WholesomeSituation(
+                    title: "Mükemmel Denge".localized,
+                    message: "Aile içi harcamalar şu an harika bir dengede! ⚖️ Mükemmel!".localized,
+                    icon: "checkmark.seal.fill",
+                    targets: [],
+                    stats: [:]
+                )
+            ]
+            return
         }
 
-        var categoryUserSpends: [String: [String: Double]] = [:]
-        for tx in expenses {
-            let cat = tx.mainCategoryName
-            let user = tx.createdBy
-            if categoryUserSpends[cat] == nil { categoryUserSpends[cat] = [:] }
-            categoryUserSpends[cat]![user, default: 0] += tx.amount
+        var newSituations: [WholesomeSituation] = []
+
+        // 1. Üye bazlı toplamları hesapla
+        var userTotals: [String: Double] = [:]
+        for tx in thisMonthExpenses {
+            let converted = ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: targetCurrency)
+            userTotals[tx.createdBy, default: 0] += converted
         }
 
-        var newMessages: [String] = []
-        for (category, userSpends) in categoryUserSpends {
-            guard userSpends.keys.count >= 2 else { continue }
-            let sortedUsers = userSpends.sorted { $0.value > $1.value }
-            let highestSpender = sortedUsers.first!
-            let lowestSpender = sortedUsers.last!
-            let diff = highestSpender.value - lowestSpender.value
+        let sortedTotals = userTotals.sorted { $0.value > $1.value }
+        let totalSpend = userTotals.values.reduce(0, +)
+        let memberCount = userTotals.count
 
-            if diff > 150 {
-                let emoji = categoryEmojis[category] ?? "🎁"
-                let action = actionWords[category] ?? "\(category.lowercased()) borcu"
-                let payer = lowestSpender.key.capitalized
-                let payee = highestSpender.key.capitalized
-                let rnd = Int.random(in: 0...2)
-                var msg = ""
-                if action.contains("borcu") {
-                    msg = "\(payer)'nin \(payee)'a \(action) var! \(emoji)"
-                } else if rnd == 0 {
-                    msg = "\(payer)'nin \(payee)'a \(action) vakti geldi! \(emoji)"
-                } else if rnd == 1 {
-                    msg = "Bu sefer \(action) sırası sende \(payer)! \(emoji)"
-                } else {
-                    msg = "\(payer)'nin \(payee)'a \(action) var! \(emoji)"
+        // 2. Çoklu Üye Analizi (3+ Üye Durumu)
+        if memberCount >= 2 {
+            let highest = sortedTotals.first!
+            let lowest = sortedTotals.last!
+            let threshold = ExchangeRateManager.shared.convert(amount: 300, from: .tryCurrency, to: targetCurrency)
+            
+            // DURUM A: Bir kişi aileyi sırtlıyor
+            if highest.value > (totalSpend * 0.6) && memberCount >= 3 {
+                let othersArr = sortedTotals.dropFirst().map { $0.key.capitalized }
+                let others = othersArr.joined(separator: ", ")
+                newSituations.append(WholesomeSituation(
+                    title: "Finansal Lokomotif".localized,
+                    message: "%@ bu ay aileyi sırtlamış gidiyor! 🚀 %@, biraz destek olma vakti.".localized(with: highest.key.capitalized, others),
+                    icon: "tram.fill",
+                    targets: [highest.key] + sortedTotals.dropFirst().map { $0.key },
+                    stats: userTotals
+                ))
+            }
+            // DURUM B: Genel uçurum (En çok ve en az arasında)
+            else if highest.value - lowest.value > threshold {
+                newSituations.append(WholesomeSituation(
+                    title: "Harcama Lideri".localized,
+                    message: "%@ bu ay liderliği kimseye bırakmamış! 🏆 %@ biraz geride kalmış.".localized(with: highest.key.capitalized, lowest.key.capitalized),
+                    icon: "crown.fill",
+                    targets: [highest.key, lowest.key],
+                    stats: userTotals
+                ))
+            }
+            
+            // DURUM C: Çoklu üye - "Ekonomik" grup
+            if memberCount >= 4 {
+                let average = totalSpend / Double(memberCount)
+                let lazyOnes = sortedTotals.filter { $0.value < average * 0.4 }.map { $0.key }
+                if !lazyOnes.isEmpty && lazyOnes.count < memberCount {
+                    newSituations.append(WholesomeSituation(
+                        title: "Ekonomik Takım".localized,
+                        message: "Bu grup ayı biraz fazla 'ekonomik' geçirmiş. 😅 Sıradaki harcamalar sizden mi?".localized,
+                        icon: "leaf.fill",
+                        targets: lazyOnes,
+                        stats: userTotals
+                    ))
                 }
-                newMessages.append(msg)
             }
         }
 
-        self.wholesomeMessages = newMessages.isEmpty
-            ? ["Aile içi harcamalar şu an harika bir dengede! ⚖️ Mükemmel!"]
-            : Array(newMessages.shuffled().prefix(2))
+        // 3. Kategori Bazlı Analiz
+        let groupedByCategory = Dictionary(grouping: thisMonthExpenses) { $0.resolvedMainCategoryName }
+        for (catName, txs) in groupedByCategory {
+            var catUserTotals: [String: Double] = [:]
+            for tx in txs {
+                let converted = ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: targetCurrency)
+                catUserTotals[tx.createdBy, default: 0] += converted
+            }
+            
+            if catUserTotals.count >= 2 {
+                let sortedCat = catUserTotals.sorted { $0.value > $1.value }
+                let catHighest = sortedCat.first!
+                let catLowest = sortedCat.last!
+                let catThreshold = ExchangeRateManager.shared.convert(amount: 150, from: .tryCurrency, to: targetCurrency)
+                
+                if catHighest.value - catLowest.value > catThreshold {
+                    newSituations.append(WholesomeSituation(
+                        title: "%@ Ustası".localized(with: catName),
+                        message: "%@ harcamalarında %@ bayrağı taşıyor! 🚩".localized(with: catName, catHighest.key.capitalized),
+                        icon: txs.first?.categoryIcon ?? "cart.fill",
+                        targets: [catHighest.key],
+                        stats: catUserTotals
+                    ))
+                }
+            }
+        }
+
+        // 4. Mükemmel Denge Durumu
+        if newSituations.isEmpty {
+            newSituations.append(WholesomeSituation(
+                title: "Mükemmel Denge".localized,
+                message: "Aile içi harcamalar şu an harika bir dengede! ⚖️ Mükemmel!".localized,
+                icon: "checkmark.seal.fill",
+                targets: [],
+                stats: [:]
+            ))
+        }
+
+        self.wholesomeSituations = Array(newSituations.shuffled().prefix(4))
     }
 }
