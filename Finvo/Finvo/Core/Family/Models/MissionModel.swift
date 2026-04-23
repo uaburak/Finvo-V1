@@ -8,7 +8,8 @@ struct MissionModel: Codable, Identifiable, Equatable {
     var rewardAmount: Double
     var isCompleted: Bool = false
     var isApproved: Bool = false // Approved by the assigner
-    var assignedTo: String? // username
-    var createdBy: String // username
+    var assignedTo: String?  // username — görevi yapacak kişi (nil = herkes)
+    var completedBy: String? // username — görevi fiilen tamamlayan kişi
+    var createdBy: String    // username — görevi oluşturan kişi (ödülü ödeyen)
     var createdAt: Date = Date()
 }
