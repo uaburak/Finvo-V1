@@ -74,7 +74,10 @@ class FamilyDashboardViewModel: ObservableObject {
     }
 
     // MARK: - Wholesome Debts (Aile İçi Durum Analizi)
-    func calculateWholesomeDebts(from transactions: [TransactionModel], targetCurrency: CurrencyType = .tryCurrency) {
+    // Fix: nonisolated context'te @MainActor static property kullanılamaz,
+    // bu yüzden default parametre değeri nil yapılıp metodun içinde fallback veriliyor.
+    func calculateWholesomeDebts(from transactions: [TransactionModel], targetCurrency: CurrencyType? = nil) {
+        let targetCurrency = targetCurrency ?? .tryCurrency
         let calendar = Calendar.current
         let now = Date()
         

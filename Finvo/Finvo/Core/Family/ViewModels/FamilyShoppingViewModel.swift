@@ -54,10 +54,17 @@ class FamilyShoppingViewModel: ObservableObject {
             isPurchased: false,
             addedBy: username
         )
-        try? db.collection("wallets")
-            .document(walletId)
-            .collection("shoppingList")
-            .addDocument(from: newItem)
+        // Fix: try? sonuçsuz bırakılmıştı, Task içinde hata logluyoruz
+        Task {
+            do {
+                try db.collection("wallets")
+                    .document(walletId)
+                    .collection("shoppingList")
+                    .addDocument(from: newItem)
+            } catch {
+                print("🛒 Shopping item ekleme hatası: \(error)")
+            }
+        }
     }
 
     func toggleItem(_ item: ShoppingItemModel) {

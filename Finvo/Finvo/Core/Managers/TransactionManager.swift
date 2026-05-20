@@ -21,6 +21,9 @@ class TransactionManager: ObservableObject {
     
     private var currentWalletId: String?
     
+    // MARK: - Task iptal mekanizması (Bug #1 fix)
+    private var recurringTask: Task<Void, Never>?
+    
     // Geçerli cüzdanın ID'si ile işlemleri dinlemeye başla
     func startListening(walletId: String) {
         // Aynı cüzdan için zaten dinliyorsak tekrar başlatma
@@ -91,12 +94,17 @@ class TransactionManager: ObservableObject {
                     self.topExpenseCategoryName = topName
                     self.hasLoaded = true
                     
-                    self.evaluateRecurringTransactions(parsed)
+                    self.evaluateRecurringTransactions(parsed, walletId: walletId)
                 }
             }
     }
     
     func stopListening() {
+        // Bug #1 fix: Devam eden recurring Task'ı iptal et
+        recurringTask?.cancel()
+        recurringTask = nil
+        isEvaluatingRecurring = false
+        
         listener?.remove()
         listener = nil
         currentWalletId = nil
@@ -146,147 +154,227 @@ class TransactionManager: ObservableObject {
         self.topExpenseCategoryName = topName
     }
     
-    private func evaluateRecurringTransactions(_ parsed: [TransactionModel]) {
-        guard !isEvaluatingRecurring else { return }
+    // MARK: - Wallet-agnostic: Tüm Cüzdanlar İçin Değerlendirme
+    /// Uygulama ön plana geldiğinde (scenePhase = .active) tüm cüzdanları tara.
+    /// Her cüzdanın tekrarlayan işlemlerini retroaktif catch-up ile günceller.
+    /// UI thread'ini bloklamaz (background priority).
+    func evaluateAllWalletsRecurring(walletIds: [String]) {
+        guard !walletIds.isEmpty else { return }
         
-        let now = Date()
-        let calendar = Calendar.current
-        // Bugünün başlangıcı — bugün oluşturulan tekrarlayan işlemler henüz vadesi gelmemiş sayılır
-        let startOfToday = calendar.startOfDay(for: now)
-        let dueTransactions = parsed.filter { $0.isRecurring && $0.date < startOfToday }
-        
-        guard !dueTransactions.isEmpty else { return }
-        
-        isEvaluatingRecurring = true
-        
-        Task {
-            for tx in dueTransactions {
-                let currentTx = tx
-                
-                let value: Int
-                let component: Calendar.Component
-                switch currentTx.recurrenceInterval ?? .monthly {
-                case .daily: value = 1; component = .day
-                case .weekly: value = 1; component = .weekOfYear
-                case .monthly: value = 1; component = .month
-                case .yearly: value = 1; component = .year
+        Task.detached(priority: .background) {
+            for walletId in walletIds {
+                guard !Task.isCancelled else { break }
+                do {
+                    // Orijinal tekrarlayan işlemleri çek (parentRecurringId alanı olmayan)
+                    let snapshot = try await Firestore.firestore()
+                        .collection("wallets").document(walletId)
+                        .collection("transactions")
+                        .whereField("isRecurring", isEqualTo: true)
+                        .getDocuments()
+                    
+                    let allRecurring = snapshot.documents.compactMap { try? $0.data(as: TransactionModel.self) }
+                    let originals = allRecurring.filter { $0.parentRecurringId == nil }
+                    guard !originals.isEmpty else { continue }
+                    
+                    // Mevcut kopyaları çek (duplicate önleme için)
+                    let copiesSnapshot = try await Firestore.firestore()
+                        .collection("wallets").document(walletId)
+                        .collection("transactions")
+                        .whereField("isRecurring", isEqualTo: false)
+                        .getDocuments()
+                    let existingCopies = copiesSnapshot.documents.compactMap { try? $0.data(as: TransactionModel.self) }
+                        .filter { $0.parentRecurringId != nil }
+                    
+                    await Self.processRecurringOriginals(originals, existingCopies: existingCopies, walletId: walletId)
+                } catch {
+                    print("evaluateAllWalletsRecurring error for wallet \(walletId): \(error)")
                 }
-                
-                // Çoğaltma işlemindeki kök tarihi (gerçek zincir başlangıcını) koruyalım
-                let trueStartDate = min(currentTx.createdAt, currentTx.date)
-                
-                // Mevcut (geçmişte kalmış) işlemi kapatıyoruz
-                var originalTx = currentTx
-                originalTx.isRecurring = false
-                try? FirestoreService.shared.updateTransaction(originalTx)
-                
-                var generatingDate = currentTx.date
-                var safetyCounter = 0
-                
-                while generatingDate < startOfToday && safetyCounter < 500 {
-                    safetyCounter += 1
-                    guard let nextDate = calendar.date(byAdding: component, value: value, to: generatingDate) else { break }
-                    
-                    if let end = currentTx.recurrenceEndDate, nextDate > end {
-                        break
-                    }
-                    
-                    var newTx = currentTx
-                    newTx.id = nil
-                    newTx.date = nextDate
-                    newTx.createdAt = trueStartDate // Zincirin başını işaret ediyoruz
-                    
-                    if nextDate < startOfToday {
-                        newTx.isRecurring = false
-                    } else {
-                        newTx.isRecurring = true
-                    }
-                    
-                    try? FirestoreService.shared.createTransaction(newTx)
-                    
-                    generatingDate = nextDate
-                    
-                    if nextDate >= startOfToday {
-                        break
-                    }
-                }
-            }
-            
-            try? await Task.sleep(nanoseconds: 1_000_000_000)
-            await MainActor.run {
-                self.isEvaluatingRecurring = false
             }
         }
     }
     
-    // Borç ödeme operasyonu
+    // MARK: - Aktif Cüzdan İçin Değerlendirme (Snapshot listener'dan tetiklenir)
+    private func evaluateRecurringTransactions(_ parsed: [TransactionModel], walletId: String) {
+        guard !isEvaluatingRecurring else { return }
+        isEvaluatingRecurring = true
+        
+        // Orijinal tekrarlayan işlemler: parentRecurringId nil ise orijinaldir
+        let originals = parsed.filter { $0.isRecurring && !$0.isRecurringCopy }
+        guard !originals.isEmpty else {
+            isEvaluatingRecurring = false
+            return
+        }
+        
+        let existingCopies = parsed.filter { $0.isRecurringCopy }
+        
+        recurringTask?.cancel()
+        recurringTask = Task {
+            defer {
+                Task { @MainActor in
+                    self.isEvaluatingRecurring = false
+                    self.recurringTask = nil
+                }
+            }
+            await Self.processRecurringOriginals(originals, existingCopies: existingCopies, walletId: walletId)
+        }
+    }
+    
+    // MARK: - Retroaktif Catch-Up Motoru
+    /// Orijinal tekrarlayan işlemleri işler, eksik kopyaları üretir.
+    ///
+    /// Davranış:
+    /// - Orijinal işlem HİÇ DEĞİŞTİRİLMEZ (isRecurring=true olarak kalır, o dönemin kaydıdır).
+    /// - Kopyalar orijinal tarihinden 1 dönem SONRADAN başlar (örn. Şubat 15 → Mart 15, Nisan 15...).
+    /// - Sadece tarihi bugünden geçmiş kopyalar üretilir (retroaktif catch-up, ileriye yazma yok).
+    /// - Her kopya parentRecurringId ile orijinaline bağlıdır → "Ana İşleme Git" özelliği için.
+    /// - lastGeneratedDate sayesinde sadece eksik olan dönemler işlenir → Firestore'a hafif yük.
+    private static func processRecurringOriginals(
+        _ originals: [TransactionModel],
+        existingCopies: [TransactionModel],
+        walletId: String
+    ) async {
+        let calendar = Calendar.current
+        let startOfToday = calendar.startOfDay(for: Date())
+        
+        // Mevcut kopya imza seti: "parentRecurringId|dayTimestamp"
+        var existingSignatures = Set<String>(
+            existingCopies.compactMap { copy -> String? in
+                guard let pid = copy.parentRecurringId else { return nil }
+                let dayStart = calendar.startOfDay(for: copy.date)
+                return "\(pid)|\(dayStart.timeIntervalSince1970)"
+            }
+        )
+        
+        for tx in originals {
+            guard !Task.isCancelled else { break }
+            guard let txId = tx.id else { continue }
+            
+            let value: Int = 1
+            let component: Calendar.Component
+            switch tx.recurrenceInterval ?? .monthly {
+            case .daily:   component = .day
+            case .weekly:  component = .weekOfYear
+            case .monthly: component = .month
+            case .yearly:  component = .year
+            }
+            
+            // Başlangıç noktası: lastGeneratedDate varsa oradan devam et;
+            // yoksa orijinal tarihinden başla (ilk kopya = orijinal + 1 interval).
+            let baseDate = tx.lastGeneratedDate ?? tx.date
+            guard var nextCopyDate = calendar.date(byAdding: component, value: value, to: baseDate) else {
+                continue
+            }
+            
+            var newLastGeneratedDate: Date? = nil
+            var safetyCounter = 0
+            
+            // Sadece geçmiş dönemleri üret
+            while nextCopyDate <= startOfToday && safetyCounter < 500 {
+                guard !Task.isCancelled else { break }
+                safetyCounter += 1
+                
+                // Bitiş tarihi kontrolü
+                if let endDate = tx.recurrenceEndDate, nextCopyDate > endDate { break }
+                
+                let dayStart = calendar.startOfDay(for: nextCopyDate)
+                let signature = "\(txId)|\(dayStart.timeIntervalSince1970)"
+                
+                if !existingSignatures.contains(signature) {
+                    var copy = tx
+                    copy.id = nil                    // Firestore yeni ID atar
+                    copy.date = nextCopyDate
+                    copy.isRecurring = false         // Kopya tekrarlayan değil
+                    copy.parentRecurringId = txId    // Orijinale bağla
+                    copy.lastGeneratedDate = nil     // Sadece orijinalde tutulur
+                    copy.recurrenceInterval = nil
+                    copy.recurrenceEndDate = nil
+                    
+                    do {
+                        try FirestoreService.shared.createTransaction(copy)
+                        existingSignatures.insert(signature)
+                        newLastGeneratedDate = nextCopyDate
+                    } catch {
+                        print("Recurring copy create error: \(error)")
+                    }
+                } else {
+                    // Zaten var, ilerleme kaydedilsin
+                    newLastGeneratedDate = nextCopyDate
+                }
+                
+                guard let next = calendar.date(byAdding: component, value: value, to: nextCopyDate) else { break }
+                nextCopyDate = next
+            }
+            
+            // Orijinal işlemin lastGeneratedDate'ini güncelle (sadece ilerleme olduysa)
+            if let newDate = newLastGeneratedDate, newDate != tx.lastGeneratedDate {
+                var updatedOriginal = tx
+                updatedOriginal.lastGeneratedDate = newDate
+                try? FirestoreService.shared.updateTransaction(updatedOriginal)
+            }
+        }
+    }
+    
+    // MARK: - Borç Ödeme Operasyonu
     @MainActor func payDebtInstallment(for debtTransaction: TransactionModel, currentUsername: String) async throws {
-        guard let total = debtTransaction.totalInstallments, let paid = debtTransaction.paidInstallments, paid < total else { return }
+        guard let total = debtTransaction.totalInstallments,
+              let paid = debtTransaction.paidInstallments,
+              paid < total else { return }
         
         let currentInstallmentNum = paid + 1
         let installmentAmount = debtTransaction.amount / Double(total)
         
-        // Mantık: Borç ilk oluşturulduğunda kullanılan kategori ve ikonları aynen koruyoruz.
-        // Ama tipini (Income/Expense) duruma göre belirliyoruz.
         let isLendingMoney = (debtTransaction.type == .expense && debtTransaction.mainCategoryName.lowercased().contains("borç"))
         let newTxType: TransactionType = isLendingMoney ? .income : .expense
         
-        // 1. Yeni bir taksit işlemi yarat (Daha zengin veriyle)
-        // Kullanıcı isteği: Ana kategori değil alt kategori adıyla oluşsun (Başlık alt kategori olsun)
         let displayTitle = debtTransaction.subCategoryName ?? debtTransaction.mainCategoryName
         
         let newInstallment = TransactionModel(
             walletId: debtTransaction.walletId,
             type: newTxType,
             amount: installmentAmount,
-            currency: debtTransaction.currency, // Dövizini koru
+            currency: debtTransaction.currency,
             mainCategoryName: displayTitle,
-            mainCategoryId: nil, // Root kategori adının (örn: Konut) başlığı ezmemesi için nil veriyoruz
+            mainCategoryId: nil,
             subCategoryName: "\(currentInstallmentNum). Taksit",
-            subCategoryId: nil, // Subtitle kısmına taksit bilgisini yazdığımız için ID boşa çıkıyor
+            subCategoryId: nil,
             categoryIcon: debtTransaction.categoryIcon,
             categoryColor: debtTransaction.categoryColor,
             date: Date(),
-            note: debtTransaction.note, // Orijinal notu koru
+            note: debtTransaction.note,
             createdBy: currentUsername,
             createdAt: Date(),
-            isDebt: false, // Bu bir borç değil, borcun taksit ödemesi
+            isDebt: false,
             debtContact: debtTransaction.debtContact,
             totalInstallments: debtTransaction.totalInstallments,
-            paidInstallments: currentInstallmentNum, // Kaçıncı taksit ödendi bilgisini snapshot olarak tut
-            isPaid: true, // Taksit işleminin kendisi "Ödendi" durumundadır
+            paidInstallments: currentInstallmentNum,
+            isPaid: true,
             parentDebtId: debtTransaction.id,
             installmentNumber: currentInstallmentNum
         )
         
-        // 2. Kök borç işleminin taksitini +1 artır ve isPaid kontrolü yap
         var updatedDebt = debtTransaction
         updatedDebt.paidInstallments = currentInstallmentNum
         if updatedDebt.paidInstallments == total {
             updatedDebt.isPaid = true
         }
         
-        // 3. İki işlemi de Firestore'a yaz
         let debtToSave = updatedDebt
         async let step1: Void = FirestoreService.shared.createTransaction(newInstallment)
         async let step2: Void = FirestoreService.shared.updateTransaction(debtToSave)
-        
         _ = try await (step1, step2)
     }
     
-    // Deletion Impact Assessment
+    // MARK: - Deletion Impact Assessment
     func getImpact(mainCategoryId: String, subCategoryId: String? = nil) -> (transactionCount: Int, recurringCount: Int) {
         let filtered: [TransactionModel]
-        
         if let subId = subCategoryId {
             filtered = transactions.filter { $0.mainCategoryId == mainCategoryId && $0.subCategoryId == subId }
         } else {
             filtered = transactions.filter { $0.mainCategoryId == mainCategoryId }
         }
-        
         let txCount = filtered.count
         let recurringCount = filtered.filter { $0.isRecurring }.count
-        
         return (txCount, recurringCount)
     }
 }
+

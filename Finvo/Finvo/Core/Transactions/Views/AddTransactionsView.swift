@@ -140,12 +140,16 @@ struct AddTransactionsView: View {
     
     private var isLocked: Bool {
         if let wallet = walletManager.activeWallet, wallet.type == .shared {
-            if wallet.members.count > 2 {
+            // Fix #6: Pending (daveti kabul etmemiş) üyeleri saymıyoruz
+            let activeMembers = wallet.members.filter {
+                wallet.permissions[$0] != WalletRole.pending.rawValue
+            }
+            if activeMembers.count > 2 {
                 // Kendi profilime bak: Ben Pro isem kilit açık
                 if authManager.currentUserProfile?.isPro == true { return false }
                 
-                // Benim dışımdaki üyelere bak: Biri bile Pro ise kilit açık
-                let hasProMember = wallet.members.contains { memberUsername in
+                // Benim dışımdaki aktif üyelere bak: Biri bile Pro ise kilit açık
+                let hasProMember = activeMembers.contains { memberUsername in
                     if memberUsername == authManager.currentUserProfile?.username { return false }
                     return walletManager.usersProStatus[memberUsername] == true
                 }
@@ -179,14 +183,7 @@ struct AddTransactionsView: View {
                         if currentStep != .type && transactionToEdit == nil {
                             Button {
                                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                                if let prev = TransactionStep(rawValue: currentStep.rawValue - 1) {
-                                    // İçerik (currentStep) anında değişir:
-                                    currentStep = prev
-                                    // Sheet boyutu (selectedDetent) animasyonlu değişir:
-                                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                        selectedDetent = prev == .type ? .height(280) : .height(650)
-                                    }
-                                }
+                                prevStep()
                             } label: {
                                 Image(systemName: "chevron.left")
                                     .fontWeight(.bold)
@@ -277,6 +274,7 @@ struct AddTransactionsView: View {
             ForEach(filteredCategories) { category in
                 SelectionCard(title: LocalizedStringKey(category.name), icon: category.icon, color: category.uiColor) {
                     selectedMainCategory = category
+                    selectedSubCategory = nil // Fix #2: Kategori değişince alt kategori sıfırlanıyor
                     nextStep()
                 }
             }
@@ -375,7 +373,13 @@ struct AddTransactionsView: View {
             .overlay(RoundedRectangle(cornerRadius: 24).stroke(theme.separator, lineWidth: 1))
 
             VStack(spacing: 0) {
-                toggleRow("person.2.fill", "Borç / Alacak İşlemi", isOn: $isDebt)
+                toggleRow("person.2.fill", "Borç / Alacak İşlemi", isOn: Binding(
+                    get: { isDebt },
+                    set: { newVal in
+                        isDebt = newVal
+                        if newVal { isRecurring = false } // Mutex: ikisi aynı anda aktif olamaz
+                    }
+                ))
                 
                 if isDebt {
                     Divider().padding(.leading, 56)
@@ -438,7 +442,13 @@ struct AddTransactionsView: View {
                 
                 Divider()
                 
-                toggleRow("arrow.2.squarepath", "Tekrarlayan İşlem", isOn: $isRecurring)
+                toggleRow("arrow.2.squarepath", "Tekrarlayan İşlem", isOn: Binding(
+                    get: { isRecurring },
+                    set: { newVal in
+                        isRecurring = newVal
+                        if newVal { isDebt = false } // Mutex: ikisi aynı anda aktif olamaz
+                    }
+                ))
                 
                 if isRecurring {
                     Divider().padding(.leading, 56)
@@ -526,19 +536,45 @@ struct AddTransactionsView: View {
 
     private func nextStep() {
         UISelectionFeedbackGenerator().selectionChanged()
-        if let next = TransactionStep(rawValue: currentStep.rawValue + 1) {
-            // İçerik anında değişir
-            currentStep = next
-            // Sheet'in yüksekliği animasyonla büyür
+        guard let next = TransactionStep(rawValue: currentStep.rawValue + 1) else { return }
+        
+        // Fix #1: Alt kategorisi olmayan kategorilerde subcategory adımını atla
+        if next == .subcategory, (selectedMainCategory?.subCategories ?? []).isEmpty {
+            guard let skip = TransactionStep(rawValue: next.rawValue + 1) else { return }
+            currentStep = skip
             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                selectedDetent = next == .type ? .height(280) : .height(650)
+                selectedDetent = .height(650)
             }
-            
-            // Otomatik Maaş Tekrarlayan Seçimi
-            if next == .details && selectedMainCategory?.name.lowercased() == "maaş" && transactionToEdit == nil {
-                isRecurring = true
-                recurringFrequency = .monthly
+            return
+        }
+        
+        // Normal adım geçişi
+        currentStep = next
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            selectedDetent = next == .type ? .height(280) : .height(650)
+        }
+    }
+    
+    /// Geri navigasyon — nextStep() ile simetrik çalışır.
+    /// Alt kategorisi olmayan kategorilerde .details'ten geri gidince
+    /// boş .subcategory ekranı yerine direkt .category'e döner.
+    private func prevStep() {
+        guard let prev = TransactionStep(rawValue: currentStep.rawValue - 1) else { return }
+        
+        // .details'ten geri gidiyoruz ve kategorinin alt kategorisi yoksa .subcategory'yi atla
+        if prev == .subcategory, (selectedMainCategory?.subCategories ?? []).isEmpty {
+            guard let skip = TransactionStep(rawValue: prev.rawValue - 1) else { return }
+            currentStep = skip
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                selectedDetent = skip == .type ? .height(280) : .height(650)
             }
+            return
+        }
+        
+        // Normal geri geçiş
+        currentStep = prev
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            selectedDetent = prev == .type ? .height(280) : .height(650)
         }
     }
     
@@ -619,14 +655,17 @@ struct AddTransactionsView: View {
             }
             let thisMonthExpense = thisMonthTransactions.reduce(0) { $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: appCurrency) }
             
-            let cleanAmount = amount.replacingOccurrences(of: ".", with: "").replacingOccurrences(of: ",", with: ".")
-            let parsedAmount = Double(cleanAmount) ?? 0.0
+            // Fix #10: Locale-safe parse — virgül ve nokta normalleştiriliyor
+            let normalized = amount.replacingOccurrences(of: ".", with: "").replacingOccurrences(of: ",", with: ".")
+            let parsedAmount = Double(normalized) ?? 0.0
             let amountInBase = ExchangeRateManager.shared.convert(amount: parsedAmount, from: selectedCurrency, to: appCurrency)
             
             if thisMonthExpense + amountInBase > limit {
+                // Fix #9: Kalan bütçe negatife düşebilir, max(0,...) ile koruma
+                let remaining = max(0, limit - thisMonthExpense)
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                    Text("Dikkat: Bu harcama, kalan aylık bütçenizi (\(appCurrency.symbol)\((limit - thisMonthExpense).formatted(.number.grouping(.automatic).precision(.fractionLength(0))))) aşmaktadır.")
+                    Text("Dikkat: Bu harcama, kalan aylık bütçenizi (\(appCurrency.symbol)\(remaining.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))) aşmaktadır.")
                         .font(.caption)
                     Spacer(minLength: 0)
                 }
@@ -654,21 +693,29 @@ struct AddTransactionsView: View {
             return
         }
         
-        // Parse Amount safely handling locales and commas
+        // Fix #10: Locale-safe parse — önce NumberFormatter dene, sonra normalize et
         var parsedAmount: Double = 0.0
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        if let number = formatter.number(from: amount) {
-            parsedAmount = number.doubleValue
-        } else {
-            let normalized = amount.replacingOccurrences(of: ",", with: ".")
-            parsedAmount = Double(normalized) ?? 0.0
-        }
+        let normalizedAmount = amount
+            .replacingOccurrences(of: " ", with: "")   // boşlukları temizle
+            .replacingOccurrences(of: ".", with: "")   // binlik ayıraçları çıkar
+            .replacingOccurrences(of: ",", with: ".")  // ondalık virgülü noktaya çevir
+        parsedAmount = Double(normalizedAmount) ?? 0.0
         
-        // Kullanıcı borç eklerken taksit tutarını (aylık ödeme) girer, sistem toplam borcu hesaplar
+        // Fix #3: Borç amount hesabı
+        // Yeni işlem: kullanıcı taksit başı tutarı girer → toplam = taksit * sayı
+        // Düzenleme (mevcut borç, taksitli): init() zaten bölmüş → tekrar çarp
+        // Düzenleme (mevcut borç, taksitsiz): init() bölmemiş → taksit eklendiyse ÇARPMa
         if isDebt {
             let count = Double(installmentCount) ?? 1.0
-            parsedAmount = parsedAmount * count
+            let isNewDebt = transactionToEdit == nil
+            let editingDebtWithExistingInstallments = transactionToEdit?.isDebt == true
+                && (transactionToEdit?.totalInstallments ?? 0) > 0
+            
+            if isNewDebt || editingDebtWithExistingInstallments {
+                // Yeni borç veya taksitli borç düzenleniyor: taksit başı × sayı = toplam
+                parsedAmount = parsedAmount * count
+            }
+            // Taksitsiz borç düzenleniyorsa parsedAmount zaten toplam tutardır
         }
         
         isSaving = true
@@ -693,7 +740,7 @@ struct AddTransactionsView: View {
             isDebt: isDebt,
             debtContact: isDebt ? debtContact : nil,
             totalInstallments: isDebt ? Int(installmentCount) : nil,
-            paidInstallments: isDebt ? Int(paidInstallments) : nil,
+            paidInstallments: isDebt ? (Int(paidInstallments) ?? 0) : nil,  // Bug #9 fix: nil yerine 0
             dueDay: isDebt ? dueDay : nil,
             isPaid: false,
             isRecurring: isRecurring,

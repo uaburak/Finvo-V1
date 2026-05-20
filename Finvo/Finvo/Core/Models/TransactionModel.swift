@@ -64,7 +64,18 @@ struct TransactionModel: Codable, Identifiable, Equatable, Hashable {
     var isRecurring: Bool = false
     var recurrenceInterval: RecurrenceInterval?
     var recurrenceEndDate: Date?
-    
+    /// Orijinal tekrarlayan işlemin son kopya üretim tarihi.
+    /// Sadece orijinal işlemde tutulur; kopyalarda nil'dir.
+    var lastGeneratedDate: Date?
+    /// Bu kopyanın türetildiği orijinal işlemin Firestore ID'si.
+    /// nil ise bu işlem orijinaldir.
+    var parentRecurringId: String?
+
+    /// true ise bu işlem bir tekrarlayan serinin kopyasıdır (orijinal değil).
+    var isRecurringCopy: Bool {
+        return parentRecurringId != nil
+    }
+
     var isIncome: Bool {
         return type == .income
     }
@@ -162,6 +173,8 @@ struct TransactionModel: Codable, Identifiable, Equatable, Hashable {
         hasher.combine(isRecurring)
         hasher.combine(isPaid)
         hasher.combine(appCurrencyAmountAtCreation)
+        hasher.combine(parentRecurringId)
+        hasher.combine(lastGeneratedDate)
     }
 
     static func == (lhs: TransactionModel, rhs: TransactionModel) -> Bool {
@@ -182,7 +195,9 @@ struct TransactionModel: Codable, Identifiable, Equatable, Hashable {
                lhs.isDebt == rhs.isDebt &&
                lhs.isRecurring == rhs.isRecurring &&
                lhs.isPaid == rhs.isPaid &&
-               lhs.appCurrencyAmountAtCreation == rhs.appCurrencyAmountAtCreation
+               lhs.appCurrencyAmountAtCreation == rhs.appCurrencyAmountAtCreation &&
+               lhs.parentRecurringId == rhs.parentRecurringId &&
+               lhs.lastGeneratedDate == rhs.lastGeneratedDate
     }
 }
 
@@ -315,8 +330,12 @@ extension TransactionModel {
             
             if optimalStart > limit {
                 var previousDate = optimalStart
-                while let prev = calendar.date(byAdding: component, value: -value, to: previousDate), prev >= limit {
+                var safetyInner = 0
+                while let prev = calendar.date(byAdding: component, value: -value, to: previousDate),
+                      prev >= limit,
+                      safetyInner < 500 {  // Bug #3 fix: inner loop güvenlik sınırı
                     previousDate = prev
+                    safetyInner += 1
                 }
                 optimalStart = previousDate
             }

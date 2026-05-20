@@ -60,10 +60,17 @@ class FamilyMissionsViewModel: ObservableObject {
             assignedTo: assignedTo,
             createdBy: createdBy
         )
-        try? db.collection("wallets")
-            .document(walletId)
-            .collection("missions")
-            .addDocument(from: newMission)
+        // Fix: try? sonuçsuz bırakılmıştı, Task içinde hata logluyoruz
+        Task {
+            do {
+                try db.collection("wallets")
+                    .document(walletId)
+                    .collection("missions")
+                    .addDocument(from: newMission)
+            } catch {
+                print("⭐️ Mission ekleme hatası: \(error)")
+            }
+        }
     }
 
     func toggleCompletion(for mission: MissionModel, by username: String) {

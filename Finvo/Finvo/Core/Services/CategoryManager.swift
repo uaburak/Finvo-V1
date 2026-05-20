@@ -18,6 +18,8 @@ class CategoryManager: ObservableObject {
     
     func startListening(walletId: String) {
         categoriesListener?.remove()
+        // Fix #5: Cüzdan değişince eski kategoriler temizleniyor, yeni listener gelene kadar mock gösterilmez
+        categories = []
         isLoading = true
         
         categoriesListener = Firestore.firestore().collection("wallets").document(walletId).collection("categories")

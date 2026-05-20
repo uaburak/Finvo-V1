@@ -28,54 +28,10 @@ struct ProfileSettingsView: View {
                         // MARK: - Profil Resmi Alanı (Kullanıcı tarafından beğenilen kısım)
                         VStack(spacing: 16) {
                             PhotosPicker(selection: $selectedItem, matching: .images) {
-                                ZStack {
-                                    // Seçilen yeni resim göster, yoksa Firestore'daki URL'yi kullan
-                                    if let preview = previewImage {
-                                        Image(uiImage: preview)
-                                            .resizable()
-                                            .aspectRatio(contentMode: .fill)
-                                            .frame(width: 120, height: 120)
-                                            .clipShape(Circle())
-                                    } else if let urlStr = authManager.currentUserProfile?.photoUrl {
-                                        CachedProfileImage(
-                                            urlString: urlStr,
-                                            width: 120,
-                                            height: 120,
-                                            fallbackIconSize: 60
-                                        )
-                                    } else {
-                                        Circle()
-                                            .fill(theme.background2)
-                                            .frame(width: 120, height: 120)
-                                            .overlay(
-                                                Image(systemName: "person.fill")
-                                                    .font(.system(size: 60))
-                                                    .foregroundColor(theme.labelSecondary)
-                                            )
-                                    }
-
-                                    // Yükleme veya kamera ikonu
-                                    Circle()
-                                        .fill(theme.brandPrimary)
-                                        .frame(width: 32, height: 32)
-                                        .overlay(
-                                            Group {
-                                                if isUploadingPhoto {
-                                                    ProgressView()
-                                                        .tint(.black)
-                                                        .scaleEffect(0.7)
-                                                } else {
-                                                    Image(systemName: "camera.fill")
-                                                        .font(.system(size: 14))
-                                                        .foregroundColor(.black)
-                                                }
-                                            }
-                                        )
-                                        .offset(x: 40, y: 40)
-                                }
+                                profilePhotoLabel
                             }
                             .onChange(of: selectedItem) { _, _ in
-                                Task { await uploadProfileImage() }
+                                Task { @MainActor in await uploadProfileImage() }
                             }
                             
                             VStack(spacing: 4) {
@@ -178,6 +134,58 @@ struct ProfileSettingsView: View {
     }
     
 
+
+    // MARK: - Profil Fotoğraf Label'ı (Ayrı @ViewBuilder olarak tanımlandı)
+    // Fix: PhotosPicker label closure'ı nonisolated çalışıyor (iOS 26 / Swift 6 strict concurrency).
+    // @State ve @Environment property'lere erişmek için closure içeriği buraya taşındı.
+    @ViewBuilder @MainActor
+    private var profilePhotoLabel: some View {
+        ZStack {
+            // Seçilen yeni resim göster, yoksa Firestore'daki URL'yi kullan
+            if let preview = previewImage {
+                Image(uiImage: preview)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 120, height: 120)
+                    .clipShape(Circle())
+            } else if let urlStr = authManager.currentUserProfile?.photoUrl {
+                CachedProfileImage(
+                    urlString: urlStr,
+                    width: 120,
+                    height: 120,
+                    fallbackIconSize: 60
+                )
+            } else {
+                Circle()
+                    .fill(theme.background2)
+                    .frame(width: 120, height: 120)
+                    .overlay(
+                        Image(systemName: "person.fill")
+                            .font(.system(size: 60))
+                            .foregroundColor(theme.labelSecondary)
+                    )
+            }
+
+            // Yükleme veya kamera ikonu
+            Circle()
+                .fill(theme.brandPrimary)
+                .frame(width: 32, height: 32)
+                .overlay(
+                    Group {
+                        if isUploadingPhoto {
+                            ProgressView()
+                                .tint(.black)
+                                .scaleEffect(0.7)
+                        } else {
+                            Image(systemName: "camera.fill")
+                                .font(.system(size: 14))
+                                .foregroundColor(.black)
+                        }
+                    }
+                )
+                .offset(x: 40, y: 40)
+        }
+    }
 
     // Uygulamanın capsule input satırı yapısı
     @ViewBuilder

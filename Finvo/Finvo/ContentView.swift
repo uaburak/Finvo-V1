@@ -38,18 +38,16 @@ enum AppTab: String, CaseIterable {
 struct ContentView: View {
     @Environment(\.theme) var theme
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.scenePhase) var scenePhase
     @EnvironmentObject var walletManager: WalletManager
     @EnvironmentObject var transactionManager: TransactionManager
     @EnvironmentObject var authManager: AuthenticationManager
+
     @State private var selectedTab: AppTab = .home
-    @State private var previousTab: AppTab = .home
     @State private var showAddSheet: Bool = false
 
-    // Haptic generator'lar her çağrıda yeniden oluşturulmasın
-    private let hapticMedium = UIImpactFeedbackGenerator(style: .medium)
-    private let hapticLight  = UIImpactFeedbackGenerator(style: .light)
+    private let hapticLight = UIImpactFeedbackGenerator(style: .light)
 
-    // Uygulama dilini takip ediyoruz
     @AppStorage("appLanguage") private var appLanguage: String = "tr"
 
     var body: some View {
@@ -84,27 +82,20 @@ struct ContentView: View {
                 tabLabel(for: .settings)
             }
         }
+        // MARK: UIKit-level Add tab interceptor
+        // shouldSelect → return false → UIKit hiç tab geçişi yapmaz
+        // SwiftUI state değişmez → NavigationStack'ler korunur
+        .background {
+            TabBarAddInterceptor(showAddSheet: $showAddSheet, addTabIndex: 2)
+        }
         .onAppear {
             TabBarConfigurator.configure(tabs: AppTab.allCases)
         }
         .onChange(of: colorScheme) { _, _ in
             TabBarConfigurator.configure(tabs: AppTab.allCases)
         }
-        .onChange(of: selectedTab) { oldTab, newTab in
-            if newTab == .add {
-                previousTab = oldTab
-                hapticMedium.impactOccurred()
-                showAddSheet = true
-            }
-        }
         .onChange(of: showAddSheet) { _, newValue in
-            if !newValue { 
-                hapticLight.impactOccurred()
-                // Sheet kapandığında eski sekmeye güvenli bir şekilde dön
-                if selectedTab == .add {
-                    selectedTab = previousTab
-                }
-            }
+            if !newValue { hapticLight.impactOccurred() }
         }
         .sheet(isPresented: $showAddSheet) {
             AddTransactionsView()
@@ -115,6 +106,21 @@ struct ContentView: View {
         .task {
             if let walletId = walletManager.activeWallet?.id {
                 CategoryManager.shared.startListening(walletId: walletId)
+            }
+        }
+        // Uygulama ön plana geldiğinde tüm cüzdanları retroaktif catch-up ile tara
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                let allWalletIds = walletManager.wallets.compactMap { $0.id }
+                transactionManager.evaluateAllWalletsRecurring(walletIds: allWalletIds)
+            }
+        }
+        // Aktif cüzdan değiştiğinde tekrarlayan işlemleri tetikle
+        .onChange(of: walletManager.activeWallet?.id) { _, newId in
+            if let walletId = newId {
+                let allWalletIds = walletManager.wallets.compactMap { $0.id }
+                transactionManager.evaluateAllWalletsRecurring(walletIds: [walletId])
+                _ = allWalletIds // Tüm cüzdanlar zaten scenePhase'de taranıyor
             }
         }
         .environment(\.locale, Locale(identifier: appLanguage))

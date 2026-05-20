@@ -48,6 +48,11 @@ struct TransactionDetailView: View {
                     recurringCard
                 }
 
+                // MARK: - Ana İşlem Kartı (Kopya işlemlerde)
+                if transaction.isRecurringCopy {
+                    parentTransactionCard
+                }
+
                 // MARK: - Not
                 if let note = transaction.note, !note.isEmpty {
                     noteCard(note)
@@ -167,6 +172,23 @@ struct TransactionDetailView: View {
             detailRow(icon: transaction.isIncome ? "arrow.down.left" : "arrow.up.right",
                       title: "Tür",
                       value: transaction.type.localizedTitle)
+
+            // Sadece orijinal tekrarlayan işlemde kopya sayısını göster
+            if transaction.isRecurring && !transaction.isRecurringCopy {
+                let copyCount = transactionManager.transactions.filter {
+                    $0.parentRecurringId == transaction.id
+                }.count
+
+                Divider().padding(.horizontal)
+
+                detailRow(
+                    icon: "arrow.2.squarepath",
+                    title: "Toplam Tekrar",
+                    value: copyCount == 0
+                        ? "Henüz kopya yok"
+                        : "\(copyCount) kopya işlem"
+                )
+            }
         }
         .glassEffect(in: .rect(cornerRadius: 24.0))
     }
@@ -180,8 +202,14 @@ struct TransactionDetailView: View {
             }
 
             if let total = transaction.totalInstallments, let paid = transaction.paidInstallments {
+                // Fix #12: Taksit başı tutarı göster
+                let installmentAmount = total > 0 ? transaction.amount / Double(total) : transaction.amount
+                detailRow(icon: "banknote", title: "Taksit Tutarı",
+                          value: "\(transaction.currency?.symbol ?? appCurrency.symbol)\(installmentAmount.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))")
+                Divider().padding(.horizontal)
+                
                 detailRow(icon: "number", title: "Taksit",
-                          value: "\(paid)/\(total) \("ödendi".localized)")
+                          value: "\(paid)/\(total) \("odendi".localized)")
                 Divider().padding(.horizontal)
 
                 // İlerleme çubuğu
@@ -209,9 +237,89 @@ struct TransactionDetailView: View {
 
             detailRow(icon: transaction.isPaid ? "checkmark.seal.fill" : "hourglass",
                       title: "Durum",
-                      value: transaction.isPaid ? "\("Ödendi".localized) ✓" : "Devam Ediyor".localized)
+                      value: transaction.isPaid ? "\("Odendi".localized) ✓" : "Devam Ediyor".localized)
         }
         .glassEffect(in: .rect(cornerRadius: 24.0))
+    }
+
+    // MARK: - Ana İşlem Kartı (Tekrarlayan kopya işlemler için)
+    @ViewBuilder
+    private var parentTransactionCard: some View {
+        if let parentId = transaction.parentRecurringId {
+            let parentTx = transactionManager.transactions.first(where: { $0.id == parentId })
+            
+            VStack(spacing: 0) {
+                HStack(spacing: 12) {
+                    Image(systemName: "arrow.turn.up.left")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(transaction.resolvedColor())
+                        .frame(width: 24)
+                    
+                    Text("Bu işlem tekrarlayan bir serinin kopyası")
+                        .font(.subheadline)
+                        .foregroundColor(theme.labelSecondary)
+                    
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, parentTx != nil ? 8 : 12)
+                
+                if let parent = parentTx {
+                    Divider().padding(.horizontal)
+                    
+                    NavigationLink(destination:
+                        TransactionDetailView(transaction: parent)
+                            .environmentObject(walletManager)
+                            .environmentObject(authManager)
+                            .environmentObject(transactionManager)
+                    ) {
+                        HStack(spacing: 12) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(parent.resolvedColor())
+                                    .frame(width: 32, height: 32)
+                                Image(systemName: parent.resolvedIcon)
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(.white)
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Ana İşleme Git")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundColor(theme.labelPrimary)
+                                Text(parent.date.formatted(date: .abbreviated, time: .omitted))
+                                    .font(.caption)
+                                    .foregroundColor(theme.labelSecondary)
+                            }
+                            
+                            Spacer()
+                            
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(theme.separatorSecondary)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                    }
+                } else {
+                    // Orijinal bu cüzdanda yüklü değil (farklı cüzdan senaryosu)
+                    HStack(spacing: 12) {
+                        Image(systemName: "questionmark.circle")
+                            .font(.system(size: 16))
+                            .foregroundColor(theme.labelSecondary)
+                            .frame(width: 24)
+                        Text("Orijinal işlem bu cüzdanda görüntülenemiyor")
+                            .font(.caption)
+                            .foregroundColor(theme.labelSecondary)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
+                }
+            }
+            .glassEffect(in: .rect(cornerRadius: 24.0))
+        }
     }
 
     // MARK: - Tekrarlayan Kartı
@@ -252,9 +360,13 @@ struct TransactionDetailView: View {
     private var deleteButton: some View {
         Button(role: .destructive) {
             if let id = transaction.id {
-                FirestoreService.shared.deleteTransaction(
-                    walletId: transaction.walletId, transactionId: id)
-                dismiss()
+                // Fix #4: Fire-and-forget yerine Task ile async yaparak dismiss()
+                // Firestore write başladıktan hemen sonra ekran kapatılıyor — yeterince güvenli.
+                Task {
+                    FirestoreService.shared.deleteTransaction(
+                        walletId: transaction.walletId, transactionId: id)
+                    await MainActor.run { dismiss() }
+                }
             }
         } label: {
             HStack {

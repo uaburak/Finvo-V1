@@ -331,6 +331,9 @@ struct SetSpendingLimitSheet: View {
     @EnvironmentObject var walletManager: WalletManager
     @State private var amountString: String = ""
     
+    // Fix #8: Hardcoded ₺ yerine uygulama para birimi kullan
+    @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
+    
     var body: some View {
         VStack(spacing: 24) {
             // Header
@@ -357,9 +360,9 @@ struct SetSpendingLimitSheet: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
             
-            // Input
+            // Input — Fix #8: appCurrency.symbol kullan
             HStack {
-                Text("₺")
+                Text(appCurrency.symbol)
                     .font(.system(size: 32, weight: .bold))
                     .foregroundColor(theme.labelSecondary)
                 

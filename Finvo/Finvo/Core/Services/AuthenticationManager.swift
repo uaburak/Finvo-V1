@@ -181,6 +181,110 @@ class AuthenticationManager: ObservableObject {
         let authResult = try await Auth.auth().signInAnonymously()
         self.user = authResult.user
     }
+    
+    // MARK: - Hesabı Tamamen Sil
+    /// Kullanıcıya ait tüm verileri kalıcı olarak siler:
+    /// - Sahibi olduğu cüzdanların tüm işlemleri ve kategorileri
+    /// - Sahibi olduğu cüzdanlar
+    /// - Üye olduğu cüzdanlardan üyelik kaydı
+    /// - Firestore kullanıcı profili
+    /// - Firebase Authentication hesabı
+    func deleteAccount(wallets: [WalletModel]) async throws {
+        guard let firebaseUser = user,
+              let username = currentUserProfile?.username,
+              let uid = currentUserProfile?.uid ?? user?.uid else {
+            throw AccountDeletionError.userNotFound
+        }
+        
+        let db = Firestore.firestore()
+        
+        // Adım 1: Cüzdanları işle
+        for wallet in wallets {
+            guard let walletId = wallet.id else { continue }
+            
+            if wallet.ownerId == username {
+                // Sahibi olduğu cüzdanı tümüyle sil (alt koleksiyonlar dahil)
+                try await deleteWalletCompletely(walletId: walletId, db: db)
+            } else {
+                // Üyesi olduğu cüzdanlardan kendini çıkar
+                try await FirestoreService.shared.removeMember(walletId: walletId, userId: username)
+            }
+        }
+        
+        // Adım 2: Bildirimleri sil (kullanıcıya gönderilen veya kullanıcının gönderdiği)
+        let notifSnapshot = try await db.collection("notifications")
+            .whereField("recipientUsername", isEqualTo: username)
+            .getDocuments()
+        let notifBatch = db.batch()
+        for doc in notifSnapshot.documents { notifBatch.deleteDocument(doc.reference) }
+        try await notifBatch.commit()
+        
+        // Adım 3: Firestore kullanıcı profilini sil
+        try await db.collection("users").document(uid).delete()
+        
+        // Adım 4: Firebase Auth hesabını sil
+        // NOT: Bu işlem 'requiresRecentLogin' hatası verebilir.
+        // Böyle bir durumda kullanıcıdan yeniden giriş yapması istenir.
+        do {
+            try await firebaseUser.delete()
+            // Silme başarılı: GIDSignIn cache'ini temizle ve oturumu kapat.
+            // Auth state listener zaten isAuthenticated = false yapacak,
+            // bu çağrı Google cache'ini temizleyip geçişi hızlandırır.
+            try? signOut()
+        } catch let error as NSError {
+            // AuthErrorCode.requiresRecentLogin = 17014
+            if error.code == AuthErrorCode.requiresRecentLogin.rawValue {
+                throw AccountDeletionError.requiresRecentLogin
+            }
+            throw error
+        }
+    }
+    
+    /// Bir cüzdanı tüm alt koleksiyonlarıyla birlikte Firestore'dan siler.
+    private func deleteWalletCompletely(walletId: String, db: Firestore) async throws {
+        // İşlemleri sil (batch, max 500 — büyük cüzdanlar için döngü)
+        try await deleteBatchedSubcollection(walletId: walletId, subcollection: "transactions", db: db)
+        
+        // Kategorileri sil
+        try await deleteBatchedSubcollection(walletId: walletId, subcollection: "categories", db: db)
+        
+        // Cüzdan dokümanını sil
+        try await db.collection("wallets").document(walletId).delete()
+    }
+    
+    private func deleteBatchedSubcollection(walletId: String, subcollection: String, db: Firestore) async throws {
+        var hasMore = true
+        while hasMore {
+            let snapshot = try await db
+                .collection("wallets").document(walletId)
+                .collection(subcollection)
+                .limit(to: 400) // Firestore batch limiti 500, güvenli pay bırakıyoruz
+                .getDocuments()
+            
+            guard !snapshot.documents.isEmpty else { break }
+            
+            let batch = db.batch()
+            for doc in snapshot.documents { batch.deleteDocument(doc.reference) }
+            try await batch.commit()
+            
+            hasMore = snapshot.documents.count == 400
+        }
+    }
+}
+
+// MARK: - Hesap Silme Hata Tipleri
+enum AccountDeletionError: LocalizedError {
+    case userNotFound
+    case requiresRecentLogin
+    
+    var errorDescription: String? {
+        switch self {
+        case .userNotFound:
+            return "Kullanıcı bilgileri bulunamadı."
+        case .requiresRecentLogin:
+            return "Güvenlik nedeniyle hesabınızı silmek için yeniden giriş yapmanız gerekiyor. Lütfen çıkış yapıp tekrar giriş yapın, ardından tekrar deneyin."
+        }
+    }
 }
 
 // MARK: - ImageCacheManager
