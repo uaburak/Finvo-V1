@@ -18,7 +18,7 @@ enum AppThemeColor: String, CaseIterable, Identifiable {
 
     var titleKey: String {
         switch self {
-        case .neonGreen: return "Finvo Yeşil (Mevcut)"
+        case .neonGreen: return "Finvo"
         case .blue: return "Mavi"
         case .pink: return "Pembe"
         case .orange: return "Turuncu"
@@ -28,7 +28,10 @@ enum AppThemeColor: String, CaseIterable, Identifiable {
     var title: String { titleKey.localized }
     var color: Color {
         switch self {
-        case .neonGreen: return Color(hex: "AEFF23")
+        case .neonGreen: 
+            return Color(uiColor: UIColor { traitCollection in
+                return traitCollection.userInterfaceStyle == .dark ? UIColor(Color(hex: "AEFF23")) : UIColor(Color(hex: "82ED00"))
+            })
         case .blue: return Color(hex: "0088FF")
         case .pink: return Color(hex: "FF2D55")
         case .orange: return Color(hex: "FF9500")
@@ -54,9 +57,12 @@ enum AppThemeColor: String, CaseIterable, Identifiable {
     }
     
     var uiColor: UIColor {
-
+ 
         switch self {
-        case .neonGreen: return UIColor(Color(hex: "AEFF23"))
+        case .neonGreen: 
+            return UIColor { traitCollection in
+                return traitCollection.userInterfaceStyle == .dark ? UIColor(Color(hex: "AEFF23")) : UIColor(Color(hex: "82ED00"))
+            }
         case .blue: return UIColor(Color(hex: "0088FF"))
         case .pink: return UIColor(Color(hex: "FF2D55"))
         case .orange: return UIColor(Color(hex: "FF9500"))
@@ -90,7 +96,9 @@ struct DefaultTheme: AppTheme {
     var colorIdentifier: String = AppThemeColor.neonGreen.rawValue
     
     var brandPrimary: Color {
-        AppThemeColor(rawValue: colorIdentifier)?.color ?? Color(hex: "AEFF23")
+        AppThemeColor(rawValue: colorIdentifier)?.color ?? Color(uiColor: UIColor { traitCollection in
+            return traitCollection.userInterfaceStyle == .dark ? UIColor(Color(hex: "AEFF23")) : UIColor(Color(hex: "82ED00"))
+        })
     }
     
     var onBrandPrimary: Color {

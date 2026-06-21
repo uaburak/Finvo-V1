@@ -7,98 +7,78 @@ struct AddIBANSheet: View {
     
     @State private var bankName: String = ""
     @State private var ibanString: String = ""
-    @State private var selectedBank: String = "Akbank"
-    
-    let popularBanks = [
-        "Akbank", "Garanti BBVA", "İş Bankası", "Yapı Kredi", 
-        "Ziraat Bankası", "VakıfBank", "Halkbank", "QNB", 
-        "DenizBank", "TEB", "Enpara", "Papara", "Diğer"
-    ]
     
     var body: some View {
         NavigationStack {
-            ZStack {
-                theme.background1.ignoresSafeArea()
-                
-                VStack(spacing: 24) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Banka Seçin")
-                            .font(.subheadline)
-                            .foregroundColor(theme.labelSecondary)
-                        
-                        Picker("Banka", selection: $selectedBank) {
-                            ForEach(popularBanks, id: \.self) { bank in
-                                Text(bank).tag(bank)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(theme.background2)
-                        .cornerRadius(12)
-                    }
-                    .padding(.horizontal)
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 24) {
                     
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("IBAN Numarası")
-                            .font(.subheadline)
-                            .foregroundColor(theme.labelSecondary)
+                    VStack(spacing: 24) {
+                        // Banka Adı - Tam Yuvarlak (Capsule) & Başlıksız
+                        TextField("Banka Adı", text: $bankName)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 16)
+                            .background(Color.white.opacity(0.05))
+                            .clipShape(Capsule())
+                            .overlay(
+                                Capsule().stroke(theme.separator, lineWidth: 1)
+                            )
+                            .autocorrectionDisabled()
                         
-                        TextField("TR...", text: $ibanString)
-                            .padding()
-                            .background(theme.background2)
-                            .cornerRadius(12)
-                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(theme.brandPrimary.opacity(0.3), lineWidth: 1))
+                        // IBAN Numarası - Tam Yuvarlak (Capsule) & Başlıksız
+                        TextField("IBAN Numarası", text: $ibanString)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 16)
+                            .background(Color.white.opacity(0.05))
+                            .clipShape(Capsule())
+                            .overlay(
+                                Capsule().stroke(theme.separator, lineWidth: 1)
+                            )
                             .keyboardType(.asciiCapable)
                             .autocorrectionDisabled()
                             .onChange(of: ibanString) { oldValue, newValue in
-                                // Basit bir formatlama veya otomatik TR ekleme yapılabilir
-                                if !newValue.hasPrefix("TR") && newValue.count >= 2 {
-                                    // Sadece rakam girildiyse başına TR ekle
+                                let uppercased = newValue.uppercased()
+                                if ibanString != uppercased {
+                                    ibanString = uppercased
                                 }
                             }
                     }
-                    .padding(.horizontal)
-                    
-                    if selectedBank == "Diğer" {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Banka Adı")
-                                .font(.subheadline)
-                                .foregroundColor(theme.labelSecondary)
-                            
-                            TextField("Banka adını girin", text: $bankName)
-                                .padding()
-                                .background(theme.background2)
-                                .cornerRadius(12)
-                        }
-                        .padding(.horizontal)
-                    }
-                    
-                    Spacer()
+                    .padding(.top, 10)
                     
                     Button {
+                        let feedback = UIImpactFeedbackGenerator(style: .medium)
+                        feedback.prepare()
+                        
+                        guard !bankName.isEmpty && ibanString.count >= 10 else { return }
+                        
                         saveIBAN()
+                        
+                        feedback.impactOccurred()
                     } label: {
                         Text("Kaydet")
                             .font(.headline)
-                            .foregroundColor(theme.onBrandPrimary)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(theme.brandPrimary)
-                            .cornerRadius(16)
+                            .foregroundStyle(theme.onBrandPrimary)
+                            .frame(maxWidth: .infinity, minHeight: 48)
                     }
-                    .padding(.horizontal)
-                    .padding(.bottom, 20)
-                    .disabled(ibanString.count < 10)
+                    .buttonStyle(.glassProminent)
+                    .padding(.top, 24)
+                    .disabled(bankName.isEmpty || ibanString.count < 10)
+                    .opacity((bankName.isEmpty || ibanString.count < 10) ? 0.6 : 1.0)
                 }
-                .padding(.top)
+                .padding(.top, 20)
+                .padding(.horizontal, 24)
             }
             .navigationTitle("IBAN Ekle")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("İptal") {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .fontWeight(.bold)
+                            .foregroundStyle(theme.labelPrimary)
                     }
                 }
             }
@@ -108,8 +88,7 @@ struct AddIBANSheet: View {
     private func saveIBAN() {
         guard var profile = authManager.currentUserProfile else { return }
         
-        let finalBankName = selectedBank == "Diğer" ? bankName : selectedBank
-        let newIBAN = IBANModel(id: UUID().uuidString, bankName: finalBankName, ibanString: ibanString)
+        let newIBAN = IBANModel(id: UUID().uuidString, bankName: bankName, ibanString: ibanString)
         
         if profile.ibans == nil {
             profile.ibans = []
@@ -127,3 +106,10 @@ struct AddIBANSheet: View {
         }
     }
 }
+
+#Preview {
+    AddIBANSheet()
+        .environment(\.theme, DefaultTheme())
+        .environmentObject(AuthenticationManager.shared)
+}
+

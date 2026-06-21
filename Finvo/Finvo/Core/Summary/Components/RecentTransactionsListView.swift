@@ -9,6 +9,9 @@ struct RecentTransactionsListView: View {
     
     @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
     
+    @State private var displayedLimit = 14
+    @State private var isLoadingMore = false
+    
     var body: some View {
         VStack(spacing: 16) {
             
@@ -33,21 +36,22 @@ struct RecentTransactionsListView: View {
                         .foregroundColor(theme.brandPrimary)
                 }
             }
-            // Başlık ve metrik kartları ile hizalı olması için yatay padding eklendi
             .padding(.horizontal)
             
-            // Liste Kartı
-            VStack(spacing: 0) {
-                let transactions = transactionManager.transactions.prefix(5)
-                
-                if transactions.isEmpty {
-                    Text("Henüz işlem bulunmuyor.")
-                        .font(.subheadline)
-                        .foregroundColor(theme.labelSecondary)
-                        .padding()
-                } else {
-                    ForEach(transactions) { transaction in
-                        let index = transactions.firstIndex(where: { $0.id == transaction.id }) ?? 0
+            // Liste
+            let transactions = transactionManager.transactions
+            let transactionsToShow = Array(transactions.prefix(displayedLimit))
+            
+            if transactions.isEmpty {
+                Text("Henüz işlem bulunmuyor.")
+                    .font(.subheadline)
+                    .foregroundColor(theme.labelSecondary)
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .center)
+            } else {
+                LazyVStack(spacing: 0) {
+                    ForEach(transactionsToShow) { transaction in
+                        let isLast = transaction.id == transactionsToShow.last?.id
                         NavigationLink {
                             TransactionDetailView(transaction: transaction)
                                 .environmentObject(walletManager)
@@ -62,19 +66,34 @@ struct RecentTransactionsListView: View {
                                 value: (transaction.isIncome ? "+\(transaction.currency?.symbol ?? appCurrency.symbol)" : "-\(transaction.currency?.symbol ?? appCurrency.symbol)") + transaction.amount.formatted(.number.grouping(.automatic).precision(.fractionLength(0))),
                                 valueColor: transaction.isIncome ? theme.income : theme.expense
                             )
+                            .padding(.horizontal)
+                            .padding(.vertical, 10)
                         }
                         .buttonStyle(.plain)
-                        
-                        if index < transactions.count - 1 {
-                            Divider().padding(.leading, 56)
+                        .onAppear {
+                            if isLast && transactions.count > displayedLimit && !isLoadingMore {
+                                isLoadingMore = true
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                                    displayedLimit += 14
+                                    isLoadingMore = false
+                                }
+                            }
                         }
+                        
+                        if !isLast || isLoadingMore {
+                            Divider()
+                                .padding(.leading, 56)
+                                .padding(.horizontal)
+                        }
+                    }
+                    
+                    if isLoadingMore {
+                        ProgressView()
+                            .padding(.vertical, 12)
+                            .frame(maxWidth: .infinity, alignment: .center)
                     }
                 }
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .glassEffect(in: .rect(cornerRadius: 24.0))
-            .padding(.horizontal)
         }
     }
 }
@@ -82,5 +101,8 @@ struct RecentTransactionsListView: View {
 struct RecentTransactionsListView_Previews: PreviewProvider {
     static var previews: some View {
         RecentTransactionsListView()
+            .environmentObject(WalletManager())
+            .environmentObject(TransactionManager())
+            .environmentObject(AuthenticationManager.shared)
     }
 }

@@ -8,6 +8,7 @@ enum QuickDataType: String, CaseIterable {
     case limits = "Limitler"
     case recurring = "Tekrarlayan"
     case marketRates = "Kurlar"
+    case paymentCalendar = "Ödeme Takvimi"
     
     var icon: String {
         switch self {
@@ -18,6 +19,7 @@ enum QuickDataType: String, CaseIterable {
         case .limits: return "chart.bar.xaxis"
         case .recurring: return "repeat.circle"
         case .marketRates: return "globe.europe.africa.fill"
+        case .paymentCalendar: return "calendar.badge.clock"
         }
     }
 }
@@ -59,6 +61,15 @@ struct QuickActionRowView: View {
         case .limits: LimitsView().environmentObject(walletManager).environmentObject(authManager).environmentObject(transactionManager)
         case .recurring: RecurringTransactionsView().environmentObject(walletManager).environmentObject(authManager).environmentObject(transactionManager)
         case .marketRates: ExchangeRatesDetailView()
+        case .paymentCalendar:
+            let allPayments = transactionManager.transactions
+                .filter { $0.isDebt || $0.isRecurring }
+                .flatMap { $0.allPaymentOccurrences() }
+                .sorted { $0.date < $1.date }
+            PaymentCalendarDetailView(upcomingPayments: allPayments)
+                .environmentObject(walletManager)
+                .environmentObject(authManager)
+                .environmentObject(transactionManager)
         }
     }
     

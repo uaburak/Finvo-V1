@@ -9,14 +9,6 @@ struct SettingsView: View {
     @State private var isGenerating = false
     @State private var showPaywall = false
     
-    // Hesap silme state
-    @State private var showDeleteAccountAlert = false
-    @State private var showDeleteConfirmSheet = false
-    @State private var deleteConfirmText = ""
-    @State private var isDeletingAccount = false
-    @State private var deletionError: String? = nil
-    @State private var showDeletionError = false
-    
     // Seçilen dili cihazda System Defaults olarak saklar
     @AppStorage("appLanguage") private var appLanguage: String = "tr"
     
@@ -43,9 +35,11 @@ struct SettingsView: View {
                         HStack(spacing: 12) {
                             CachedProfileImage(
                                 urlString: authManager.currentUserProfile?.photoUrl,
-                                width: 56,
-                                height: 56,
-                                fallbackIconSize: 28
+                                width: 48,
+                                height: 48,
+                                fallbackIconSize: 24,
+                                isCircle: false,
+                                cornerRadius: 12
                             )
 
                             VStack(alignment: .leading, spacing: 2) {
@@ -59,7 +53,7 @@ struct SettingsView: View {
                             }
                         }
                     }
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    .listRowInsets(EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16))
                 }
                 
                 // MARK: - Uygulama Ayarları
@@ -135,53 +129,23 @@ struct SettingsView: View {
                 // MARK: - Destek ve Hakkında
                 Section(header: Text("Destek")) {
                     Link(destination: URL(string: "https://finvo.app/privacy")!) {
-                        Label("Gizlilik Politikası", systemImage: "hand.raised.fill")
+                        Label {
+                            Text("Gizlilik Politikası")
+                                .foregroundColor(theme.labelPrimary)
+                        } icon: {
+                            Image(systemName: "hand.raised.fill")
+                                .foregroundColor(theme.brandPrimary)
+                        }
                     }
                     Link(destination: URL(string: "https://finvo.app/terms")!) {
-                        Label("Kullanım Koşulları", systemImage: "doc.text.fill")
-                    }
-                }
-                
-                // MARK: - Çıkış Yap
-                Section {
-                    Button(role: .destructive) {
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        do {
-                            try authManager.signOut()
-                        } catch {
-                            print("Çıkış hatası: \(error)")
-                        }
-                    } label: {
-                        HStack {
-                            Label("Hesaptan Çıkış Yap", systemImage: "rectangle.portrait.and.arrow.right")
-                            Spacer()
+                        Label {
+                            Text("Kullanım Koşulları")
+                                .foregroundColor(theme.labelPrimary)
+                        } icon: {
+                            Image(systemName: "doc.text.fill")
+                                .foregroundColor(theme.brandPrimary)
                         }
                     }
-                }
-                
-                // MARK: - Hesabı Sil
-                Section {
-                    Button(role: .destructive) {
-                        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
-                        showDeleteAccountAlert = true
-                    } label: {
-                        HStack {
-                            if isDeletingAccount {
-                                ProgressView()
-                                    .tint(.red)
-                                    .padding(.trailing, 4)
-                                Text("Siliniyor...")
-                                    .foregroundColor(.red)
-                            } else {
-                                Label("Hesabı Kalıcı Olarak Sil", systemImage: "trash.fill")
-                            }
-                            Spacer()
-                        }
-                    }
-                    .disabled(isDeletingAccount)
-                } footer: {
-                    Text("Bu işlem geri alınamaz. Tüm verileriniz, cüzdan ve işlemleriniz kalıcı olarak silinir.")
-                        .foregroundColor(.secondary)
                 }
             }
             .listStyle(.insetGrouped)
@@ -189,54 +153,13 @@ struct SettingsView: View {
             .fullScreenCover(isPresented: $showPaywall) {
                 ProSubscriptionPaywallView()
             }
-            // 1. Onay: Genel uyarı
-            .alert("Hesabı Sil", isPresented: $showDeleteAccountAlert) {
-                Button("Devam Et", role: .destructive) {
-                    deleteConfirmText = ""
-                    showDeleteConfirmSheet = true
-                }
-                Button("Vazgeç", role: .cancel) { }
-            } message: {
-                Text("Tüm verileriniz (cüzdan, işlem, profil) kalıcı olarak silinecek. Sahibi olduğunuz paylaşımlı cüzdan ve içerikleri de dahil olmak üzere hiçbir şekilde geri getirilemez.")
-            }
-            // 2. Onay: Metin doğrulama
-            .alert("Emin misiniz?", isPresented: $showDeleteConfirmSheet) {
-                TextField("HESABI SİL", text: $deleteConfirmText)
-                    .autocorrectionDisabled()
-                    .textInputAutocapitalization(.characters)
-                Button("Kalıcı Olarak Sil", role: .destructive) {
-                    guard deleteConfirmText == "HESABI SİL" else { return }
-                    isDeletingAccount = true
-                    Task {
-                        do {
-                            try await authManager.deleteAccount(wallets: walletManager.wallets)
-                            // Başarılı: Auth listener otomatik olarak kullanıcıyı çıkarır
-                        } catch {
-                            await MainActor.run {
-                                isDeletingAccount = false
-                                deletionError = error.localizedDescription
-                                showDeletionError = true
-                            }
-                        }
-                    }
-                }
-                .disabled(deleteConfirmText != "HESABI SİL")
-                Button("Vazgeç", role: .cancel) { deleteConfirmText = "" }
-            } message: {
-                Text("Onaylamak için 'HESABI SİL' yazın. Bu işlem geri alınamaz.")
-            }
-            // Hata alertı
-            .alert("Silme Hatası", isPresented: $showDeletionError) {
-                Button("Tamam", role: .cancel) { }
-            } message: {
-                Text(deletionError ?? "Bilinmeyen bir hata oluştu.")
-            }
         }
     }
 }
     
 #Preview {
     SettingsView()
+        .environment(\.theme, DefaultTheme())
         .environmentObject(AuthenticationManager.shared)
         .environmentObject(WalletManager())
 }

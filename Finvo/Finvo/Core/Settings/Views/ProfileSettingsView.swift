@@ -3,6 +3,22 @@ import PhotosUI
 import FirebaseStorage
 import FirebaseAuth
 
+// MARK: - Red Glass Theme for Destructive Actions
+struct RedGlassTheme: AppTheme {
+    let base: any AppTheme
+    var brandPrimary: Color { .red }
+    var onBrandPrimary: Color { .white }
+    var background1: Color { base.background1 }
+    var background2: Color { base.background2 }
+    var cardBackground: Color { base.cardBackground }
+    var labelPrimary: Color { base.labelPrimary }
+    var labelSecondary: Color { base.labelSecondary }
+    var separator: Color { base.separator }
+    var separatorSecondary: Color { base.separatorSecondary }
+    var income: Color { base.income }
+    var expense: Color { base.expense }
+}
+
 @MainActor
 struct ProfileSettingsView: View {
     @Environment(\.theme) var theme
@@ -14,132 +30,216 @@ struct ProfileSettingsView: View {
     @State private var lastName: String = ""
     @State private var selectedItem: PhotosPickerItem?
     @State private var previewImage: UIImage?
-    @State private var isSaving = false
     @State private var isUploadingPhoto = false
-    @State private var showSuccessAlert = false
     @State private var photoUploadError: String?
+    
+    // Hesap silme state
+    @State private var showDeleteAccountAlert = false
+    @State private var showDeleteConfirmSheet = false
+    @State private var deleteConfirmText = ""
+    @State private var isDeletingAccount = false
+    @State private var deletionError: String? = nil
+    @State private var showDeletionError = false
+    
+    private var hasChanges: Bool {
+        guard let profile = authManager.currentUserProfile else { return false }
+        return firstName != profile.firstName || lastName != profile.lastName || previewImage != nil
+    }
     
     var body: some View {
         ZStack {
             theme.background1.ignoresSafeArea()
                 
-                ScrollView {
-                    VStack(spacing: 32) {
-                        // MARK: - Profil Resmi Alanı (Kullanıcı tarafından beğenilen kısım)
-                        VStack(spacing: 16) {
-                            PhotosPicker(selection: $selectedItem, matching: .images) {
-                                profilePhotoLabel
-                            }
-                            .onChange(of: selectedItem) { _, _ in
-                                Task { @MainActor in await uploadProfileImage() }
-                            }
-                            
-                            VStack(spacing: 4) {
-                                Text(authManager.currentUserProfile?.fullName ?? "")
-                                    .font(.title3.weight(.bold))
-                                    .foregroundColor(theme.labelPrimary)
-                                
-                                Text(authManager.currentUserProfile?.email ?? "")
-                                    .font(.subheadline)
-                                    .foregroundColor(theme.labelSecondary)
-                            }
-                        }
-                        .padding(.top, 20)
+            ScrollView {
+                VStack(spacing: 16) {
+                    // MARK: - Profil Resmi Alanı (Kullanıcı tarafından beğenilen kısım)
+                    VStack(spacing: 16) {
+                        let preview = previewImage
+                        let photoUrl = authManager.currentUserProfile?.photoUrl
+                        let uploading = isUploadingPhoto
+                        let brandPrimary = theme.brandPrimary
+                        let background2 = theme.background2
+                        let labelSecondary = theme.labelSecondary
                         
-                        // MARK: - Standart Finvo Form Bloğu
-                        VStack(spacing: 16) {
-                            // Ad Satırı
-                            formInputRow(icon: "person.fill", title: "Ad", text: $firstName)
-                            
-                            // Soyad Satırı
-                            formInputRow(icon: "person.crop.rectangle.fill", title: "Soyad", text: $lastName)
-                            
-                            // IBAN Navigasyon Satırı
-                            NavigationLink {
-                                IBANListView()
-                                    .environmentObject(authManager)
-                            } label: {
-                                HStack(spacing: 16) {
-                                    Image(systemName: "creditcard.fill")
-                                        .font(.system(size: 20))
-                                        .foregroundStyle(theme.brandPrimary)
-                                        .frame(width: 24)
-                                    
-                                    Text("IBAN Bilgilerim")
-                                        .foregroundColor(theme.labelPrimary)
-                                    
-                                    Spacer()
-                                    
-                                    Image(systemName: "chevron.right")
-                                        .font(.system(size: 12, weight: .bold))
-                                        .foregroundStyle(theme.separatorSecondary)
-                                }
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 16)
-                                .background(Color.white.opacity(0.05))
-                                .clipShape(Capsule())
-                                .overlay(
-                                    Capsule().stroke(theme.separator, lineWidth: 1)
-                                )
-                            }
+                        PhotosPicker(selection: $selectedItem, matching: .images) {
+                            ProfilePhotoLabelView(
+                                previewImage: preview,
+                                photoUrl: photoUrl,
+                                isUploadingPhoto: uploading,
+                                brandPrimary: brandPrimary,
+                                background2: background2,
+                                labelSecondary: labelSecondary
+                            )
                         }
+                        .onChange(of: selectedItem) { _, _ in
+                            Task { @MainActor in await uploadProfileImage() }
+                        }
+                        
+                        VStack(spacing: 4) {
+                            Text(authManager.currentUserProfile?.fullName ?? "")
+                                .font(.title3.weight(.bold))
+                                .foregroundColor(theme.labelPrimary)
+                            
+                            Text(authManager.currentUserProfile?.email ?? "")
+                                .font(.subheadline)
+                                .foregroundColor(theme.labelSecondary)
+                        }
+                    }
+                    .padding(.top, 20)
+                    .padding(.bottom, 8)
+                    
+                    // MARK: - Standart Finvo Form Bloğu (Kullanıcı Adı, Ad, Soyad ve IBAN)
+                    formReadOnlyRow(icon: "at", title: "Kullanıcı Adı", value: authManager.currentUserProfile?.username ?? "")
                         .padding(.horizontal)
-                        
-                        // MARK: - Kaydet Butonu
-                        Button {
-                            updateProfile()
-                        } label: {
-                            HStack {
-                                if isSaving {
-                                    ProgressView().tint(theme.onBrandPrimary)
-                                } else {
-                                    Text("Değişiklikleri Kaydet")
-                                        .font(.headline)
-                                        .foregroundStyle(theme.onBrandPrimary)
-                                }
-                            }
+                    
+                    formInputRow(icon: "person.fill", title: "Ad", text: $firstName)
+                        .padding(.horizontal)
+                    
+                    formInputRow(icon: "person.crop.rectangle.fill", title: "Soyad", text: $lastName)
+                        .padding(.horizontal)
+                    
+                    NavigationLink {
+                        IBANListView()
+                            .environmentObject(authManager)
+                    } label: {
+                        HStack(spacing: 16) {
+                            Image(systemName: "creditcard.fill")
+                                .font(.system(size: 20))
+                                .foregroundStyle(theme.brandPrimary)
+                                .frame(width: 24)
+                            
+                            Text("IBAN Bilgilerim")
+                                .foregroundColor(theme.labelPrimary)
+                            
+                            Spacer()
+                            
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(theme.separatorSecondary)
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 16)
+                        .background(Color.white.opacity(0.05))
+                        .clipShape(Capsule())
+                        .overlay(
+                            Capsule().stroke(theme.separator, lineWidth: 1)
+                        )
+                    }
+                    .padding(.horizontal)
+                    
+                    // MARK: - Eylemler (Çıkış Yap ve Hesap Sil)
+                    Button {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        logout()
+                    } label: {
+                        Text("Hesaptan Çıkış Yap")
+                            .font(.headline)
+                            .foregroundStyle(.white)
                             .frame(maxWidth: .infinity, minHeight: 48)
+                    }
+                    .buttonStyle(.glassProminent)
+                    .tint(.red)
+                    .environment(\.theme, RedGlassTheme(base: theme))
+                    .padding(.horizontal)
+                    
+                    Button(role: .destructive) {
+                        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+                        showDeleteAccountAlert = true
+                    } label: {
+                        HStack {
+                            if isDeletingAccount {
+                                ProgressView().tint(.red)
+                                Text("Siliniyor...")
+                            } else {
+                                Text("Hesabı Kalıcı Olarak Sil")
+                            }
                         }
-                        .buttonStyle(.glassProminent)
-                        .padding(.horizontal)
-                        .padding(.top, 10)
-                        .disabled(isSaving)
-                        .opacity(isSaving ? 0.6 : 1.0)
-                        
-                        // MARK: - Güvenli Çıkış
-                        Button {
-                            logout()
-                        } label: {
-                            Text("Hesaptan Çıkış Yap")
-                                .foregroundColor(.red)
-                                .font(.subheadline.weight(.medium))
-                        }
+                        .font(.headline)
+                        .foregroundColor(.red)
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                    }
+                    .buttonStyle(.glass)
+                    .disabled(isDeletingAccount)
+                    .padding(.horizontal)
+                    
+                    Text("Bu işlem geri alınamaz. Tüm verileriniz, cüzdan ve işlemleriniz kalıcı olarak silinir.")
+                        .font(.caption2)
+                        .foregroundColor(theme.labelSecondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                        .padding(.top, 4)
                         .padding(.bottom, 40)
+                }
+            }
+        }
+        .navigationTitle("Profil Ayarları")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            if let profile = authManager.currentUserProfile {
+                firstName = profile.firstName
+                lastName = profile.lastName
+            }
+        }
+        .onDisappear {
+            saveProfileSilently()
+        }
+        .onSubmit {
+            saveProfileSilently()
+        }
+        // 1. Onay: Genel uyarı
+        .alert("Hesabı Sil", isPresented: $showDeleteAccountAlert) {
+            Button("Devam Et", role: .destructive) {
+                deleteConfirmText = ""
+                showDeleteConfirmSheet = true
+            }
+            Button("Vazgeç", role: .cancel) { }
+        } message: {
+            Text("Tüm verileriniz (cüzdan, işlem, profil) kalıcı olarak silinecek. Sahibi olduğunuz paylaşımlı cüzdan ve içerikleri de dahil olmak üzere hiçbir şekilde geri getirilemez.")
+        }
+        // 2. Onay: Metin doğrulama
+        .alert("Emin misiniz?", isPresented: $showDeleteConfirmSheet) {
+            TextField("HESABI SİL", text: $deleteConfirmText)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.characters)
+            Button("Kalıcı Olarak Sil", role: .destructive) {
+                guard deleteConfirmText == "HESABI SİL" else { return }
+                isDeletingAccount = true
+                Task {
+                    do {
+                        try await authManager.deleteAccount(wallets: walletManager.wallets)
+                        // Başarılı: Auth listener otomatik olarak kullanıcıyı çıkarır
+                    } catch {
+                        await MainActor.run {
+                            isDeletingAccount = false
+                            deletionError = error.localizedDescription
+                            showDeletionError = true
+                        }
                     }
                 }
             }
-            .navigationTitle("Profil Ayarları")
-            .navigationBarTitleDisplayMode(.inline)
-            .onAppear {
-                if let profile = authManager.currentUserProfile {
-                    firstName = profile.firstName
-                    lastName = profile.lastName
-                }
-            }
-            .alert("Başarılı", isPresented: $showSuccessAlert) {
-                Button("Tamam", role: .cancel) { }
-            } message: {
-                Text("Profil bilgileriniz güncellendi.")
-            }
+            .disabled(deleteConfirmText != "HESABI SİL")
+            Button("Vazgeç", role: .cancel) { deleteConfirmText = "" }
+        } message: {
+            Text("Onaylamak için 'HESABI SİL' yazın. Bu işlem geri alınamaz.")
+        }
+        // Hata alertı
+        .alert("Silme Hatası", isPresented: $showDeletionError) {
+            Button("Tamam", role: .cancel) { }
+        } message: {
+            Text(deletionError ?? "Bilinmeyen bir hata oluştu.")
+        }
     }
     
-
-
-    // MARK: - Profil Fotoğraf Label'ı (Ayrı @ViewBuilder olarak tanımlandı)
-    // Fix: PhotosPicker label closure'ı nonisolated çalışıyor (iOS 26 / Swift 6 strict concurrency).
-    // @State ve @Environment property'lere erişmek için closure içeriği buraya taşındı.
-    @ViewBuilder @MainActor
-    private var profilePhotoLabel: some View {
+// MARK: - Profile Photo Label View (Fix Swift 6 isolation warning)
+struct ProfilePhotoLabelView: View {
+    let previewImage: UIImage?
+    let photoUrl: String?
+    let isUploadingPhoto: Bool
+    let brandPrimary: Color
+    let background2: Color
+    let labelSecondary: Color
+    
+    var body: some View {
         ZStack {
             // Seçilen yeni resim göster, yoksa Firestore'daki URL'yi kullan
             if let preview = previewImage {
@@ -148,7 +248,7 @@ struct ProfileSettingsView: View {
                     .aspectRatio(contentMode: .fill)
                     .frame(width: 120, height: 120)
                     .clipShape(Circle())
-            } else if let urlStr = authManager.currentUserProfile?.photoUrl {
+            } else if let urlStr = photoUrl {
                 CachedProfileImage(
                     urlString: urlStr,
                     width: 120,
@@ -157,18 +257,18 @@ struct ProfileSettingsView: View {
                 )
             } else {
                 Circle()
-                    .fill(theme.background2)
+                    .fill(background2)
                     .frame(width: 120, height: 120)
                     .overlay(
                         Image(systemName: "person.fill")
                             .font(.system(size: 60))
-                            .foregroundColor(theme.labelSecondary)
+                            .foregroundColor(labelSecondary)
                     )
             }
 
             // Yükleme veya kamera ikonu
             Circle()
-                .fill(theme.brandPrimary)
+                .fill(brandPrimary)
                 .frame(width: 32, height: 32)
                 .overlay(
                     Group {
@@ -186,6 +286,7 @@ struct ProfileSettingsView: View {
                 .offset(x: 40, y: 40)
         }
     }
+}
 
     // Uygulamanın capsule input satırı yapısı
     @ViewBuilder
@@ -209,9 +310,36 @@ struct ProfileSettingsView: View {
         )
     }
     
-    @MainActor private func updateProfile() {
+    @ViewBuilder
+    private func formReadOnlyRow(icon: String, title: String, value: String) -> some View {
+        HStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(.system(size: 20))
+                .foregroundStyle(theme.brandPrimary)
+                .frame(width: 24)
+            
+            Text(value.isEmpty ? title : "@\(value)")
+                .foregroundColor(theme.labelSecondary)
+            
+            Spacer()
+            
+            Image(systemName: "lock.fill")
+                .font(.system(size: 12))
+                .foregroundColor(theme.labelSecondary.opacity(0.4))
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
+        .background(Color.white.opacity(0.03))
+        .clipShape(Capsule())
+        .overlay(
+            Capsule().stroke(theme.separator.opacity(0.8), lineWidth: 1)
+        )
+    }
+    
+    @MainActor
+    private func saveProfileSilently() {
         guard var profile = authManager.currentUserProfile else { return }
-        isSaving = true
+        guard firstName != profile.firstName || lastName != profile.lastName else { return }
         
         profile.firstName = firstName
         profile.lastName = lastName
@@ -220,12 +348,8 @@ struct ProfileSettingsView: View {
             do {
                 try await FirestoreService.shared.saveUserProfile(profile)
                 await authManager.checkUserProfile()
-                isSaving = false
-                showSuccessAlert = true
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             } catch {
-                print("Profil güncelleme hatası: \(error)")
-                isSaving = false
+                print("Profil otomatik güncelleme hatası: \(error)")
             }
         }
     }
@@ -295,6 +419,7 @@ struct ProfileSettingsView: View {
             await authManager.checkUserProfile()
 
             isUploadingPhoto = false
+            previewImage = nil
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
         } catch {
             print("Profil resmi yüklenemedi: \(error)")
@@ -307,7 +432,6 @@ struct ProfileSettingsView: View {
     private func logout() {
         do {
             try authManager.signOut()
-            dismiss()
         } catch {
             print("Çıkış yapılamadı")
         }

@@ -18,7 +18,7 @@ struct CategoryIconLibrary {
         
         // Kişiler / Sosyal
         "person.fill", "person.2.fill", "person.3.fill", "person.crop.circle.fill", "person.circle.fill", 
-        "person.and.background.dotted", "figure.2.handhold", "figure.child", "figure.stand", "figure.dress.line.vertical.figure",
+        "person.and.background.dotted", "figure.2", "figure.child", "figure.stand", "figure.dress.line.vertical.figure",
         "heart.fill", "heart.circle.fill", "party.popper.fill", "hand.thumbsup.fill", "hand.raised.fill",
         
         // Yaşam / Ev
@@ -28,25 +28,25 @@ struct CategoryIconLibrary {
         
         // Ulaşım
         "car.fill", "fuelpump.fill", "bus.fill", "airplane", "tram.fill", "bicycle", "figure.walk", 
-        "map.fill", "ticket.fill", "passport.fill", "parkingsign.circle.fill", "shield.checkerboard",
+        "map.fill", "ticket.fill", "passport", "parkingsign.circle.fill", "shield.checkerboard",
         
         // Teknoloji / İş
         "laptopcomputer", "desktopcomputer", "iphone", "apple.logo", "g.circle.fill", "icloud.fill", 
         "globe", "wifi", "terminal.fill", "chevron.left.forwardslash.chevron.right", "brain.head.profile", 
-        "message.and.waveform.fill", "waveform", "shimmer", "app.badge.fill", "puzzlepiece.fill",
+        "message.and.waveform.fill", "waveform", "sparkles", "app.badge.fill", "puzzlepiece.fill",
         "briefcase.fill", "doc.text.fill", "archivebox.fill", "triangle.fill", "camera.fill",
         
         // Eğlence / Hobi
-        "cup.and.saucer.fill", "fork.knife.circle.fill", "mug.fill", "hamburger.fill", "wineglass.fill", 
+        "cup.and.saucer.fill", "fork.knife.circle.fill", "mug.fill", "hamburger", "wineglass.fill", 
         "music.note.house.fill", "music.mic", "play.tv.fill", "sparkles.tv.fill", 
         "play.rectangle.fill", "play.circle.fill", "film.stack.fill", "tv.fill", "gamecontroller.fill", 
         "dpad.fill", "playstation.logo", "xbox.logo", "headphones", "guitars.fill", "paintpalette.fill", 
-        "paintbrush.fill", "checkerboard.rectangle.fill", "teddybear.fill", "die.face.5.fill",
+        "paintbrush.fill", "rectangle.grid.2x2.fill", "teddybear.fill", "die.face.5.fill",
         
         // Sağlık / Kişisel
         "pills.fill", "stethoscope", "scissors", "face.smiling", "cross.case.fill",
         "tshirt.fill", "shoeprints.fill", "graduationcap.fill", "book.fill", "book.closed.fill", 
-        "square.grid.2x2.fill", "wand.and.stars", "fountainpen.tip",
+        "square.grid.2x2.fill", "wand.and.stars", "pencil.and.outline",
         
         // Diğer / Doğa
         "star.fill", "repeat.circle.fill", "arrow.uturn.left", "arrow.right.arrow.left", "bell.fill", 
@@ -134,7 +134,7 @@ struct CategoriesMockData {
             SubCategoryModel(name: "EA Play", icon: "logo.xbox", color: "orange"),
             SubCategoryModel(name: "Gemini Advanced", icon: "brain.head.profile", color: "purple"),
             SubCategoryModel(name: "ChatGPT Plus", icon: "message.and.waveform.fill", color: "teal"),
-            SubCategoryModel(name: "Claude Pro", icon: "shimmer", color: "orange"),
+            SubCategoryModel(name: "Claude Pro", icon: "sparkles", color: "orange"),
             SubCategoryModel(name: "GitHub Copilot", icon: "terminal.fill", color: "black"),
             SubCategoryModel(name: "Midjourney", icon: "paintpalette.fill", color: "indigo"),
             SubCategoryModel(name: "Cursor IDE", icon: "chevron.left.forwardslash.chevron.right", color: "blue"),
@@ -187,7 +187,7 @@ struct CategoriesMockData {
         CategoryModel(type: .expense, name: "Yeme İçme & Sosyal", icon: "cup.and.saucer.fill", color: "brown", subCategories: [
             SubCategoryModel(name: "Restoran & Yemek", icon: "fork.knife.circle.fill", color: "orange"),
             SubCategoryModel(name: "Kahve & Çay", icon: "mug.fill", color: "brown"),
-            SubCategoryModel(name: "Fast Food", icon: "hamburger.fill", color: "yellow"),
+            SubCategoryModel(name: "Fast Food", icon: "hamburger", color: "yellow"),
             SubCategoryModel(name: "Dışarıda Eğlence & Bar", icon: "party.popper.fill", color: "indigo")
         ]),
         
@@ -233,7 +233,7 @@ struct CategoriesMockData {
         CategoryModel(type: .expense, name: "Seyahat & Tatil", icon: "airplane", color: "blue", subCategories: [
             SubCategoryModel(name: "Uçak / Otobüs Bileti", icon: "ticket.fill", color: "blue"),
             SubCategoryModel(name: "Otel / Konaklama", icon: "bed.double.fill", color: "indigo"),
-            SubCategoryModel(name: "Vize & Pasaport", icon: "passport.fill", color: "brown"),
+            SubCategoryModel(name: "Vize & Pasaport", icon: "passport", color: "brown"),
             SubCategoryModel(name: "Yolculuk Harcamaları", icon: "map.fill", color: "green")
         ]),
         
@@ -259,7 +259,7 @@ struct CategoriesMockData {
         CategoryModel(type: .income, name: "Freelance & Projeler", icon: "laptopcomputer", color: "purple", subCategories: [
             SubCategoryModel(name: "App Store / IAP Geliri", icon: "app.badge.fill", color: "blue"),
             SubCategoryModel(name: "Dış Proje / Web Tasarım", icon: "desktopcomputer", color: "purple"),
-            SubCategoryModel(name: "UI/UX Tasarım Satışı", icon: "fountainpen.tip", color: "pink")
+            SubCategoryModel(name: "UI/UX Tasarım Satışı", icon: "pencil.and.outline", color: "pink")
         ]),
 
         CategoryModel(type: .income, name: "Pasif & Diğer", icon: "plus.circle.fill", color: "mint", subCategories: [

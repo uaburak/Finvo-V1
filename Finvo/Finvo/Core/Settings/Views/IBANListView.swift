@@ -35,6 +35,7 @@ struct IBANListView: View {
                         .multilineTextAlignment(.center)
                     
                     Button {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                         showAddIBAN = true
                     } label: {
                         Text("İlk IBAN'ı Ekle")
@@ -69,6 +70,7 @@ struct IBANListView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     showAddIBAN = true
                 } label: {
                     Image(systemName: "plus")
@@ -79,6 +81,9 @@ struct IBANListView: View {
         .sheet(isPresented: $showAddIBAN) {
             AddIBANSheet()
                 .environmentObject(authManager)
+                .presentationDetents([.medium, .height(500)])
+                .presentationBackground(.clear)
+                .presentationDragIndicator(.hidden)
         }
     }
     
@@ -88,15 +93,6 @@ struct IBANListView: View {
             copyToClipboard(iban.ibanString)
         } label: {
             HStack(spacing: 16) {
-                Circle()
-                    .fill(getBankColor(iban.bankName).gradient)
-                    .frame(width: 48, height: 48)
-                    .overlay(
-                        Text(iban.bankName.prefix(1))
-                            .font(.headline)
-                            .foregroundColor(.white)
-                    )
-                
                 VStack(alignment: .leading, spacing: 4) {
                     Text(iban.bankName)
                         .font(.headline)
@@ -143,18 +139,6 @@ struct IBANListView: View {
     private func formatIBAN(_ iban: String) -> String {
         // TRXX XXXX XXXX XXXX XXXX... formatına sokabiliriz
         return iban
-    }
-    
-    private func getBankColor(_ bank: String) -> Color {
-        switch bank {
-        case "Akbank", "Ziraat Bankası": return .red
-        case "Garanti BBVA": return .green
-        case "İş Bankası", "Yapı Kredi": return .blue
-        case "QNB": return .purple
-        case "VakıfBank": return .yellow
-        case "Enpara": return .cyan
-        default: return .gray
-        }
     }
     
     private func deleteIBAN(_ iban: IBANModel) {

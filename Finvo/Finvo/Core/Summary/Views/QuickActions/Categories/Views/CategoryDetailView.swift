@@ -9,7 +9,11 @@ struct CategoryDetailView: View {
     @EnvironmentObject var transactionManager: TransactionManager
     @ObservedObject var categoryManager = CategoryManager.shared
     
-    @Binding var category: CategoryModel
+    @State private var category: CategoryModel
+    
+    init(category: CategoryModel) {
+        _category = State(initialValue: category)
+    }
     @State private var subCategoryToEdit: SubCategoryModel?
     @State private var showAddSubSheet = false
     @State private var subCategoryToDelete: SubCategoryModel?

@@ -11,6 +11,7 @@ struct AmountInputSheet: View {
     @StateObject private var exchangeRateManager = ExchangeRateManager.shared
     @Binding var amount: String
     var currencyBinding: Binding<CurrencyType>? = nil
+    @FocusState private var isAmountFocused: Bool
     
     var body: some View {
         NavigationStack {
@@ -48,20 +49,21 @@ struct AmountInputSheet: View {
                     
                     ZStack {
                         // Animasyonun çalışması için sadece okunabilir Text ekliyoruz
-                        Text(formatAmountText())
-                            .font(.system(size: 56, weight: .bold, design: .rounded))
+                        Text(formatAmountText(amount))
+                            .font(.system(size: 44, weight: .bold, design: .rounded))
                             .foregroundStyle(theme.labelPrimary)
                             .contentTransition(.numericText())
                             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: amount)
                             .allowsHitTesting(false)
                         
                         // Klavyenin ve imlecin (cursor) çalışması için arka planda TextField
-                        TextField("", text: $amount)
+                        TextField("", text: formattedAmount)
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.center)
-                            .font(.system(size: 56, weight: .bold, design: .rounded))
+                            .font(.system(size: 44, weight: .bold, design: .rounded))
                             .foregroundStyle(.clear) // Metin görünmez ama imleç çalışır!
                             .tint(theme.brandPrimary) // İmleç rengi
+                            .focused($isAmountFocused)
                     }
                     .frame(minWidth: 120)
                     
@@ -132,6 +134,10 @@ struct AmountInputSheet: View {
                 }
             }
         }
+        .onAppear {
+            // Modal açıldığında klavyenin otomatik açılması için focus veriyoruz
+            isAmountFocused = true
+        }
         }
     }
     
@@ -159,22 +165,44 @@ struct AmountInputSheet: View {
         }
     }
     
-    // Yardımcı fonksiyon: Klavyeden girilen metni anlık olarak binlik formatına çevirir
-    private func formatAmountText() -> String {
-        if amount.isEmpty { return "0" }
+    // Bindings ve yardımcı formatlama metodları (imleç ve animasyon uyumu için)
+    private var formattedAmount: Binding<String> {
+        Binding<String>(
+            get: {
+                formatAmountText(amount)
+            },
+            set: { newValue in
+                var cleaned = newValue
+                    .replacingOccurrences(of: ".", with: "")
+                    .replacingOccurrences(of: " ", with: "")
+                
+                // Başındaki gereksiz sıfırı temizleme (örn: "05" -> "5")
+                if cleaned.hasPrefix("0") && cleaned.count > 1 && !cleaned.hasPrefix("0,") && !cleaned.hasPrefix("0.") {
+                    cleaned.removeFirst()
+                }
+                
+                let allowed = cleaned.filter { "0123456789,.".contains($0) }
+                amount = allowed
+            }
+        )
+    }
+    
+    private func formatAmountText(_ value: String) -> String {
+        if value.isEmpty { return "0" }
         var parsedAmount: Double = 0.0
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
-        if let number = formatter.number(from: amount) {
+        if let number = formatter.number(from: value) {
             parsedAmount = number.doubleValue
         } else {
-            let normalized = amount.replacingOccurrences(of: ",", with: ".")
+            let normalized = value.replacingOccurrences(of: ",", with: ".")
             parsedAmount = Double(normalized) ?? 0.0
         }
         
-        let hasDecimal = amount.contains(",") || amount.contains(".")
+        let hasDecimal = value.contains(",") || value.contains(".")
         if hasDecimal {
-            let parts = amount.replacingOccurrences(of: ",", with: ".").split(separator: ".", omittingEmptySubsequences: false)
+            let separator = value.contains(",") ? "," : "."
+            let parts = value.split(separator: separator.first!, omittingEmptySubsequences: false)
             let decPart = parts.count > 1 ? parts[1] : ""
             let intVal = floor(parsedAmount)
             let formattedInt = intVal.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))
@@ -183,4 +211,5 @@ struct AmountInputSheet: View {
             return parsedAmount.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))
         }
     }
+
 }

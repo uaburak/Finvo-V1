@@ -18,21 +18,31 @@ struct LoginView: View {
                 
                 // Head Bölümü (Logo & Slogan)
                 VStack(spacing: 16) {
-                    Image(systemName: "wallet.pass.fill")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 80, height: 80)
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [theme.brandPrimary, theme.brandPrimary.opacity(0.6)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
+                    ZStack {
+                        Image("app-logo")
+                            .renderingMode(.template)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 80, height: 80)
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [theme.brandPrimary, theme.brandPrimary.opacity(0.6)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
                             )
-                        )
-                        .shadow(color: theme.brandPrimary.opacity(0.3), radius: 10, y: 5)
+                            .shadow(color: theme.brandPrimary.opacity(0.3), radius: 10, y: 5)
+                            .opacity(isLoading ? 0.2 : 1.0)
+                        
+                        if isLoading {
+                            ProgressView()
+                                .tint(theme.brandPrimary)
+                                .scaleEffect(1.5)
+                        }
+                    }
                     
                     Text("Finvo")
-                        .font(.system(size: 40, weight: .black, design: .rounded))
+                        .font(.system(size: 40, weight: .black))
                         .foregroundStyle(theme.labelPrimary)
                     
                     Text("Kişisel & Paylaşımlı Cüzdan Yönetimi")
@@ -89,14 +99,6 @@ struct LoginView: View {
                     .padding(.horizontal, 24)
                 }
                 .disabled(isLoading)
-                .overlay {
-                    if isLoading {
-                        ProgressView()
-                            .padding()
-                            .background(.ultraThinMaterial)
-                            .clipShape(Circle())
-                    }
-                }
                 
                 Spacer()
                     .frame(height: 40)

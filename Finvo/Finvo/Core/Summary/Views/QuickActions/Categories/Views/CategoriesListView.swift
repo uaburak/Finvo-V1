@@ -129,7 +129,7 @@ struct CategoriesListView: View {
             Text("'\(categoryToDelete?.name ?? "")' kategorisini ve ona bağlı tüm verileri silmek istediğinizden emin misiniz?\n\n\(impactSummary)")
         }
         .onAppear {
-            let brandColor = UIColor(Color(hex: "AEFF23"))
+            let brandColor = UIColor(theme.brandPrimary)
             UISegmentedControl.appearance().selectedSegmentTintColor = brandColor
             UISegmentedControl.appearance().setTitleTextAttributes([.foregroundColor: UIColor.black], for: .selected)
         }
@@ -140,13 +140,10 @@ struct CategoriesListView: View {
         let isFirst = category.id == filteredCategories.first?.id
         
         ZStack {
-            // Binding bulma mantığı:
-            if let index = categoryManager.categories.firstIndex(where: { $0.id == category.id }) {
-                NavigationLink(destination: CategoryDetailView(category: $categoryManager.categories[index])) {
-                    EmptyView()
-                }
-                .opacity(0)
+            NavigationLink(destination: CategoryDetailView(category: category)) {
+                EmptyView()
             }
+            .opacity(0)
             
             ListItem(
                 icon: category.icon,

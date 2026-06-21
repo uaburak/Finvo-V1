@@ -48,9 +48,8 @@ struct SummaryView: View {
                     // Hızlı Butonlar Alanı
                     QuickActionRowView()
 
-                    // Esnek 4'lü Metrik Kartları
-                    SummaryMetricsGridView()
-                        .padding(.horizontal)
+                    // Son İşlemler
+                    RecentTransactionsListView()
                 }
                 // Mavi kart ve Gelir/Gider HStack'i için padding'i doğrudan içeri taşıdık,
                 // Hızlı butonların ekran kenarına kadar kayabilmesi için VStack'deki yatay paddingi kaldırıyoruz.
@@ -58,6 +57,15 @@ struct SummaryView: View {
             .safeAreaPadding(.bottom, 120)
             .scrollEdgeEffectStyle(.soft, for: .all)
             .scrollBounceBehavior(.always, axes: .vertical)
+            .refreshable {
+                if let walletId = walletManager.activeWallet?.id {
+                    transactionManager.stopListening()
+                    transactionManager.startListening(walletId: walletId)
+                    CategoryManager.shared.stopListening()
+                    CategoryManager.shared.startListening(walletId: walletId)
+                }
+                try? await Task.sleep(nanoseconds: 500_000_000)
+            }
             .navigationTitle(walletManager.activeWallet?.name ?? "Cüzdan Seç")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarTitleMenu {
@@ -131,15 +139,7 @@ struct SummaryView: View {
                     .environmentObject(authManager)
                     .environmentObject(transactionManager)
             }
-            .navigationDestination(for: String.self) { value in
-                if value == "PaymentCalendar" {
-                    let allPayments = transactionManager.transactions
-                        .filter { $0.isDebt || $0.isRecurring }
-                        .flatMap { $0.allPaymentOccurrences() }
-                        .sorted { $0.date < $1.date }
-                    PaymentCalendarDetailView(upcomingPayments: allPayments)
-                }
-            }
+
         }
     }
     

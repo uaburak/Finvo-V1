@@ -19,6 +19,8 @@ struct CachedProfileImage: View {
     let width: CGFloat
     let height: CGFloat
     let fallbackIconSize: CGFloat
+    var isCircle: Bool = true
+    var cornerRadius: CGFloat = 12
     
     @State private var image: UIImage? = nil
     @State private var isLoading: Bool = false
@@ -31,13 +33,11 @@ struct CachedProfileImage: View {
                     .resizable()
                     .aspectRatio(contentMode: .fill)
                     .frame(width: width, height: height)
-                    .clipShape(Circle())
             } else if isLoading {
                 ProgressView()
                     .frame(width: width, height: height)
             } else {
-                Circle()
-                    .fill(theme.background2)
+                theme.background2
                     .frame(width: width, height: height)
                     .overlay(
                         Image(systemName: "person.fill")
@@ -47,7 +47,7 @@ struct CachedProfileImage: View {
             }
         }
         .frame(width: width, height: height)
-        .clipShape(Circle())
+        .cornerRadius(isCircle ? width / 2 : cornerRadius)
         .onAppear {
             loadImage()
         }

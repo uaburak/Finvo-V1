@@ -172,7 +172,9 @@ class TransactionManager: ObservableObject {
                         .whereField("isRecurring", isEqualTo: true)
                         .getDocuments()
                     
-                    let allRecurring = snapshot.documents.compactMap { try? $0.data(as: TransactionModel.self) }
+                    let allRecurring = await MainActor.run {
+                        snapshot.documents.compactMap { try? $0.data(as: TransactionModel.self) }
+                    }
                     let originals = allRecurring.filter { $0.parentRecurringId == nil }
                     guard !originals.isEmpty else { continue }
                     
@@ -182,8 +184,10 @@ class TransactionManager: ObservableObject {
                         .collection("transactions")
                         .whereField("isRecurring", isEqualTo: false)
                         .getDocuments()
-                    let existingCopies = copiesSnapshot.documents.compactMap { try? $0.data(as: TransactionModel.self) }
-                        .filter { $0.parentRecurringId != nil }
+                    let existingCopies = await MainActor.run {
+                        copiesSnapshot.documents.compactMap { try? $0.data(as: TransactionModel.self) }
+                    }
+                    .filter { $0.parentRecurringId != nil }
                     
                     await Self.processRecurringOriginals(originals, existingCopies: existingCopies, walletId: walletId)
                 } catch {
