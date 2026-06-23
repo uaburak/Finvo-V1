@@ -121,7 +121,7 @@ struct SavingsDepositSheet: View {
         let columns = [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)]
         return LazyVGrid(columns: columns, spacing: 16) {
             SelectionCard(
-                title: L10n("Para Ekle"),
+                title: LocalizedStringKey(L10n("Para Ekle")),
                 icon: "arrow.down.circle.fill",
                 color: theme.income
             ) {
@@ -131,7 +131,7 @@ struct SavingsDepositSheet: View {
                 currentStep = .type
             }
             SelectionCard(
-                title: L10n("Para Çıkar"),
+                title: LocalizedStringKey(L10n("Para Çıkar")),
                 icon: "arrow.up.circle.fill",
                 color: theme.expense
             ) {
@@ -150,7 +150,7 @@ struct SavingsDepositSheet: View {
         let columns = [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)]
         return LazyVGrid(columns: columns, spacing: 16) {
             SelectionCard(
-                title: isAdding ? L10n("Para Ekle") : L10n("Para Çıkar"),
+                title: LocalizedStringKey(isAdding ? L10n("Para Ekle") : L10n("Para Çıkar")),
                 icon: "banknote.fill",
                 color: isAdding ? theme.income : theme.expense
             ) {

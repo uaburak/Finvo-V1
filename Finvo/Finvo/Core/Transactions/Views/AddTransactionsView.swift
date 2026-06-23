@@ -374,7 +374,7 @@ struct AddTransactionsView: View {
             .overlay(RoundedRectangle(cornerRadius: 24).stroke(theme.separator, lineWidth: 1))
 
             VStack(spacing: 0) {
-                formRow("turkishlirasign.circle", L10n("Tutar"), formatAmountText()) { activeSheet = .amount }
+                formRow("turkishlirasign.circle", LocalizedStringKey(L10n("Tutar")), formatAmountText()) { activeSheet = .amount }
                 Divider().padding(.leading, 56)
                 
                 HStack(spacing: 16) {

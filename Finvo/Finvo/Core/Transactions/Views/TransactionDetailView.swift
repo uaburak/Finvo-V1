@@ -154,12 +154,12 @@ struct TransactionDetailView: View {
     // MARK: - Detay Kartı
     private var detailCard: some View {
         VStack(spacing: 0) {
-            detailRow(icon: "calendar", title: L10n("Tarih"),
+            detailRow(icon: "calendar", title: LocalizedStringKey(L10n("Tarih")),
                       value: transaction.date.formatted(date: .long, time: .shortened))
 
             Divider().padding(.horizontal)
 
-            detailRow(icon: "person.fill", title: L10n("Ekleyen"),
+            detailRow(icon: "person.fill", title: LocalizedStringKey(L10n("Ekleyen")),
                       value: "@\(transaction.createdBy)")
 
             Divider().padding(.horizontal)
@@ -331,7 +331,7 @@ struct TransactionDetailView: View {
             }
 
             if let endDate = transaction.recurrenceEndDate {
-                detailRow(icon: "calendar.badge.minus", title: L10n("Bitiş Tarihi"),
+                detailRow(icon: "calendar.badge.minus", title: LocalizedStringKey(L10n("Bitiş Tarihi")),
                           value: endDate.formatted(date: .long, time: .omitted))
             } else {
                 detailRow(icon: "infinity", title: "Bitiş", value: "Süresiz".localized)
