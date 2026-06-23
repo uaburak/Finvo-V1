@@ -169,7 +169,7 @@ struct BalanceCardView: View {
     // MARK: - Shared Action Menu
     private var settingsMenuButton: some View {
         Menu {
-            Button("Harcama Limiti Belirle") { showSpendingLimitSheet = true }
+            Button(L10n("Harcama Limiti Belirle")) { showSpendingLimitSheet = true }
             Button("Birikim Hesabı Oluştur") { showSavingsGoalSheet = true }
         } label: {
             Image(systemName: "gearshape.fill")
@@ -194,7 +194,7 @@ struct BalanceCardView: View {
         VStack(spacing: 0) {
             // Üst Kısım: Başlık ve Yüzde
             HStack {
-                Text("Toplam Bakiye")
+                Text(L10n("Toplam Bakiye"))
                     .font(.subheadline)
                     .foregroundColor(theme.onBrandPrimary.opacity(0.8))
                 
@@ -223,7 +223,7 @@ struct BalanceCardView: View {
             // Alt Kısım: Kâr ve Bekleyen (Daha kompakt tasarım)
             HStack {
                 HStack(spacing: 0) {
-                    Text("Bugünün Kârı")
+                    Text(L10n("Bugünün Kârı"))
                     Text(": +\(appCurrency.symbol)\(profit.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))")
                 }
                 .font(.footnote)
@@ -232,7 +232,7 @@ struct BalanceCardView: View {
                 Spacer()
                 
                 HStack(spacing: 0) {
-                    Text("Bekleyen")
+                    Text(L10n("Bekleyen"))
                     Text(": \(appCurrency.symbol)\(pending.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))")
                 }
                 .font(.footnote)
@@ -283,7 +283,7 @@ struct BalanceCardView: View {
             let percentageText = "%\(Int(progress * 100))"
             
             VStack(alignment: .trailing, spacing: 4) {
-                Text("\(percentageText) Ulaşıldı")
+                Text("\(percentageText) \(L10n("Ulaşıldı"))")
                     .font(.caption2.bold())
                     .foregroundColor(.white.opacity(0.9))
                 
@@ -339,7 +339,7 @@ struct SetSpendingLimitSheet: View {
             // Header
             HStack {
                 Spacer()
-                Text("Harcama Limiti Belirle")
+                Text(L10n("Harcama Limiti Belirle"))
                     .font(.headline)
                 Spacer()
             }
@@ -354,7 +354,7 @@ struct SetSpendingLimitSheet: View {
                 .padding(.leading, 20)
             }
             
-            Text("Aylık harcama limitini belirleyerek bütçenin dışına çıkma riskini en aza indir.")
+            Text(L10n("Aylık harcama limitini belirleyerek bütçenin dışına çıkma riskini en aza indir."))
                 .font(.footnote)
                 .foregroundColor(theme.labelSecondary)
                 .multilineTextAlignment(.center)
@@ -366,7 +366,7 @@ struct SetSpendingLimitSheet: View {
                     .font(.system(size: 32, weight: .bold))
                     .foregroundColor(theme.labelSecondary)
                 
-                TextField("Eklenecek Tutar", text: $amountString)
+                TextField(L10n("Eklenecek Tutar"), text: $amountString)
                     .font(.system(size: 40, weight: .heavy, design: .rounded))
                     .foregroundColor(theme.labelPrimary)
                     .keyboardType(.decimalPad)
@@ -382,7 +382,7 @@ struct SetSpendingLimitSheet: View {
             Button {
                 saveLimit()
             } label: {
-                Text("Gönder")
+                Text(L10n("Kaydet"))
                     .font(.headline.bold())
                     .foregroundColor(.black)
                     .frame(maxWidth: .infinity)

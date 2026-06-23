@@ -223,7 +223,7 @@ struct PaymentCalendarDetailView: View {
                 .padding(.trailing, 20)
                 .padding(.bottom, 20) // Tabbar'ın hemen üzerinde
             }
-            .navigationTitle("Ödeme Takvimi")
+            .navigationTitle(L10n("Ödeme Takvimi"))
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
@@ -277,10 +277,10 @@ struct PaymentCalendarDetailView: View {
         if tx.isDebt {
             let installmentNum = tx.installmentNumber ?? ((tx.paidInstallments ?? 0) + 1)
             let total = tx.totalInstallments ?? 0
-            rowSubtitle = "\(installmentNum). Taksit / \(total) (\(tx.mainCategoryName))"
+            rowSubtitle = "\(installmentNum). \(L10n("Taksit")) / \(total) (\(tx.mainCategoryName))"
         } else if tx.isRecurring {
             let occurrenceNum = tx.installmentNumber ?? 1
-            rowSubtitle = "\(occurrenceNum). Ödeme (\(tx.mainCategoryName))"
+            rowSubtitle = "\(occurrenceNum). \(L10n("Ödeme")) (\(tx.mainCategoryName))"
         }
         
         // Tarih durum bilgisi: Geçmiş ödemeler "Ödendi", gelecek olanlar gün sayısı
@@ -337,16 +337,19 @@ struct HorizontalWeekView: View {
     @Binding var selectedDate: Date
     var onDateTapped: (Date) -> Void
     
-    private let weekDays = ["P", "S", "Ç", "P", "C", "C", "P"]
-    
     var body: some View {
-        HStack(spacing: 0) {
+        let appLang = UserDefaults.standard.string(forKey: "appLanguage") ?? "tr"
+        var userCalendar = Calendar.current
+        userCalendar.locale = Locale(identifier: appLang)
+        
+        return HStack(spacing: 0) {
             ForEach(selectedDate.daysInWeek, id: \.self) { date in
                 let isSelected = date.isSameDay(as: selectedDate)
-                let dayIndex = (Calendar.current.component(.weekday, from: date) + 5) % 7
+                let dayIndex = userCalendar.component(.weekday, from: date) - 1
+                let symbol = userCalendar.veryShortWeekdaySymbols[dayIndex]
                 
                 VStack(spacing: 8) {
-                    Text(weekDays[dayIndex]).font(.system(size: 10, weight: .medium)).foregroundColor(theme.labelSecondary)
+                    Text(symbol).font(.system(size: 10, weight: .medium)).foregroundColor(theme.labelSecondary)
                     Text("\(Calendar.current.component(.day, from: date))")
                         .font(.system(size: 14, weight: .bold))
                         .foregroundColor(isSelected ? theme.onBrandPrimary : theme.labelPrimary)

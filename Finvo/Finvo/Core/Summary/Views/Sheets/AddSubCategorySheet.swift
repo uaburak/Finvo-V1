@@ -126,7 +126,7 @@ struct AddSubCategorySheet: View {
             .navigationTitle(subCategoryToEdit == nil ? "Yeni Alt Kategori" : "Alt Kategoriyi Düzenle")
             .navigationBarTitleDisplayMode(.inline)
             .alert("Alt Kategori Mevcut", isPresented: $showDuplicateAlert) {
-                Button("Tamam", role: .cancel) { }
+                Button(L10n("Tamam"), role: .cancel) { }
             } message: {
                 Text("'\(subCategoryName)' adında bir alt kategori bu grupta zaten mevcut.")
             }

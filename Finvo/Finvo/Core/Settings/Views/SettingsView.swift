@@ -57,13 +57,17 @@ struct SettingsView: View {
                 }
                 
                 // MARK: - Uygulama Ayarları
-                Section(header: Text("Uygulama Tercihleri")) {
+                Section(header: Text(L10n("Uygulama Tercihleri"))) {
                     Picker(selection: $appLanguage) {
                         ForEach(languages, id: \.0) { lang in
                             Text(lang.1).tag(lang.0)
                         }
                     } label: {
-                        Label("Uygulama Dili", systemImage: "globe")
+                        Label {
+                            Text(L10n("Uygulama Dili")).foregroundColor(theme.labelPrimary)
+                        } icon: {
+                            Image(systemName: "globe").foregroundColor(theme.brandPrimary)
+                        }
                     }
                     .tint(theme.labelPrimary)
                     
@@ -72,7 +76,11 @@ struct SettingsView: View {
                             Text(LocalizedStringKey(themeColor.titleKey)).tag(themeColor.rawValue)
                         }
                     } label: {
-                        Label("Tema Rengi", systemImage: "paintpalette")
+                        Label {
+                            Text(L10n("Tema Rengi")).foregroundColor(theme.labelPrimary)
+                        } icon: {
+                            Image(systemName: "paintpalette").foregroundColor(theme.brandPrimary)
+                        }
                     }
                     .tint(theme.labelPrimary)
                     
@@ -82,7 +90,11 @@ struct SettingsView: View {
                             Text("\(currency.symbol) \(currency.name)").tag(currency)
                         }
                     } label: {
-                        Label("Para Birimi", systemImage: "coloncurrencysign.circle")
+                        Label {
+                            Text(L10n("Para Birimi")).foregroundColor(theme.labelPrimary)
+                        } icon: {
+                            Image(systemName: "coloncurrencysign.circle").foregroundColor(theme.brandPrimary)
+                        }
                     }
                     .tint(theme.labelPrimary)
                 }
@@ -127,7 +139,7 @@ struct SettingsView: View {
                 }
                 
                 // MARK: - Destek ve Hakkında
-                Section(header: Text("Destek")) {
+                Section(header: Text(L10n("Destek"))) {
                     Link(destination: URL(string: "https://finvo.app/privacy")!) {
                         Label {
                             Text("Gizlilik Politikası")

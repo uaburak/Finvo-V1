@@ -66,7 +66,7 @@ struct TransactionDetailView: View {
             .padding()
         }
         .safeAreaPadding(.bottom, 20)
-        .navigationTitle("İşlem Detayı")
+        .navigationTitle(L10n("İşlem Detayı"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -154,12 +154,12 @@ struct TransactionDetailView: View {
     // MARK: - Detay Kartı
     private var detailCard: some View {
         VStack(spacing: 0) {
-            detailRow(icon: "calendar", title: "Tarih",
+            detailRow(icon: "calendar", title: L10n("Tarih"),
                       value: transaction.date.formatted(date: .long, time: .shortened))
 
             Divider().padding(.horizontal)
 
-            detailRow(icon: "person.fill", title: "Ekleyen",
+            detailRow(icon: "person.fill", title: L10n("Ekleyen"),
                       value: "@\(transaction.createdBy)")
 
             Divider().padding(.horizontal)
@@ -331,7 +331,7 @@ struct TransactionDetailView: View {
             }
 
             if let endDate = transaction.recurrenceEndDate {
-                detailRow(icon: "calendar.badge.minus", title: "Bitiş Tarihi",
+                detailRow(icon: "calendar.badge.minus", title: L10n("Bitiş Tarihi"),
                           value: endDate.formatted(date: .long, time: .omitted))
             } else {
                 detailRow(icon: "infinity", title: "Bitiş", value: "Süresiz".localized)
@@ -371,7 +371,7 @@ struct TransactionDetailView: View {
         } label: {
             HStack {
                 Image(systemName: "trash")
-                Text("İşlemi Sil")
+                Text(L10n("İşlemi Sil"))
             }
             .font(.headline)
             .frame(maxWidth: .infinity, minHeight: 48)

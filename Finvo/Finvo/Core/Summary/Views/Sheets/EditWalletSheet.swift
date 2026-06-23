@@ -46,7 +46,7 @@ struct EditWalletSheet: View {
                         .controlSize(.large)
                         
                         // Kullanım Amacı
-                        Picker("Kullanım Amacı", selection: $selectedContext) {
+                        Picker(L10n("Kullanım Amacı"), selection: $selectedContext) {
                             ForEach(WalletContext.allCases, id: \.self) { context in
                                 Text(context.title).tag(context)
                             }
@@ -72,7 +72,7 @@ struct EditWalletSheet: View {
                         feedback.impactOccurred()
                         dismiss()
                     } label: {
-                        Text("Kaydet")
+                        Text(L10n("Kaydet"))
                             .font(.headline)
                             .foregroundStyle(theme.onBrandPrimary)
                             .frame(maxWidth: .infinity, minHeight: 48)
@@ -113,8 +113,8 @@ struct EditWalletSheet: View {
                 }
             }
             .alert("Cüzdanı Sil", isPresented: $showDeleteAlert) {
-                Button("İptal", role: .cancel) { }
-                Button("Sil", role: .destructive) {
+                Button(L10n("İptal"), role: .cancel) { }
+                Button(L10n("Sil"), role: .destructive) {
                     if let id = wallet.id {
                         walletManager.deleteWallet(id: id)
                     }

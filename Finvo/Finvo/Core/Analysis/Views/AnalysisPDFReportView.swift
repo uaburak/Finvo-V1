@@ -29,8 +29,13 @@ struct AnalysisPDFReportView: View {
                     Text(timeFrame)
                         .font(.headline)
                         .foregroundColor(.gray)
-                    Text(Date().formatted(date: .abbreviated, time: .shortened))
-                        .font(.subheadline)
+                    let appLang = UserDefaults.standard.string(forKey: "appLanguage") ?? "tr"
+                    let locale = Locale(identifier: appLang)
+                    HStack {
+                        Text(L10n("Tarih:")).foregroundColor(.gray)
+                        Spacer()
+                        Text(Date().formatted(.dateTime.locale(locale).day().month().year().hour().minute()))
+                    }        .font(.subheadline)
                         .foregroundColor(.gray)
                 }
             }
@@ -64,7 +69,7 @@ struct AnalysisPDFReportView: View {
             
             // Kategoriler
             VStack(alignment: .leading, spacing: 16) {
-                Text("Kategori Dağılımı")
+                Text(L10n("Kategori Dağılımı"))
                     .font(.title2.bold())
                     .foregroundColor(.black)
                 

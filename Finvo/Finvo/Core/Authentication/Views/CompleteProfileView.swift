@@ -166,7 +166,7 @@ struct CompleteProfileView: View {
                             .pickerStyle(.segmented)
                             .controlSize(.large)
                             
-                            Picker("Kullanım Amacı", selection: $selectedContext) {
+                            Picker(L10n("Kullanım Amacı"), selection: $selectedContext) {
                                 ForEach(WalletContext.allCases, id: \.self) { context in
                                     Text(context.title).tag(context)
                                 }

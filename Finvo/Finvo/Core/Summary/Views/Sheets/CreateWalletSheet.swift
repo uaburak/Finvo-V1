@@ -40,7 +40,7 @@ struct CreateWalletSheet: View {
                         .controlSize(.large)
                         
                         // Kullanım Amacı - Başlıksız & Daha Büyük Segmented Control
-                        Picker("Kullanım Amacı", selection: $selectedContext) {
+                        Picker(L10n("Kullanım Amacı"), selection: $selectedContext) {
                             ForEach(WalletContext.allCases, id: \.self) { context in
                                 Text(context.title).tag(context)
                             }

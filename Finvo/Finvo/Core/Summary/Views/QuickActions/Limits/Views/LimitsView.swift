@@ -97,7 +97,7 @@ struct LimitsView: View {
                 .font(.system(size: 60))
                 .foregroundColor(theme.labelSecondary)
             
-            Text("Aylık Harcama Limiti Yok")
+            Text(L10n("Aylık Harcama Limiti Yok"))
                 .font(.title2.bold())
                 .foregroundColor(theme.labelPrimary)
             
@@ -130,7 +130,7 @@ struct LimitsView: View {
         VStack(alignment: .leading, spacing: 20) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Bu Ayki Harcama")
+                    Text(L10n("Bu Ayki Harcama"))
                         .font(.headline)
                         .foregroundColor(theme.labelSecondary)
                 }
@@ -199,7 +199,7 @@ struct LimitsView: View {
                     Button {
                         showEditSheet = false
                     } label: {
-                        Text("İptal")
+                        Text(L10n("İptal"))
                             .font(.headline)
                             .foregroundColor(theme.labelPrimary)
                             .frame(maxWidth: .infinity, minHeight: 48)
@@ -211,7 +211,7 @@ struct LimitsView: View {
                         if isLoading {
                             ProgressView().tint(theme.onBrandPrimary)
                         } else {
-                            Text("Kaydet")
+                            Text(L10n("Kaydet"))
                                 .font(.headline)
                                 .foregroundColor(theme.onBrandPrimary)
                                 .frame(maxWidth: .infinity, minHeight: 48)

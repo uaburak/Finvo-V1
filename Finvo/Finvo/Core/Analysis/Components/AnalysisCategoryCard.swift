@@ -11,7 +11,7 @@ struct AnalysisCategoryCard: View {
         NavigationLink(destination: CategoryDistributionDetailView(transactions: transactions)) {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
-                    Text("Kategori Dağılımı")
+                    Text(L10n("Kategori Dağılımı"))
                         .font(.headline)
                         .fontWeight(.bold)
                         .foregroundColor(theme.labelPrimary)

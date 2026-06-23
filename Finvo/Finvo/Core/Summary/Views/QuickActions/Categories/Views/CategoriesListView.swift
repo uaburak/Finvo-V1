@@ -44,8 +44,8 @@ struct CategoriesListView: View {
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Picker("İşlem Tipi", selection: $selectedType) {
-                    Text("Gider").tag(TransactionType.expense)
-                    Text("Gelir").tag(TransactionType.income)
+                    Text(L10n("Gider")).tag(TransactionType.expense)
+                    Text(L10n("Gelir")).tag(TransactionType.income)
                 }
                 .pickerStyle(.segmented)
                 .frame(width: 200)
@@ -94,7 +94,7 @@ struct CategoriesListView: View {
                 .presentationBackground(.clear)
         }
         .alert("Pro Üyelik Gerekli", isPresented: $categoryManager.showProAlert) {
-            Button("Tamam", role: .cancel) { }
+            Button(L10n("Tamam"), role: .cancel) { }
             Button("Pro'ya Geç") {
                 // Ileride pro ekrani eklenecek
             }
@@ -114,13 +114,13 @@ struct CategoriesListView: View {
             Text("Kategori eklemek için bu cüzdanda 'Admin' veya 'Kurucu' yetkisine sahip olmanız gerekmektedir.")
         }
         .alert("İstek Gönderildi", isPresented: $showRoleRequestSentAlert) {
-            Button("Tamam", role: .cancel) { }
+            Button(L10n("Tamam"), role: .cancel) { }
         } message: {
             Text("Yönetici yetkisi isteğiniz cüzdan sahibine iletildi.")
         }
-        .alert("Kategoriyi Sil?", isPresented: $showDeleteConfirmation) {
+        .alert(L10n("Kategoriyi Sil?"), isPresented: $showDeleteConfirmation) {
             Button("Vazgeç", role: .cancel) { }
-            Button("Sil", role: .destructive) {
+            Button(L10n("Sil"), role: .destructive) {
                 if let cat = categoryToDelete {
                     confirmDelete(cat)
                 }

@@ -12,7 +12,7 @@ struct ExchangeRatesListCard: View {
                     .foregroundColor(theme.labelPrimary)
                 Spacer()
                 NavigationLink(destination: ExchangeRatesDetailView()) {
-                    Text("Tümünü Gör")
+                    Text(L10n("Tümünü Gör"))
                         .font(.subheadline)
                         .foregroundColor(theme.brandPrimary)
                 }

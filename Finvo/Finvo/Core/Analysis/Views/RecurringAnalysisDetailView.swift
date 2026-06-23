@@ -112,7 +112,7 @@ struct RecurringAnalysisDetailView: View {
                 }
             }
         }
-        .navigationTitle("Tekrarlayan İşlemler")
+        .navigationTitle(L10n("Tekrarlayan İşlemler"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {

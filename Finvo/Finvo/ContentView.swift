@@ -20,13 +20,21 @@ enum AppTab: String, CaseIterable {
     case settings = "setting"
 
     var title: String {
+        let appLang = UserDefaults.standard.string(forKey: "appLanguage") ?? "tr"
+        let keyText: String
         switch self {
-        case .home:     return "Özet"
-        case .analysis: return "Analiz"
-        case .add:      return "Ekle"
-        case .family:   return "Aile"
-        case .settings: return "Ayarlar"
+        case .home:     keyText = "Özet"
+        case .analysis: keyText = "Analiz"
+        case .add:      keyText = "Ekle"
+        case .family:   keyText = "Aile"
+        case .settings: keyText = "Ayarlar"
         }
+        
+        if let path = Bundle.main.path(forResource: appLang, ofType: "lproj"),
+           let bundle = Bundle(path: path) {
+            return bundle.localizedString(forKey: keyText, value: nil, table: nil)
+        }
+        return NSLocalizedString(keyText, comment: "")
     }
 
     func iconName(isActive: Bool) -> String {
@@ -130,7 +138,7 @@ struct ContentView: View {
     // MARK: - Tab etiketi
     private func tabLabel(for tab: AppTab) -> some View {
         Label {
-            Text(LocalizedStringKey(tab.title))
+            Text(tab.title)
         } icon: {
             Image(tab.iconName(isActive: false))
                 .renderingMode(.template)

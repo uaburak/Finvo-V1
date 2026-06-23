@@ -107,7 +107,7 @@ struct EditSavingsAccountSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("İptal") {
+                    Button(L10n("İptal")) {
                         dismiss()
                     }
                     .foregroundStyle(theme.labelPrimary)

@@ -21,7 +21,7 @@ struct TransactionDatePickerSheet: View {
             Button {
                 dismiss()
             } label: {
-                Text("Tamam")
+                Text(L10n("Tamam"))
                     .font(.headline)
                     .foregroundStyle(theme.onBrandPrimary)
                     .frame(maxWidth: .infinity)
@@ -36,7 +36,7 @@ struct TransactionDatePickerSheet: View {
     }
     
     private var header: some View {
-        Text("Tarih Seçin")
+        Text(L10n("Tarih Seçin"))
             .font(.headline)
             .foregroundStyle(theme.labelPrimary)
             .padding(.top)

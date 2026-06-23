@@ -194,7 +194,7 @@ struct WalletDetailView: View {
                 .toolbar {
                     if activeWallet.ownerId == authManager.currentUserProfile?.username {
                         ToolbarItem(placement: .navigationBarTrailing) {
-                            Button("Düzenle") {
+                            Button(L10n("Düzenle")) {
                                 showEditSheet = true
                             }
                         }
@@ -213,8 +213,8 @@ struct WalletDetailView: View {
                         .presentationDragIndicator(.hidden)
                 }
                 .alert("Cüzdanı Sil", isPresented: $showDeleteAlert) {
-                    Button("İptal", role: .cancel) { }
-                    Button("Sil", role: .destructive) {
+                    Button(L10n("İptal"), role: .cancel) { }
+                    Button(L10n("Sil"), role: .destructive) {
                         walletManager.deleteWallet(id: walletId)
                         dismiss()
                     }
@@ -222,12 +222,12 @@ struct WalletDetailView: View {
                     Text("Bu cüzdanı silmek istediğinize emin misiniz? Bu işlem geri alınamaz.")
                 }
                 .alert("İstek Gönderildi", isPresented: $showRoleRequestSentAlert) {
-                    Button("Tamam", role: .cancel) { }
+                    Button(L10n("Tamam"), role: .cancel) { }
                 } message: {
                     Text("Cüzdan kurucusuna yetki isteğiniz başarıyla iletildi.")
                 }
                 .alert("Cüzdandan Ayrıl", isPresented: $showLeaveWalletAlert) {
-                    Button("İptal", role: .cancel) { }
+                    Button(L10n("İptal"), role: .cancel) { }
                     Button("Ayrıl", role: .destructive) {
                         let currentUsername = authManager.currentUserProfile?.username ?? ""
                         walletManager.removeMember(from: walletId, memberId: currentUsername)
