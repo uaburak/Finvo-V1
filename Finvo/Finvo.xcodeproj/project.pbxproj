@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2CCF8199AA4E72445C60949C /* FirebaseAILogic in Frameworks */ = {isa = PBXBuildFile; productRef = FE0B8341A7BA44143EA2BE3D /* FirebaseAILogic */; };
 		678BA2A72F97F94D00D48B12 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 678BA2A62F97F94D00D48B12 /* FirebaseStorage */; };
 		67E8C3602F6C42EE00964879 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 67E8C35F2F6C42EE00964879 /* FirebaseAnalytics */; };
 		67E8C3622F6C42EE00964879 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 67E8C3612F6C42EE00964879 /* FirebaseAuth */; };
@@ -55,6 +56,7 @@
 				678BA2A72F97F94D00D48B12 /* FirebaseStorage in Frameworks */,
 				67E8C3622F6C42EE00964879 /* FirebaseAuth in Frameworks */,
 				67E8C3E12F6DC2EB00964879 /* GoogleSignIn in Frameworks */,
+				2CCF8199AA4E72445C60949C /* FirebaseAILogic in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -113,6 +115,7 @@
 				67E8C3E02F6DC2EB00964879 /* GoogleSignIn */,
 				67E8C3E22F6DC2EB00964879 /* GoogleSignInSwift */,
 				678BA2A62F97F94D00D48B12 /* FirebaseStorage */,
+				FE0B8341A7BA44143EA2BE3D /* FirebaseAILogic */,
 			);
 			productName = Finvo;
 			productReference = 670FA7B12F48F05600DA7224 /* Finvo.app */;
@@ -329,6 +332,7 @@
 				);
 				MARKETING_VERSION = 1.3;
 				"OTHER_CODE_SIGN_FLAGS[sdk=*]" = "--deep";
+				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.burakkoc.Finvo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -371,6 +375,7 @@
 				);
 				MARKETING_VERSION = 1.3;
 				"OTHER_CODE_SIGN_FLAGS[sdk=*]" = "--deep";
+				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.burakkoc.Finvo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -466,6 +471,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 67E8C3DF2F6DC2EB00964879 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
 			productName = GoogleSignInSwift;
+		};
+		FE0B8341A7BA44143EA2BE3D /* FirebaseAILogic */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 67E8C35E2F6C42EE00964879 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAILogic;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

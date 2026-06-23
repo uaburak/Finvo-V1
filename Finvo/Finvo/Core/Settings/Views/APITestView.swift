@@ -33,6 +33,7 @@ struct APITestView: View {
             .padding(.bottom)
         }
         .navigationTitle("API Test")
+        .navigationBarTitleDisplayMode(.inline)
     }
     
     private func runTest() {

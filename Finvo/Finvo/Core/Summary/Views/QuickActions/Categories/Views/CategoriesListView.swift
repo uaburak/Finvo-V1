@@ -155,7 +155,7 @@ struct CategoriesListView: View {
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if categoryManager.checkPermission(authManager: authManager, walletManager: walletManager) {
-                Button(role: .destructive) {
+                Button {
                     if authManager.currentUserProfile?.isPro == true {
                         let impact = transactionManager.getImpact(mainCategoryId: category.id)
                         impactSummary = "\(impact.transactionCount) işlem girişi ve \(impact.recurringCount) tekrarlayan işleminiz silinecek."

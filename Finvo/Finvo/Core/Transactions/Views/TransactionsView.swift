@@ -308,7 +308,7 @@ struct TransactionsView: View {
             }
         }
         .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Ara")
-        .confirmationDialog("İşlemi Sil", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
+        .alert("İşlemi Sil", isPresented: $showDeleteConfirmation) {
             Button("Sil", role: .destructive) {
                 if let transaction = transactionToDelete, let id = transaction.id {
                     Task {
@@ -478,7 +478,7 @@ struct TransactionsView: View {
         let canManage = isAdminOrOwner || (role == .member && isCreator)
         
         if canManage {
-            Button(role: .destructive) {
+            Button {
                 transactionToDelete = transaction
                 showDeleteConfirmation = true
             } label: {

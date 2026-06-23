@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct AddTransactionsView: View {
     @Environment(\.theme) var theme
@@ -35,6 +36,13 @@ struct AddTransactionsView: View {
     @State private var recurrenceEndDate: Date = Date().addingTimeInterval(86400 * 30) // +1 Month default
     
     @State private var note: String = ""
+    
+    // OCR Receipt Scanner States
+    @State private var showImagePicker: Bool = false
+    @State private var selectedSourceType: UIImagePickerController.SourceType = .camera
+    @State private var isScanningReceipt: Bool = false
+    @State private var showOcrErrorAlert: Bool = false
+    @State private var ocrErrorMessage: String = ""
     
     @State private var currentStep: TransactionStep
     @State private var selectedDetent: PresentationDetent
@@ -170,12 +178,13 @@ struct AddTransactionsView: View {
                     ScrollView(showsIndicators: false) {
                         VStack(alignment: .leading, spacing: 24) {
                             stepContent
-                                .padding(.top, 20)
+                                .padding(.top, 0)
                         }
                         .padding(.horizontal, 24)
                         .padding(.bottom, 100)
                     }
                 } // Ends VStack
+
                 .navigationTitle(LocalizedStringKey(currentStep.titleKey))
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -220,7 +229,7 @@ struct AddTransactionsView: View {
                 switch sheet {
                 case .category:
                     CategorySelectionSheet(
-                        categories: (categoryManager.categories.isEmpty ? CategoriesMockData.data : categoryManager.categories).filter { $0.type == selectedType },
+                        categories: (categoryManager.categories.isEmpty ? CategoriesMockData.data : categoryManager.categories).filter { $0.type == selectedType && $0.isOn },
                         selectedMainCategory: $selectedMainCategory,
                         selectedSubCategory: $selectedSubCategory
                     )
@@ -234,10 +243,21 @@ struct AddTransactionsView: View {
                         .presentationDragIndicator(.visible)
                 }
             }
+
+            .sheet(isPresented: $showImagePicker) {
+                ImagePicker(sourceType: selectedSourceType) { image in
+                    processReceiptImage(image)
+                }
+            }
             .alert("Yetki İste", isPresented: $showPermissionErrorAlert) {
                 Button("Tamam", role: .cancel) { }
             } message: {
                 Text("Görüntüleyici rolüne sahip olduğunuz için cüzdana işlem ekleyemezsiniz. Lütfen kurucudan yetki isteyin.")
+            }
+            .alert("Tarama Hatası", isPresented: $showOcrErrorAlert) {
+                Button("Tamam", role: .cancel) { }
+            } message: {
+                Text(ocrErrorMessage)
             }
     }
 
@@ -256,21 +276,63 @@ struct AddTransactionsView: View {
     }
 
     private var typeSelectionView: some View {
-        LazyVGrid(columns: columns, spacing: 16) {
-            SelectionCard(title: "Gider", icon: "arrow.down.circle.fill", color: theme.expense) {
-                selectedType = .expense
-                nextStep()
-            }
-            SelectionCard(title: "Gelir", icon: "arrow.up.circle.fill", color: theme.income) {
-                selectedType = .income
-                nextStep()
+        Group {
+            if isScanningReceipt {
+                inlineScanningView
+            } else {
+                VStack(spacing: 16) {
+                    LazyVGrid(columns: columns, spacing: 16) {
+                        SelectionCard(title: "Gider", icon: "arrow.down.circle.fill", color: theme.expense) {
+                            selectedType = .expense
+                            nextStep()
+                        }
+                        SelectionCard(title: "Gelir", icon: "arrow.up.circle.fill", color: theme.income) {
+                            selectedType = .income
+                            nextStep()
+                        }
+                    }
+                    
+                    Button {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                            selectedSourceType = .camera
+                        } else {
+                            selectedSourceType = .photoLibrary
+                        }
+                        showImagePicker = true
+                    } label: {
+                        HStack(spacing: 16) {
+                            Image(systemName: "camera.viewfinder")
+                                .font(.system(size: 28))
+                                .foregroundStyle(theme.brandPrimary)
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Fatura / Fiş Tara")
+                                    .font(.headline)
+                                    .foregroundStyle(theme.labelPrimary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(theme.separatorSecondary)
+                        }
+                        .padding(.horizontal, 24)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 80)
+                        .clipShape(RoundedRectangle(cornerRadius: 24))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 24)
+                                .stroke(theme.separator, lineWidth: 1)
+                        )
+                    }
+                }
             }
         }
     }
 
     private var categorySelectionView: some View {
         LazyVGrid(columns: columns, spacing: 16) {
-            let filteredCategories = CategoryManager.shared.categories.isEmpty ? CategoriesMockData.data.filter { $0.type == selectedType } : CategoryManager.shared.categories.filter { $0.type == selectedType }
+            let filteredCategories = (CategoryManager.shared.categories.isEmpty ? CategoriesMockData.data : CategoryManager.shared.categories).filter { $0.type == selectedType && $0.isOn }
             ForEach(filteredCategories) { category in
                 SelectionCard(title: LocalizedStringKey(category.name), icon: category.icon, color: category.uiColor) {
                     selectedMainCategory = category
@@ -283,7 +345,7 @@ struct AddTransactionsView: View {
 
     private var subcategorySelectionView: some View {
         LazyVGrid(columns: columns, spacing: 16) {
-            if let subCategories = selectedMainCategory?.subCategories {
+            if let subCategories = selectedMainCategory?.subCategories.filter({ $0.isOn }) {
                 ForEach(subCategories) { sub in
                     SelectionCard(title: LocalizedStringKey(sub.name), icon: sub.icon, color: sub.uiColor) {
                         selectedSubCategory = sub
@@ -538,8 +600,8 @@ struct AddTransactionsView: View {
         UISelectionFeedbackGenerator().selectionChanged()
         guard let next = TransactionStep(rawValue: currentStep.rawValue + 1) else { return }
         
-        // Fix #1: Alt kategorisi olmayan kategorilerde subcategory adımını atla
-        if next == .subcategory, (selectedMainCategory?.subCategories ?? []).isEmpty {
+        // Fix #1: Alt kategorisi olmayan veya aktif alt kategorisi bulunmayan kategorilerde subcategory adımını atla
+        if next == .subcategory, (selectedMainCategory?.subCategories ?? []).filter({ $0.isOn }).isEmpty {
             guard let skip = TransactionStep(rawValue: next.rawValue + 1) else { return }
             currentStep = skip
             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
@@ -561,8 +623,8 @@ struct AddTransactionsView: View {
     private func prevStep() {
         guard let prev = TransactionStep(rawValue: currentStep.rawValue - 1) else { return }
         
-        // .details'ten geri gidiyoruz ve kategorinin alt kategorisi yoksa .subcategory'yi atla
-        if prev == .subcategory, (selectedMainCategory?.subCategories ?? []).isEmpty {
+        // .details'ten geri gidiyoruz ve kategorinin alt kategorisi yoksa veya aktif alt kategorisi bulunmuyorsa .subcategory'yi atla
+        if prev == .subcategory, (selectedMainCategory?.subCategories ?? []).filter({ $0.isOn }).isEmpty {
             guard let skip = TransactionStep(rawValue: prev.rawValue - 1) else { return }
             currentStep = skip
             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
@@ -675,6 +737,123 @@ struct AddTransactionsView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
         }
+    }
+    
+    // MARK: - OCR Scanner Processing
+    private func processReceiptImage(_ image: UIImage) {
+        isScanningReceipt = true
+        Task {
+            let result = await ReceiptScannerManager.scanReceipt(image: image)
+            await MainActor.run {
+                isScanningReceipt = false
+                
+                guard let result = result else {
+                    // Gemini OCR failed, stop processing and show error alert
+                    self.ocrErrorMessage = "Fatura veya fiş okunamadı. Lütfen görüntünün net olduğundan emin olun ve tekrar deneyin."
+                    self.showOcrErrorAlert = true
+                    return
+                }
+                
+                // Determine if it's an installment transaction (mapped to isDebt in Finvo)
+                if result.isInstallment == true {
+                    self.isDebt = true
+                    self.debtContact = result.merchantName ?? ""
+                    if let count = result.installmentCount {
+                        self.installmentCount = String(count)
+                    } else {
+                        self.installmentCount = ""
+                    }
+                    self.paidInstallments = "0"
+                } else {
+                    self.isDebt = false
+                    self.debtContact = ""
+                    self.installmentCount = ""
+                    self.paidInstallments = ""
+                }
+                
+                // Populate fields from extraction
+                if let amountVal = result.amount {
+                    var finalAmount = amountVal
+                    if result.isInstallment == true, let count = result.installmentCount, count > 0 {
+                        // For installment transactions, the amount input field expects the installment amount (taksit tutarı)
+                        // because saveTransaction() will multiply this by the installment count.
+                        finalAmount = (amountVal / Double(count)).rounded()
+                    }
+                    let isInteger = floor(finalAmount) == finalAmount
+                    self.amount = isInteger ? String(format: "%.0f", finalAmount) : "\(finalAmount)"
+                }
+                
+                if let dateVal = result.date {
+                    self.selectedDate = dateVal
+                } else {
+                    self.selectedDate = Date()
+                }
+                
+                var noteContent = ""
+                if let merchant = installmentNoteName(result: result) {
+                    noteContent = merchant
+                }
+                if let items = result.itemsList, !items.isEmpty {
+                    if !noteContent.isEmpty {
+                        noteContent += "\n\nÜrünler:\n\(items)"
+                    } else {
+                        noteContent = "Ürünler:\n\(items)"
+                    }
+                }
+                self.note = noteContent
+                
+                if let mainCat = result.suggestedCategory {
+                    self.selectedMainCategory = mainCat
+                    self.selectedSubCategory = result.suggestedSubCategory
+                    
+                    // Instantly navigate to detail screen
+                    self.currentStep = .details
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        self.selectedDetent = .height(650)
+                    }
+                } else {
+                    self.selectedMainCategory = nil
+                    self.selectedSubCategory = nil
+                    
+                    // Category couldn't be matched. Let user select it directly (step 2)
+                    self.currentStep = .category
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        self.selectedDetent = .height(650)
+                    }
+                }
+                
+                // OCR scanned transactions are always expenses
+                self.selectedType = .expense
+            }
+        }
+    }
+    
+    private func installmentNoteName(result: ScannedReceiptResult) -> String? {
+        guard let merchant = result.merchantName else { return nil }
+        if result.isInstallment == true, let count = result.installmentCount {
+            return "\(merchant) (\(count) Taksit)"
+        }
+        return merchant
+    }
+    
+    private var inlineScanningView: some View {
+        VStack(spacing: 16) {
+            ProgressView()
+                .progressViewStyle(CircularProgressViewStyle(tint: theme.brandPrimary))
+                .scaleEffect(1.3)
+                .padding(.bottom, 8)
+            
+            Text("Fiş Taranıyor...")
+                .font(.headline)
+                .foregroundStyle(theme.labelPrimary)
+            
+            Text("Bilgiler otomatik okunuyor, lütfen bekleyin.")
+                .font(.subheadline)
+                .foregroundStyle(theme.labelSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 24)
     }
     
     // MARK: - Save Logic

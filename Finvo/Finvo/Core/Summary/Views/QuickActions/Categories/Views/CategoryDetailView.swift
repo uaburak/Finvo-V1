@@ -45,12 +45,13 @@ struct CategoryDetailView: View {
                                     saveChanges()
                                 }
                             }
-                        )
+                        ),
+                        toggleTint: theme.brandPrimary
                     )
                     .padding(.leading)
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         if categoryManager.checkPermission(authManager: authManager, walletManager: walletManager) {
-                            Button(role: .destructive) {
+                            Button {
                                 if authManager.currentUserProfile?.isPro == true {
                                     let impact = transactionManager.getImpact(mainCategoryId: category.id, subCategoryId: sub.id)
                                     impactSummary = String(format: "%d %@ %d %@", impact.transactionCount, "işlem girişi ve".localized, impact.recurringCount, "tekrarlayan işleminiz silinecek.".localized)
@@ -113,6 +114,7 @@ struct CategoryDetailView: View {
                 
                 Toggle("", isOn: $category.isOn)
                     .labelsHidden()
+                    .tint(theme.brandPrimary)
                     .onChange(of: category.isOn) {
                         saveChanges()
                     }

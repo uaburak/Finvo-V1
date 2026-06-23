@@ -35,7 +35,7 @@ struct CategorySelectionSheet: View {
     }
 
     private func subCategoryView(for category: CategoryModel) -> some View {
-        List(category.subCategories) { sub in
+        List(category.subCategories.filter { $0.isOn }) { sub in
             Button {
                 selectedMainCategory = category
                 selectedSubCategory = sub

@@ -149,7 +149,9 @@ struct SettingsView: View {
                 }
             }
             .listStyle(.insetGrouped)
+            .padding(.top, -35)
             .navigationTitle("Ayarlar")
+            .navigationBarTitleDisplayMode(.inline)
             .fullScreenCover(isPresented: $showPaywall) {
                 ProSubscriptionPaywallView()
             }

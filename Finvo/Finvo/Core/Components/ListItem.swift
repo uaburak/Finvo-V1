@@ -16,13 +16,14 @@ struct ListItem: View {
     var secondaryInfo: String? = nil
     var secondaryInfoColor: Color = .gray
     var isOn: Binding<Bool>? = nil
+    var toggleTint: Color? = nil
     var iconForegroundColor: Color = .white
     
     // Flexible Additions
     var middleView: AnyView? = nil
     var customTrailingView: AnyView? = nil
     
-    init(icon: String, iconColor: Color, title: LocalizedStringKey, subtitle: LocalizedStringKey, username: String? = nil, isRecurring: Bool = false, value: String? = nil, valueColor: Color = .primary, secondaryInfo: String? = nil, secondaryInfoColor: Color = .gray, isOn: Binding<Bool>? = nil, iconForegroundColor: Color = .white, middleView: AnyView? = nil, customTrailingView: AnyView? = nil) {
+    init(icon: String, iconColor: Color, title: LocalizedStringKey, subtitle: LocalizedStringKey, username: String? = nil, isRecurring: Bool = false, value: String? = nil, valueColor: Color = .primary, secondaryInfo: String? = nil, secondaryInfoColor: Color = .gray, isOn: Binding<Bool>? = nil, toggleTint: Color? = nil, iconForegroundColor: Color = .white, middleView: AnyView? = nil, customTrailingView: AnyView? = nil) {
         self.icon = icon
         self.iconColor = iconColor
         self.title = title
@@ -34,6 +35,7 @@ struct ListItem: View {
         self.secondaryInfo = secondaryInfo
         self.secondaryInfoColor = secondaryInfoColor
         self.isOn = isOn
+        self.toggleTint = toggleTint
         self.iconForegroundColor = iconForegroundColor
         self.middleView = middleView
         self.customTrailingView = customTrailingView
@@ -97,7 +99,7 @@ struct ListItem: View {
             } else if let isOn = isOn {
                 Toggle("", isOn: isOn)
                     .labelsHidden()
-                    .tint(.blue)
+                    .tint(toggleTint ?? .blue)
                     .scaleEffect(0.95)
             } else {
                 VStack(alignment: .trailing, spacing: 2) {

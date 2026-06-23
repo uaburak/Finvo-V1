@@ -67,6 +67,7 @@ struct IBANListView: View {
             }
         }
         .navigationTitle("IBAN Bilgilerim")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
