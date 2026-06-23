@@ -20,11 +20,27 @@ struct ScannedReceiptResult {
 
 class ReceiptScannerManager {
     
-    static func scanReceipt(image: UIImage) async -> ScannedReceiptResult? {
+    static func scanReceipt(image: UIImage, walletId: String) async -> ScannedReceiptResult? {
         let totalStartTime = CFAbsoluteTimeGetCurrent()
         print("DEBUG: Receipt scanning process started.")
+        
+        var availableCategories: [CategoryModel] = []
+        if !walletId.isEmpty {
+            do {
+                availableCategories = try await FirestoreService.shared.fetchCategories(walletId: walletId)
+                print("DEBUG: Fetched \(availableCategories.count) categories dynamically from Firestore for wallet \(walletId)")
+            } catch {
+                print("ERROR: Failed to fetch categories for wallet \(walletId): \(error)")
+            }
+        }
+        
+        if availableCategories.isEmpty {
+            availableCategories = CategoriesMockData.data
+            print("DEBUG: Using CategoriesMockData fallback (fetched list was empty or failed).")
+        }
+        
         do {
-            if let result = try await scanReceiptWithFirebaseAI(image: image) {
+            if let result = try await scanReceiptWithFirebaseAI(image: image, availableCategories: availableCategories) {
                 let totalElapsed = CFAbsoluteTimeGetCurrent() - totalStartTime
                 print("DEBUG: Firebase AI Logic OCR Scanning Succeeded in \(String(format: "%.4f", totalElapsed)) seconds.")
                 return result
@@ -40,7 +56,7 @@ class ReceiptScannerManager {
     
     
     // MARK: - Firebase AI Logic (Vertex AI for Firebase) Scanner
-    private static func scanReceiptWithFirebaseAI(image: UIImage) async throws -> ScannedReceiptResult? {
+    private static func scanReceiptWithFirebaseAI(image: UIImage, availableCategories: [CategoryModel]) async throws -> ScannedReceiptResult? {
         guard let compressedData = await compressImage(image) else {
             return nil
         }
@@ -56,6 +72,14 @@ class ReceiptScannerManager {
             generationConfig: config
         )
         
+        var categoriesPrompt = ""
+        let expenseCategories = availableCategories.filter { $0.type == .expense && $0.isOn }
+        for cat in expenseCategories {
+            let activeSubs = cat.subCategories.filter { $0.isOn }
+            let subs = activeSubs.map { "\"\($0.id)\" (\($0.name))" }.joined(separator: ", ")
+            categoriesPrompt += "- ID: \"\(cat.id)\", Name: \"\(cat.name)\" (Subcategories: \(subs))\n"
+        }
+        
         let prompt = """
         You are an expert OCR receipt parsing system. Analyze this receipt or invoice image.
         Extract the following fields and return exactly in this JSON format:
@@ -63,8 +87,8 @@ class ReceiptScannerManager {
           "amount": 1512,
           "date": "dd.MM.yyyy HH:mm",
           "merchantName": "Merchant Name",
-          "suggestedCategory": "Category Name",
-          "suggestedSubCategory": "SubCategory Name",
+          "suggestedCategoryId": "Category ID",
+          "suggestedSubCategoryId": "SubCategory ID",
           "isInstallment": true,
           "installmentCount": 3,
           "itemsList": "1. Ürün Adı - Fiyat\\n2. Ürün Adı - Fiyat"
@@ -74,18 +98,10 @@ class ReceiptScannerManager {
         1. "amount": The total paid amount, parsed as a Double and rounded to the nearest integer. Do not include currency symbols.
         2. "date": The date and time of purchase formatted exactly as "dd.MM.yyyy HH:mm" (e.g. "22.06.2026 17:30"). Extract the time from the receipt if visible. If no time is visible, default the time portion to "12:00" (e.g., "dd.MM.yyyy 12:00"). If no date is found, return null.
         3. "merchantName": The company or shop name. Ensure it is capitalized and clean.
-        4. "suggestedCategory" & "suggestedSubCategory": Categorize the transaction into one of these EXACT categories and subcategories:
-           - "Market & Mutfak" (Subcategories: "Süpermarket", "Kasap & Manav", "Damacana Su", "Temizlik Malzemeleri", "Tekel & Atıştırmalık")
-           - "Yeme İçme & Sosyal" (Subcategories: "Restoran & Yemek", "Kahve & Çay", "Fast Food", "Dışarıda Eğlence & Bar")
-           - "Araba & Ulaşım" (Subcategories: "Akaryakıt / LPG", "Periyodik Bakım & Servis", "Trafik Sigortası & Kasko", "Otopark & HGS", "Oto Yıkama", "Taksi & Toplu Taşıma")
-           - "Konut & Faturalar" (Subcategories: "Kira", "Elektrik", "Su", "Doğalgaz / Isınma", "İnternet", "Telefon Faturası", "Aidat")
-           - "Sağlık & Bakım" (Subcategories: "Eczane & İlaç", "Hastane & Doktor", "Kuaför & Berber", "Kişisel Bakım & Kozmetik")
-           - "Giyim & Aksesuar" (Subcategories: "Kıyafet", "Ayakkabı", "Çanta & Takı")
-           - "Abonelikler" (Subcategories: "Netflix", "Spotify", "YouTube Premium", "Disney+", "Amazon Prime")
-           - "Teknoloji & Yazılım" (Subcategories: "Uygulama İçi Satın Alma", "Domain & Hosting (Yıllık)", "Asset & Plugin Alımı", "Elektronik Cihaz")
-           - "Oyun & Donanım" (Subcategories: "Konsol Oyunu Satın Alma", "Steam / Epic Alışverişi", "Oyun İçi Satın Alma", "Aksesuar (Kol, Kulaklık)")
-           
-           CRITICAL RULE: If the receipt does not match any of these categories with high confidence, or if it is a general invoice with no clear single category match (such as a generic cargo bill or generic receipt containing mixed items with no dominant type), set BOTH "suggestedCategory" and "suggestedSubCategory" to null. Do not guess.
+        4. "suggestedCategoryId" & "suggestedSubCategoryId": Categorize the transaction into one of these available categories and subcategories by selecting their exact ID from the list below:
+        \(categoriesPrompt)
+        
+        CRITICAL RULE: If the receipt does not match any of these categories with high confidence, set BOTH "suggestedCategoryId" and "suggestedSubCategoryId" to null. Do not guess.
         5. "isInstallment": Boolean. Set to true if there is any indication of installment payments, "X Taksit", "Taksitli", "Ödeme Planı", "Taksit Tutarı", etc. Otherwise false.
         6. "installmentCount": Integer. Extract the number of total installments if present (e.g. 3, 6, 9, 12). If not present or not an installment transaction, return null.
         7. "itemsList": A formatted clean multiline string listing all parsed individual items, services, or products purchased on the receipt/invoice, along with their quantities and prices if available. Format it as an ordered list (e.g. "1. URUN A - 100 TL\\n2. URUN B - 50 TL"). If there are too many items, limit list to the first 30 items. If no items can be extracted, return null.
@@ -107,8 +123,8 @@ class ReceiptScannerManager {
             let amount: Double?
             let date: String?
             let merchantName: String?
-            let suggestedCategory: String?
-            let suggestedSubCategory: String?
+            let suggestedCategoryId: String?
+            let suggestedSubCategoryId: String?
             let isInstallment: Bool?
             let installmentCount: Int?
             let itemsList: String?
@@ -142,15 +158,17 @@ class ReceiptScannerManager {
             }
         }
         
-        // Match local categories (safe fetch from MainActor)
-        if let categoryName = geminiResult.suggestedCategory {
-            let categories = await MainActor.run {
-                CategoryManager.shared.categories.isEmpty ? CategoriesMockData.data : CategoryManager.shared.categories
-            }
-            if let mainCat = categories.first(where: { $0.name.lowercased() == categoryName.lowercased() }) {
+        // Match dynamic categories by ID with a name fallback in case AI returned category name
+        if let catId = geminiResult.suggestedCategoryId {
+            if let mainCat = availableCategories.first(where: { $0.id == catId }) {
                 result.suggestedCategory = mainCat
-                if let subName = geminiResult.suggestedSubCategory {
-                    result.suggestedSubCategory = mainCat.subCategories.first(where: { $0.name.lowercased() == subName.lowercased() })
+                if let subId = geminiResult.suggestedSubCategoryId {
+                    result.suggestedSubCategory = mainCat.subCategories.first(where: { $0.id == subId })
+                }
+            } else if let mainCat = availableCategories.first(where: { $0.name.lowercased() == catId.lowercased() }) {
+                result.suggestedCategory = mainCat
+                if let subId = geminiResult.suggestedSubCategoryId {
+                    result.suggestedSubCategory = mainCat.subCategories.first(where: { $0.name.lowercased() == subId.lowercased() || $0.id == subId })
                 }
             }
         }

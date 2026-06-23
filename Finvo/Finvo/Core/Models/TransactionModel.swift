@@ -281,7 +281,11 @@ extension TransactionModel {
         var results: [TransactionModel] = []
         
         if isDebt {
-            guard let total = totalInstallments, total > 0 else { return [] }
+            guard let total = totalInstallments, total > 1 else {
+                var copy = self
+                copy.id = "\(self.id ?? "debt")_occurrence"
+                return [copy]
+            }
             let paid = paidInstallments ?? 0
             let installmentAmount = self.amount / Double(total)
             let targetDay = self.dueDay ?? calendar.component(.day, from: self.date)
@@ -289,7 +293,11 @@ extension TransactionModel {
             // İlk taksit tarihini borcun oluşturulduğu aydan başlat
             var baseComponents = calendar.dateComponents([.year, .month], from: self.createdAt)
             baseComponents.day = targetDay
-            guard let firstDate = calendar.date(from: baseComponents) else { return [] }
+            guard let firstDate = calendar.date(from: baseComponents) else {
+                var copy = self
+                copy.id = "\(self.id ?? "debt")_occurrence"
+                return [copy]
+            }
             
             for i in 0..<total {
                 var copy = self

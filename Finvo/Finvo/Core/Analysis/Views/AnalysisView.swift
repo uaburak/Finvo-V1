@@ -12,6 +12,7 @@ struct AnalysisView: View {
     @EnvironmentObject var transactionManager: TransactionManager
     @EnvironmentObject var walletManager: WalletManager
     @EnvironmentObject var authManager: AuthenticationManager
+    @ObservedObject var categoryManager = CategoryManager.shared
     
     // UI States
     @State private var selectedTab: AnalysisTimeFrame = .month
@@ -103,7 +104,7 @@ struct AnalysisView: View {
                         if let wallet = walletManager.activeWallet, (wallet.type == .shared || wallet.members.count > 1) {
                             AnalysisCollaboratorCard(
                                 contributions: memberContributions,
-                                allTransactions: transactionManager.transactions
+                                allTransactions: categoryTransactions
                             )
                             .padding(.horizontal, 20)
                         }
@@ -120,6 +121,10 @@ struct AnalysisView: View {
                         
                     }
                     .safeAreaPadding(.bottom, 60)
+                }
+                .refreshable {
+                    await ExchangeRateManager.shared.fetchRates()
+                    updateData(startAnimation: true)
                 }
             }
             .navigationTitle("Analiz")
@@ -266,6 +271,9 @@ struct AnalysisView: View {
             .onChange(of: transactionManager.transactions.count) {
                 updateData(startAnimation: false)
             }
+            .onChange(of: categoryManager.categories) { _, _ in
+                updateData(startAnimation: false)
+            }
             .onChange(of: selectedFilterType) { _, newType in
                 // Seçili kategori yeni transaction tipine ait değilse sıfırla
                 if let catId = selectedCategory {
@@ -324,14 +332,31 @@ struct AnalysisView: View {
         else if dateFilterMode == .monthly { range = .month }
         else if dateFilterMode == .yearly { range = .year }
         
-        var baseTxs = transactionManager.transactions
-        // Seçili kategori varsa daralt
-        if let catId = selectedCategory {
-            baseTxs = baseTxs.filter { $0.mainCategoryId == catId || $0.mainCategoryName == catId }
+        let baseTxs = transactionManager.transactions
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        
+        var expandedTxs: [TransactionModel] = []
+        for tx in baseTxs {
+            if tx.isDebt || tx.isRecurring {
+                let occurrences = tx.allPaymentOccurrences()
+                if tx.isRecurring {
+                    // Sadece bulunduğumuz güne kadar (bugün dahil) tekrarlanmış olanları ekle
+                    expandedTxs.append(contentsOf: occurrences.filter { calendar.startOfDay(for: $0.date) <= today })
+                } else {
+                    expandedTxs.append(contentsOf: occurrences)
+                }
+            } else {
+                expandedTxs.append(tx)
+            }
         }
         
-        let allTxs = baseTxs
-        let calendar = Calendar.current
+        // Seçili kategori varsa daralt
+        if let catId = selectedCategory {
+            expandedTxs = expandedTxs.filter { $0.mainCategoryId == catId || $0.mainCategoryName == catId || $0.resolvedMainCategoryName == catId }
+        }
+        
+        let allTxs = expandedTxs
         let now = Date()
         
         var newFlowData: [FlowData] = []
@@ -402,7 +427,6 @@ struct AnalysisView: View {
         var hourDict: [Date: Double] = [:]
         
         for tx in filteredTxs {
-            if tx.isDebt { continue } // Borç işlemleri grafikte hesaplanmaz, taksitleri hesaplanır.
             if selectedFilterType == .income && tx.type != .income { continue }
             if selectedFilterType == .expense && tx.type != .expense { continue }
             
@@ -417,7 +441,6 @@ struct AnalysisView: View {
         }
         
         for tx in allTxs {
-            if tx.isDebt { continue } 
             if selectedFilterType == .income && tx.type != .income { continue }
             if selectedFilterType == .expense && tx.type != .expense { continue }
             
@@ -444,16 +467,15 @@ struct AnalysisView: View {
             
         // 3. Mini Kart Verileri
         let biggestActive = filteredTxs.filter {
-            !$0.isDebt && 
-            ((selectedFilterType == .all && $0.type == .expense) ||
+            (selectedFilterType == .all && $0.type == .expense) ||
             (selectedFilterType == .income && $0.type == .income) ||
-            (selectedFilterType == .expense && $0.type == .expense))
+            (selectedFilterType == .expense && $0.type == .expense)
         }.max(by: {
             ExchangeRateManager.shared.convert(amount: $0.amount, from: $0.currency ?? .tryCurrency, to: baseCurrency) <
             ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: baseCurrency)
         })
         
-        let recurring = allTxs.filter { $0.isRecurring }
+        let recurring = filteredTxs.filter { $0.isRecurring }
         
         // 4. Kategori Verileri
         var catDict: [String: (amount: Double, icon: String, count: Int, color: Color, members: Set<String>)] = [:]
@@ -461,7 +483,7 @@ struct AnalysisView: View {
         
         // Kullanıcı filtreyi gelire çekerse Kategori ve Liderlik Dağılımını sadece Gelirler ile göster!
         let targetTypeForCategories: TransactionType = selectedFilterType == .income ? .income : .expense
-        let typeFilteredTxs = filteredTxs.filter { $0.type == targetTypeForCategories && !$0.isDebt }
+        let typeFilteredTxs = filteredTxs.filter { $0.type == targetTypeForCategories }
         let totalTypeAmount = typeFilteredTxs.reduce(0) { 
             $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: baseCurrency)
         }
@@ -469,18 +491,18 @@ struct AnalysisView: View {
         for tx in typeFilteredTxs {
             let convertedAmount = ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: baseCurrency)
             // Kategori Toplama
-            let cat = tx.mainCategoryName
-            let currentCat = catDict[cat] ?? (amount: 0, icon: tx.categoryIcon, count: 0, color: tx.resolvedColor(), members: [])
+            let cat = tx.resolvedMainCategoryName
+            let currentCat = catDict[cat] ?? (amount: 0, icon: tx.resolvedIcon, count: 0, color: tx.resolvedColor(), members: [])
             var members = currentCat.members
             members.insert(tx.createdBy)
-            catDict[cat] = (amount: currentCat.amount + convertedAmount, icon: tx.categoryIcon, count: currentCat.count + 1, color: currentCat.color, members: members)
+            catDict[cat] = (amount: currentCat.amount + convertedAmount, icon: tx.resolvedIcon, count: currentCat.count + 1, color: currentCat.color, members: members)
             
             // Kişi Toplama
             let currentMember = memberDict[tx.createdBy] ?? (0, 0)
             memberDict[tx.createdBy] = (currentMember.0 + convertedAmount, currentMember.1 + 1)
         }
         
-        let newCatSums = catDict.map { 
+        let sortedCatSums = catDict.map { 
             CategorySummary(
                 name: $0.key, amount: $0.value.amount, icon: $0.value.icon,
                 percentage: totalTypeAmount > 0 ? ($0.value.amount / totalTypeAmount) * 100 : 0,
@@ -489,6 +511,35 @@ struct AnalysisView: View {
                 members: Array($0.value.members).sorted()
             ) 
         }.sorted(by: { $0.amount > $1.amount })
+        
+        let paletteColors: [Color] = [
+            Color(hex: "0088FF"), // Blue
+            Color(hex: "FF9500"), // Orange
+            Color(hex: "5856D6"), // Purple
+            Color(hex: "4CD964"), // Green
+            Color(hex: "FF2D55"), // Pink
+            Color(hex: "30B0C7"), // Teal
+            Color(hex: "FFCC00"), // Yellow
+            Color(hex: "FF3B30"), // Red
+            Color(hex: "AF52DE"), // Violet
+            Color(hex: "A4C639"), // Lime
+            Color(hex: "5AC8FA"), // Light Blue
+            Color(hex: "E28743"), // Soft Orange
+            Color(hex: "F012BE"), // Magenta
+            Color(hex: "3D9970")  // Olive
+        ]
+        
+        let newCatSums = sortedCatSums.enumerated().map { index, summary in
+            CategorySummary(
+                name: summary.name,
+                amount: summary.amount,
+                icon: summary.icon,
+                percentage: summary.percentage,
+                transactionCount: summary.transactionCount,
+                color: paletteColors[index % paletteColors.count],
+                members: summary.members
+            )
+        }
         
         let newMemberSums = memberDict.map {
             MemberContribution(username: $0.key, amount: $0.value.amount, transactionCount: $0.value.count)
@@ -500,7 +551,7 @@ struct AnalysisView: View {
         self.biggestTransaction = biggestActive
         self.recurringTransactions = recurring
         self.categorySummaries = newCatSums
-        self.categoryTransactions = filteredTxs.filter { !$0.isDebt }
+        self.categoryTransactions = filteredTxs
         self.memberContributions = newMemberSums
         
         // Yeniden yüklendiği için animasyon tetikle

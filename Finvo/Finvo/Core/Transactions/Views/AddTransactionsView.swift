@@ -742,8 +742,9 @@ struct AddTransactionsView: View {
     // MARK: - OCR Scanner Processing
     private func processReceiptImage(_ image: UIImage) {
         isScanningReceipt = true
+        let walletId = walletManager.activeWallet?.id ?? ""
         Task {
-            let result = await ReceiptScannerManager.scanReceipt(image: image)
+            let result = await ReceiptScannerManager.scanReceipt(image: image, walletId: walletId)
             await MainActor.run {
                 isScanningReceipt = false
                 

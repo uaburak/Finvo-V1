@@ -176,6 +176,25 @@ struct CategoryRecurringTransactionsView: View {
     let categoryName: String
     let transactions: [TransactionModel]
     
+    private func getSecondaryInfo(for tx: TransactionModel) -> String {
+        if tx.isPaid {
+            return tx.date.formatted(date: .abbreviated, time: .shortened)
+        } else {
+            let calendar = Calendar.current
+            let today = calendar.startOfDay(for: Date())
+            let txDate = calendar.startOfDay(for: tx.date)
+            let days = calendar.dateComponents([.day], from: today, to: txDate).day ?? 0
+            
+            if days > 0 {
+                return String(format: L10n("%d gün kaldı"), days)
+            } else if days == 0 {
+                return L10n("Bugün")
+            } else {
+                return String(format: L10n("%d gün geçti"), abs(days))
+            }
+        }
+    }
+    
     var body: some View {
         ZStack {
             theme.background1.ignoresSafeArea()
@@ -197,8 +216,8 @@ struct CategoryRecurringTransactionsView: View {
                             title: LocalizedStringKey(tx.subCategoryName ?? tx.mainCategoryName),
                             subtitle: LocalizedStringKey(tx.createdBy),
                             value: (tx.type == .income ? "+" : "-") + (tx.currency?.symbol ?? appCurrency.symbol) + tx.amount.formatted(.number.grouping(.automatic).precision(.fractionLength(0))),
-                            valueColor: tx.type == .income ? theme.income : theme.expense,
-                            secondaryInfo: tx.date.formatted(date: .abbreviated, time: .shortened)
+                            valueColor: tx.isPaid ? (tx.type == .income ? theme.income : theme.expense) : .gray,
+                            secondaryInfo: getSecondaryInfo(for: tx)
                         )
                         .padding(.leading)
                     }

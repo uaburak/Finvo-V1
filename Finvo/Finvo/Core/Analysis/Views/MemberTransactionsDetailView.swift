@@ -19,12 +19,12 @@ struct MemberTransactionsDetailView: View {
     }
 
     private var categorySummaries: [(name: String, amount: Double, icon: String, type: TransactionType, count: Int, color: Color)] {
-        let grouped = Dictionary(grouping: filteredTransactions, by: { $0.mainCategoryName })
+        let grouped = Dictionary(grouping: filteredTransactions, by: { $0.resolvedMainCategoryName })
         return grouped.map { key, txs in
             let total = txs.reduce(0) {
                 $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: appCurrency)
             }
-            let icon = txs.first?.categoryIcon ?? "bag"
+            let icon = txs.first?.resolvedIcon ?? "bag"
             let type = txs.first?.type ?? .expense
             let color = txs.first?.resolvedColor() ?? theme.brandPrimary
             return (name: key, amount: total, icon: icon, type: type, count: txs.count, color: color)
@@ -33,14 +33,14 @@ struct MemberTransactionsDetailView: View {
 
     /// Bu üyenin seçili türdeki toplam tutarı
     private var memberTotal: Double {
-        transactions.filter { $0.type == selectedType && !$0.isDebt }.reduce(0) {
+        transactions.filter { $0.type == selectedType }.reduce(0) {
             $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: appCurrency)
         }
     }
 
     /// Tüm cüzdanın seçili türdeki toplam tutarı
     private var walletTotal: Double {
-        allTransactions.filter { $0.type == selectedType && !$0.isDebt }.reduce(0) {
+        allTransactions.filter { $0.type == selectedType }.reduce(0) {
             $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: appCurrency)
         }
     }
@@ -74,7 +74,7 @@ struct MemberTransactionsDetailView: View {
                     List {
                         ForEach(Array(categorySummaries.enumerated()), id: \.element.name) { index, cat in
                             let isFirst = index == 0
-                            let catTxs = filteredTransactions.filter { $0.mainCategoryName == cat.name }
+                            let catTxs = filteredTransactions.filter { $0.resolvedMainCategoryName == cat.name }
 
                             ZStack {
                                 NavigationLink(destination: CategoryDistributionTransactionsView(

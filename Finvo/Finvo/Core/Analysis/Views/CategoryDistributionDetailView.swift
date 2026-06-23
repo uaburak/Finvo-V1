@@ -3,6 +3,7 @@ import SwiftUI
 struct CategoryDistributionDetailView: View {
     @Environment(\.theme) var theme
     @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
+    @ObservedObject var categoryManager = CategoryManager.shared
     
     let transactions: [TransactionModel]
     @State private var selectedType: TransactionType = .expense
@@ -18,14 +19,14 @@ struct CategoryDistributionDetailView: View {
         
         for tx in typeFilteredTxs {
             let convertedAmount = ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: appCurrency)
-            let cat = tx.mainCategoryName
-            let currentCat = catDict[cat] ?? (amount: 0, icon: tx.categoryIcon, count: 0, color: tx.resolvedColor(), members: [])
+            let cat = tx.resolvedMainCategoryName
+            let currentCat = catDict[cat] ?? (amount: 0, icon: tx.resolvedIcon, count: 0, color: tx.resolvedColor(), members: [])
             var currentMembers = currentCat.members
             currentMembers.insert(tx.createdBy)
-            catDict[cat] = (amount: currentCat.amount + convertedAmount, icon: tx.categoryIcon, count: currentCat.count + 1, color: currentCat.color, members: currentMembers)
+            catDict[cat] = (amount: currentCat.amount + convertedAmount, icon: tx.resolvedIcon, count: currentCat.count + 1, color: currentCat.color, members: currentMembers)
         }
         
-        return catDict.map { 
+        let sortedSummaries = catDict.map { 
             CategorySummary(
                 name: $0.key, amount: $0.value.amount, icon: $0.value.icon,
                 percentage: totalTypeAmount > 0 ? ($0.value.amount / totalTypeAmount) * 100 : 0,
@@ -34,6 +35,35 @@ struct CategoryDistributionDetailView: View {
                 members: Array($0.value.members).sorted()
             ) 
         }.sorted(by: { $0.amount > $1.amount })
+        
+        let paletteColors: [Color] = [
+            Color(hex: "0088FF"), // Blue
+            Color(hex: "FF9500"), // Orange
+            Color(hex: "5856D6"), // Purple
+            Color(hex: "4CD964"), // Green
+            Color(hex: "FF2D55"), // Pink
+            Color(hex: "30B0C7"), // Teal
+            Color(hex: "FFCC00"), // Yellow
+            Color(hex: "FF3B30"), // Red
+            Color(hex: "AF52DE"), // Violet
+            Color(hex: "A4C639"), // Lime
+            Color(hex: "5AC8FA"), // Light Blue
+            Color(hex: "E28743"), // Soft Orange
+            Color(hex: "F012BE"), // Magenta
+            Color(hex: "3D9970")  // Olive
+        ]
+        
+        return sortedSummaries.enumerated().map { index, summary in
+            CategorySummary(
+                name: summary.name,
+                amount: summary.amount,
+                icon: summary.icon,
+                percentage: summary.percentage,
+                transactionCount: summary.transactionCount,
+                color: paletteColors[index % paletteColors.count],
+                members: summary.members
+            )
+        }
     }
     
     var body: some View {
@@ -59,7 +89,7 @@ struct CategoryDistributionDetailView: View {
                     ForEach(Array(summaries.enumerated()), id: \.element.id) { index, summary in
                         let isFirst = index == 0
                         let catTxs = transactions.filter {
-                            $0.mainCategoryName == summary.name && $0.type == selectedType
+                            $0.resolvedMainCategoryName == summary.name && $0.type == selectedType
                         }
                         
                         ZStack {
@@ -178,7 +208,7 @@ struct CategoryDistributionTransactionsView: View {
                             ListItem(
                                 icon: tx.resolvedIcon,
                                 iconColor: tx.resolvedColor(),
-                                title: LocalizedStringKey(tx.subCategoryName ?? tx.mainCategoryName),
+                                title: LocalizedStringKey(tx.resolvedSubCategoryName ?? tx.resolvedMainCategoryName),
                                 subtitle: LocalizedStringKey(tx.createdBy),
                                 value: (tx.type == .income ? "+" : "-") + (tx.currency?.symbol ?? appCurrency.symbol) + tx.amount.formatted(.number.grouping(.automatic).precision(.fractionLength(0))),
                                 valueColor: tx.type == .income ? theme.income : theme.expense,
