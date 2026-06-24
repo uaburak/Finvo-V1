@@ -65,6 +65,35 @@ struct NavigationSegmentedConfigurator: UIViewRepresentable {
         if control.selectedSegmentIndex != selectedIndex {
             control.selectedSegmentIndex = selectedIndex
         }
+        
+        applyCustomTheme(to: control)
+    }
+    
+    // Gider (.expense) ve Gelir (.income) renk temalarını uygular
+    fileprivate func applyCustomTheme(to control: UISegmentedControl) {
+        let isExpense = control.selectedSegmentIndex == 0
+        
+        // Hafif saydam arkaplan renkleri
+        let redTint = UIColor(red: 255/255, green: 59/255, blue: 48/255, alpha: 0.15)  // Gider soft red
+        let greenTint = UIColor(red: 52/255, green: 199/255, blue: 89/255, alpha: 0.15) // Gelir soft green
+        
+        control.selectedSegmentTintColor = isExpense ? redTint : greenTint
+        
+        // Yazı renkleri
+        let redText = UIColor(red: 255/255, green: 59/255, blue: 48/255, alpha: 1.0)
+        let greenText = UIColor(red: 52/255, green: 199/255, blue: 89/255, alpha: 1.0)
+        
+        let normalTextAttrs: [NSAttributedString.Key: Any] = [
+            .foregroundColor: UIColor.secondaryLabel
+        ]
+        
+        let selectedTextAttrs: [NSAttributedString.Key: Any] = [
+            .foregroundColor: isExpense ? redText : greenText,
+            .font: UIFont.systemFont(ofSize: 13, weight: .bold)
+        ]
+        
+        control.setTitleTextAttributes(normalTextAttrs, for: .normal)
+        control.setTitleTextAttributes(selectedTextAttrs, for: .selected)
     }
     
     @discardableResult
@@ -108,6 +137,8 @@ struct NavigationSegmentedConfigurator: UIViewRepresentable {
             control = segmented
         }
         
+        applyCustomTheme(to: control)
+        
         let targetVC = updateTitleView(on: vc, with: control)
         context.coordinator.observeTitleView(on: targetVC, control: control)
     }
@@ -131,6 +162,7 @@ struct NavigationSegmentedConfigurator: UIViewRepresentable {
         
         @objc func valueChanged(_ sender: UISegmentedControl) {
             parent.selectedIndex = sender.selectedSegmentIndex
+            parent.applyCustomTheme(to: sender)
         }
         
         func observeTitleView(on vc: UIViewController, control: UISegmentedControl) {
