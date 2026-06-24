@@ -22,11 +22,21 @@ struct CategoriesListView: View {
     private let hapticMedium = UIImpactFeedbackGenerator(style: .medium)
     private let hapticNotification = UINotificationFeedbackGenerator()
     
+    // Segmented control için Int index ↔ TransactionType dönüşümü
+    private var selectedTypeIndex: Binding<Int> {
+        Binding(
+            get: { selectedType == .expense ? 0 : 1 },
+            set: { selectedType = $0 == 0 ? .expense : .income }
+        )
+    }
+    
     var filteredCategories: [CategoryModel] {
         categoryManager.categories.filter { $0.type == selectedType }
     }
     
     var body: some View {
+        let segmentItems = [L10n("Gider"), L10n("Gelir")]
+        
         List {
             if categoryManager.isLoading && categoryManager.categories.isEmpty {
                 ProgressView()
@@ -41,39 +51,14 @@ struct CategoriesListView: View {
         .listStyle(.plain)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationSegmentedControl(
+            selection: selectedTypeIndex,
+            items: segmentItems,
+            width: 160
+        )
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                Picker("İşlem Tipi", selection: $selectedType) {
-                    Text(L10n("Gider")).tag(TransactionType.expense)
-                    Text(L10n("Gelir")).tag(TransactionType.income)
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 200)
-            }
-            
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    if authManager.currentUserProfile?.isPro == false {
-                        hapticNotification.notificationOccurred(.warning)
-                        categoryManager.showProAlert = true
-                    } else if !categoryManager.checkPermission(authManager: authManager, walletManager: walletManager) {
-                        hapticNotification.notificationOccurred(.warning)
-                        showPermissionAlert = true
-                    } else {
-                        hapticMedium.impactOccurred()
-                        showAddSheet = true
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        if authManager.currentUserProfile?.isPro == false {
-                            Image(systemName: "lock.fill")
-                                .font(.system(size: 10))
-                                .foregroundColor(theme.labelSecondary)
-                        }
-                        Image(systemName: "plus")
-                            .foregroundColor(theme.labelPrimary)
-                    }
-                }
+                addCategoryButton
             }
         }
         .onAppear {
@@ -128,10 +113,30 @@ struct CategoriesListView: View {
         } message: {
             Text("'\(categoryToDelete?.name ?? "")' kategorisini ve ona bağlı tüm verileri silmek istediğinizden emin misiniz?\n\n\(impactSummary)")
         }
-        .onAppear {
-            let brandColor = UIColor(theme.brandPrimary)
-            UISegmentedControl.appearance().selectedSegmentTintColor = brandColor
-            UISegmentedControl.appearance().setTitleTextAttributes([.foregroundColor: UIColor.black], for: .selected)
+    }
+    
+    private var addCategoryButton: some View {
+        Button {
+            if authManager.currentUserProfile?.isPro == false {
+                hapticNotification.notificationOccurred(.warning)
+                categoryManager.showProAlert = true
+            } else if !categoryManager.checkPermission(authManager: authManager, walletManager: walletManager) {
+                hapticNotification.notificationOccurred(.warning)
+                showPermissionAlert = true
+            } else {
+                hapticMedium.impactOccurred()
+                showAddSheet = true
+            }
+        } label: {
+            HStack(spacing: 4) {
+                if authManager.currentUserProfile?.isPro == false {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 10))
+                        .foregroundColor(theme.labelSecondary)
+                }
+                Image(systemName: "plus")
+                    .foregroundColor(theme.labelPrimary)
+            }
         }
     }
     

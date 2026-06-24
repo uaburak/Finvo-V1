@@ -23,22 +23,12 @@ struct SummaryView: View {
                     
                     // Gelir / Gider Alanı
                     HStack(spacing: 16) {
-                        NavigationLink {
-                            TransactionsView(selectedType: .income)
-                                .environmentObject(walletManager)
-                                .environmentObject(authManager)
-                                .environmentObject(transactionManager)
-                        } label: {
+                        NavigationLink(value: TransactionType.income) {
                             IncomeExpenseCardView(title: LocalizedStringKey(L10n("Gelir")), amount: "\(appCurrency.symbol)\(transactionManager.totalIncome.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))", isIncome: true)
                         }
                         .buttonStyle(.plain)
                         
-                        NavigationLink {
-                            TransactionsView(selectedType: .expense)
-                                .environmentObject(walletManager)
-                                .environmentObject(authManager)
-                                .environmentObject(transactionManager)
-                        } label: {
+                        NavigationLink(value: TransactionType.expense) {
                             IncomeExpenseCardView(title: LocalizedStringKey(L10n("Gider")), amount: "\(appCurrency.symbol)\(transactionManager.totalExpense.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))", isIncome: false)
                         }
                         .buttonStyle(.plain)

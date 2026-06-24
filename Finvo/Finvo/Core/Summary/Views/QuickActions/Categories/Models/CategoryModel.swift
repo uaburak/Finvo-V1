@@ -37,7 +37,7 @@ struct CategoryIconLibrary {
         "briefcase.fill", "doc.text.fill", "archivebox.fill", "triangle.fill", "camera.fill",
         
         // Eğlence / Hobi
-        "cup.and.saucer.fill", "fork.knife.circle.fill", "mug.fill", "hamburger", "wineglass.fill", 
+        "cup.and.saucer.fill", "fork.knife.circle.fill", "mug.fill", "popcorn.fill", "wineglass.fill", 
         "music.note.house.fill", "music.mic", "play.tv.fill", "sparkles.tv.fill", 
         "play.rectangle.fill", "play.circle.fill", "film.stack.fill", "tv.fill", "gamecontroller.fill", 
         "dpad.fill", "playstation.logo", "xbox.logo", "headphones", "guitars.fill", "paintpalette.fill", 
@@ -187,7 +187,7 @@ struct CategoriesMockData {
         CategoryModel(type: .expense, name: "Yeme İçme & Sosyal", icon: "cup.and.saucer.fill", color: "brown", subCategories: [
             SubCategoryModel(name: "Restoran & Yemek", icon: "fork.knife.circle.fill", color: "orange"),
             SubCategoryModel(name: "Kahve & Çay", icon: "mug.fill", color: "brown"),
-            SubCategoryModel(name: "Fast Food", icon: "hamburger", color: "yellow"),
+            SubCategoryModel(name: "Fast Food", icon: "popcorn.fill", color: "yellow"),
             SubCategoryModel(name: "Dışarıda Eğlence & Bar", icon: "party.popper.fill", color: "indigo")
         ]),
         

@@ -9,6 +9,7 @@ enum QuickDataType: String, CaseIterable {
     case recurring = "Tekrarlayan"
     case marketRates = "Kurlar"
     case paymentCalendar = "Ödeme Takvimi"
+    case testPicker = "Test Picker"
     
     var icon: String {
         switch self {
@@ -20,6 +21,7 @@ enum QuickDataType: String, CaseIterable {
         case .recurring: return "repeat.circle"
         case .marketRates: return "globe.europe.africa.fill"
         case .paymentCalendar: return "calendar.badge.clock"
+        case .testPicker: return "flask"
         }
     }
 }
@@ -67,6 +69,11 @@ struct QuickActionRowView: View {
                 .flatMap { $0.allPaymentOccurrences() }
                 .sorted { $0.date < $1.date }
             PaymentCalendarDetailView(upcomingPayments: allPayments)
+                .environmentObject(walletManager)
+                .environmentObject(authManager)
+                .environmentObject(transactionManager)
+        case .testPicker:
+            TestSegmentedPickerView()
                 .environmentObject(walletManager)
                 .environmentObject(authManager)
                 .environmentObject(transactionManager)

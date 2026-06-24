@@ -33,18 +33,6 @@ struct FinvoApp: App {
         // Uygulama dilini, Bundle swizzling üzerinden uygula (çalışma zamanında dil değişimi)
         let savedLanguage = UserDefaults.standard.string(forKey: "appLanguage") ?? "tr"
         LocalizationManager.setLanguage(savedLanguage)
-
-        // Segment Control: Başlangıç temasına göre ayarla
-        let themeStr = UserDefaults.standard.string(forKey: "appThemeColor") ?? AppThemeColor.neonGreen.rawValue
-        let selectedTheme = AppThemeColor(rawValue: themeStr) ?? .neonGreen
-
-        UISegmentedControl.appearance().selectedSegmentTintColor = selectedTheme.uiColor
-        UISegmentedControl.appearance().setTitleTextAttributes(
-            [.foregroundColor: selectedTheme.uiOnBrandPrimary], for: .selected
-        )
-        UISegmentedControl.appearance().setTitleTextAttributes(
-            [.foregroundColor: UIColor.label], for: .normal
-        )
     }
     
     var body: some Scene {
@@ -75,13 +63,6 @@ struct FinvoApp: App {
             .onChange(of: appLanguage) { _, newLanguage in
                 LocalizationManager.setLanguage(newLanguage)
             }
-            .onChange(of: appThemeColor) { _, newValue in
-                let newTheme = AppThemeColor(rawValue: newValue) ?? .neonGreen
-                UISegmentedControl.appearance().selectedSegmentTintColor = newTheme.uiColor
-                UISegmentedControl.appearance().setTitleTextAttributes(
-                    [.foregroundColor: newTheme.uiOnBrandPrimary], for: .selected
-                )
             }
-        }
     }
 }

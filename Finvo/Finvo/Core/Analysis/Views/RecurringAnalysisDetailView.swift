@@ -12,6 +12,18 @@ struct RecurringAnalysisDetailView: View {
     @State private var selectedType: TransactionType = .expense
     @State private var selectedUser: String? = nil
     
+    // Segmented control için Int index ↔ TransactionType dönüşümü
+    private var selectedTypeIndex: Binding<Int> {
+        Binding(
+            get: { selectedType == .expense ? 0 : 1 },
+            set: { selectedType = $0 == 0 ? .expense : .income }
+        )
+    }
+    
+    private var segmentItems: [String] {
+        [L10n("Gider"), L10n("Gelir")]
+    }
+    
     private var filteredTransactions: [TransactionModel] {
         let typeTxs = transactions.filter { $0.type == selectedType }
         if let user = selectedUser {
@@ -114,34 +126,28 @@ struct RecurringAnalysisDetailView: View {
         }
         .navigationTitle(L10n("Tekrarlayan İşlemler"))
         .navigationBarTitleDisplayMode(.inline)
+        .navigationSegmentedControl(
+            selection: selectedTypeIndex,
+            items: segmentItems,
+            width: 160
+        )
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                if !transactions.isEmpty {
-                    Picker("İşlem Türü", selection: $selectedType) {
-                        Text("Gider").tag(TransactionType.expense)
-                        Text("Gelir").tag(TransactionType.income)
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: 160)
-                }
-            }
-            
             ToolbarItem(placement: .topBarTrailing) {
-                if !transactions.isEmpty {
-                    Menu {
-                        Picker("Kullanıcı", selection: $selectedUser) {
-                            Text("Tüm Üyeler").tag(Optional<String>.none)
-                            let members = walletManager.activeWallet?.members ?? []
-                            ForEach(members, id: \.self) { member in
-                                Text(member).tag(Optional(member))
-                            }
+                Menu {
+                    Picker("Kullanıcı", selection: $selectedUser) {
+                        Text("Tüm Üyeler").tag(Optional<String>.none)
+                        let members = walletManager.activeWallet?.members ?? []
+                        ForEach(members, id: \.self) { member in
+                            Text(member).tag(Optional(member))
                         }
-                    } label: {
-                        Image(systemName: selectedUser == nil ? "person.2.badge.gearshape" : "person.2.badge.gearshape.fill")
-                            .font(.system(size: 16))
-                            .foregroundColor(selectedUser == nil ? theme.labelPrimary : Color.accentColor)
                     }
+                } label: {
+                    Image(systemName: selectedUser == nil ? "person.2.badge.gearshape" : "person.2.badge.gearshape.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(selectedUser == nil ? theme.labelPrimary : Color.accentColor)
                 }
+                .opacity(transactions.isEmpty ? 0 : 1)
+                .disabled(transactions.isEmpty)
             }
         }
     }

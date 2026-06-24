@@ -8,6 +8,18 @@ struct CategoryDistributionDetailView: View {
     let transactions: [TransactionModel]
     @State private var selectedType: TransactionType = .expense
     
+    // Segmented control için Int index ↔ TransactionType dönüşümü
+    private var selectedTypeIndex: Binding<Int> {
+        Binding(
+            get: { selectedType == .expense ? 0 : 1 },
+            set: { selectedType = $0 == 0 ? .expense : .income }
+        )
+    }
+    
+    private var segmentItems: [String] {
+        [L10n("Gider"), L10n("Gelir")]
+    }
+    
     // Compute summaries based on selection
     private var categorySummaries: [CategorySummary] {
         var catDict: [String: (amount: Double, icon: String, count: Int, color: Color, members: Set<String>)] = [:]
@@ -143,18 +155,11 @@ struct CategoryDistributionDetailView: View {
         }
         .navigationTitle("Dağılım Detayı")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                if !transactions.isEmpty {
-                    Picker("İşlem Türü", selection: $selectedType) {
-                        Text("Gider").tag(TransactionType.expense)
-                        Text("Gelir").tag(TransactionType.income)
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: 160)
-                }
-            }
-        }
+        .navigationSegmentedControl(
+            selection: selectedTypeIndex,
+            items: segmentItems,
+            width: 160
+        )
     }
 }
 

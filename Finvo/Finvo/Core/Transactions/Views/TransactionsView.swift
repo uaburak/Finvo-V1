@@ -1,14 +1,17 @@
 import SwiftUI
 
+/*
 enum TransactionsViewMode: String, CaseIterable {
     case list = "Liste"
     case calendar = "Takvim"
 
     var title: String { rawValue.localized }
 }
+*/
 
 enum DateFilterMode: String, CaseIterable {
     case all = "Tümü"
+    case daily = "Günlük"
     case weekly = "Haftalık"
     case monthly = "Aylık"
     case yearly = "Yıllık"
@@ -32,27 +35,27 @@ struct TransactionsView: View {
     @State private var searchText = ""
     
     // Filtre State'leri
-    @State private var showFilterMenu = false
-    @State private var viewMode: TransactionsViewMode = .list
+    // @State private var showFilterMenu = false
+    // @State private var viewMode: TransactionsViewMode = .list
     @State private var dateFilterMode: DateFilterMode = .all
-    @State private var startDate = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
-    @State private var endDate = Date()
-    @State private var selectedCategory: String? = nil
+    // @State private var startDate = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
+    // @State private var endDate = Date()
+    // @State private var selectedCategory: String? = nil
     
     // Takvim state'leri
-    @State private var selectedDate = Date().startOfDay
-    @State private var scrollID: Date? = Date().startOfDay
-    @State private var isInternalUpdate = false
-    @State private var hasInitialScrolled = false
+    // @State private var selectedDate = Date().startOfDay
+    // @State private var scrollID: Date? = Date().startOfDay
+    // @State private var isInternalUpdate = false
+    // @State private var hasInitialScrolled = false
     
     @State private var showDeleteConfirmation = false
     @State private var transactionToDelete: TransactionModel? = nil
     
     @State private var filteredItems: [TransactionModel] = []
     
-    private func filterTransactions() {
+    private func filterTransactions(animated: Bool = true) {
         let allItems = transactionManager.transactions
-        filteredItems = allItems.filter { item in
+        let filtered = allItems.filter { item in
             guard item.type == selectedType else { return false }
             
             if !searchText.isEmpty {
@@ -61,9 +64,11 @@ struct TransactionsView: View {
                       (item.note ?? "").localizedCaseInsensitiveContains(searchText) else { return false }
             }
             
+            /*
             if let catId = selectedCategory {
                 guard item.mainCategoryId == catId || item.mainCategoryName == catId else { return false }
             }
+            */
             
             let calendar = Calendar.current
             let itemDate = item.date
@@ -71,6 +76,10 @@ struct TransactionsView: View {
             switch dateFilterMode {
             case .all:
                 break
+            case .daily:
+                let start = Date().startOfDay
+                let end = calendar.date(byAdding: .day, value: 1, to: start) ?? start
+                if itemDate < start || itemDate >= end { return false }
             case .weekly:
                 let start = Date().startOfWeek
                 let end = calendar.date(byAdding: .day, value: 7, to: start) ?? start
@@ -84,14 +93,21 @@ struct TransactionsView: View {
                 let end = calendar.date(byAdding: .year, value: 1, to: start) ?? start
                 if itemDate < start || itemDate >= end { return false }
             case .custom:
-                let start = calendar.startOfDay(for: startDate)
-                let end = calendar.date(bySettingHour: 23, minute: 59, second: 59, of: endDate) ?? endDate
-                if itemDate < start || itemDate > end { return false }
+                break
             }
             return true
         }
+        
+        if animated {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                filteredItems = filtered
+            }
+        } else {
+            filteredItems = filtered
+        }
     }
     
+    /*
     // Takvim İçin Tarih Aralığı Oluşturucu
     private var calendarDateRange: [Date] {
         let calendar = Calendar.current
@@ -133,8 +149,10 @@ struct TransactionsView: View {
             return calendarDateRange.map { ($0, paymentsByDate[$0] ?? []) }
         }
     }
+    */
     
     // UI Helpers
+    /*
     private var isFilterActive: Bool {
         selectedCategory != nil || dateFilterMode != .all
     }
@@ -166,17 +184,56 @@ struct TransactionsView: View {
         if dateFilterMode == .all { return "Zaman Filtresi".localized }
         return dateFilterMode.title
     }
+    */
+    // Segmented control için Int index ↔ TransactionType dönüşümü
+    private var selectedTypeIndex: Binding<Int> {
+        Binding(
+            get: { selectedType == .expense ? 0 : 1 },
+            set: { selectedType = $0 == 0 ? .expense : .income }
+        )
+    }
+    
+    private var segmentItems: [String] {
+        [L10n("Gider"), L10n("Gelir")]
+    }
+    
+    private var filterMenuButton: some View {
+        Menu {
+            Picker(L10n("Zaman Filtresi"), selection: $dateFilterMode) {
+                ForEach([DateFilterMode.all, .daily, .weekly, .monthly, .yearly], id: \.self) { mode in
+                    Text(mode.title).tag(mode)
+                }
+            }
+        } label: {
+            Image(systemName: dateFilterMode == .all ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+                .font(.system(size: 18))
+                .foregroundStyle(dateFilterMode != .all ? Color.accentColor : theme.labelPrimary)
+        }
+    }
 
     var body: some View {
-        VStack {
+        List {
             if !transactionManager.hasLoaded {
-                Color.clear
-            } else if viewMode == .calendar {
-                calendarView
+                ProgressView()
+                    .frame(maxWidth: .infinity, minHeight: 100)
+                    .listRowBackground(Color.clear)
+            } else if filteredItems.isEmpty {
+                VStack {
+                    Spacer()
+                    ContentUnavailableView(L10n("İşlem Bulunamadı"), systemImage: "list.bullet",
+                                          description: Text(L10n("Bu kriterlere uygun işlem bulunamadı.")))
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, minHeight: 300)
+                .listRowBackground(Color.clear)
             } else {
-                listView
+                let sortedItems = filteredItems.sorted(by: { $0.date > $1.date })
+                ForEach(sortedItems) { transaction in
+                    listRow(for: transaction, isFirst: transaction.id == sortedItems.first?.id)
+                }
             }
         }
+        .listStyle(.plain)
         .sheet(item: $transactionToEdit) { transaction in
             AddTransactionsView(transactionToEdit: transaction)
                 .environmentObject(walletManager)
@@ -185,129 +242,17 @@ struct TransactionsView: View {
         }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationSegmentedControl(
+            selection: selectedTypeIndex,
+            items: segmentItems,
+            width: 160
+        )
+        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Ara")
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                Picker(L10n("İşlem Tipi"), selection: $selectedType) {
-                    Text(L10n("Gider")).tag(TransactionType.expense)
-                    Text(L10n("Gelir")).tag(TransactionType.income)
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 160)
-            }
-
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showFilterMenu.toggle()
-                } label: {
-                    Image(systemName: isFilterActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")
-                        .font(.system(size: 18))
-                        .foregroundStyle(isFilterActive ? Color.accentColor : theme.labelPrimary)
-                        .contentTransition(.symbolEffect(.replace))
-                }
-                .popover(isPresented: $showFilterMenu) {
-                    // Popover içi özgür alan
-                    VStack(alignment: .leading, spacing: 20) {
-                        
-                        // 1. Görünüm (Açıkta kalan Segmented Control - İstediğin gibi)
-                        Picker(L10n("Görünüm"), selection: $viewMode) {
-                            ForEach(TransactionsViewMode.allCases, id: \.self) { mode in
-                                Text(mode.title).tag(mode)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        
-                        Divider()
-                        
-                        // 2. Kategori Seçimi (Menü içine alındı)
-                        Menu {
-                            Picker(L10n("Kategori"), selection: $selectedCategory) {
-                                Text(L10n("Tüm Kategoriler")).tag(Optional<String>.none)
-                                let availableCategories = CategoryManager.shared.categories.isEmpty ? CategoriesMockData.data : CategoryManager.shared.categories
-                                ForEach(availableCategories.filter { $0.type == selectedType }) { cat in
-                                    Text(LocalizedStringKey(cat.name)).tag(Optional(cat.id))
-                                }
-                            }
-                        } label: {
-                            HStack {
-                                Label(categoryFilterLabel, systemImage: "folder")
-                                    .foregroundStyle(theme.labelPrimary)
-                                Spacer()
-                                Image(systemName: "chevron.up.chevron.down")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-
-                        Divider()
-
-                        // 3. Zaman Filtresi (Menü içine alındı)
-                        Menu {
-                            Picker(L10n("Zaman Filtresi"), selection: $dateFilterMode) {
-                                Text(L10n("Tümü")).tag(DateFilterMode.all)
-                                Text(L10n("Haftalık")).tag(DateFilterMode.weekly)
-                                Text(L10n("Aylık")).tag(DateFilterMode.monthly)
-                                Text(L10n("Yıllık")).tag(DateFilterMode.yearly)
-                                if dateFilterMode == .custom {
-                                    Text(dateFilterLabel).tag(DateFilterMode.custom)
-                                }
-                            }
-                        } label: {
-                            HStack {
-                                Label(dateFilterLabelForToolbar, systemImage: "calendar.badge.clock")
-                                    .foregroundStyle(theme.labelPrimary)
-                                Spacer()
-                                Image(systemName: "chevron.up.chevron.down")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        
-                        Divider()
-                        
-                        // 4. Tarih Aralığı (HStack İçinde Yan Yana - İstediğin gibi bozulmadı)
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(L10n("Tarih Aralığı"))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            
-                            HStack {
-                                DatePicker("Başlangıç", selection: $startDate, displayedComponents: .date)
-                                    .labelsHidden()
-                                    .datePickerStyle(.compact)
-                                    .onChange(of: startDate) { _, _ in dateFilterMode = .custom }
-                                
-                                Text("-")
-                                
-                                DatePicker(L10n("Bitiş"), selection: $endDate, displayedComponents: .date)
-                                    .labelsHidden()
-                                    .datePickerStyle(.compact)
-                                    .onChange(of: endDate) { _, _ in dateFilterMode = .custom }
-                            }
-                        }
-                        
-                        // 5. Sıfırla
-                        if isFilterActive {
-                            Divider()
-                            Button(role: .destructive) {
-                                selectedCategory = nil
-                                dateFilterMode = .all
-                                showFilterMenu = false // Sıfırlayınca pencereyi kapat
-                            } label: {
-                                HStack {
-                                    Spacer()
-                                    Label(L10n("Filtreleri Sıfırla"), systemImage: "xmark.circle")
-                                    Spacer()
-                                }
-                            }
-                        }
-                    }
-                    .padding()
-                    .frame(minWidth: 250) // Açılan pencerenin genişliği
-                    .presentationCompactAdaptation(.popover) // iPhone'da tam ekran olmasını engeller
-                }
+                filterMenuButton
             }
         }
-        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Ara")
         .alert("İşlemi Sil", isPresented: $showDeleteConfirmation) {
             Button("Sil", role: .destructive) {
                 if let transaction = transactionToDelete, let id = transaction.id {
@@ -321,39 +266,18 @@ struct TransactionsView: View {
             Text(L10n("Bu işlemi silmek istediğinize emin misiniz? Bu işlem geri alınamaz."))
         }
         .onAppear {
-            filterTransactions()
+            filterTransactions(animated: false)
         }
         .onChange(of: transactionManager.transactions) { _, _ in filterTransactions() }
         .onChange(of: selectedType) { _, _ in filterTransactions() }
-        .onChange(of: searchText) { _, _ in filterTransactions() }
-        .onChange(of: selectedCategory) { _, _ in filterTransactions() }
+        // .onChange(of: selectedCategory) { _, _ in filterTransactions() }
         .onChange(of: dateFilterMode) { _, _ in filterTransactions() }
-        .onChange(of: startDate) { _, _ in filterTransactions() }
-        .onChange(of: endDate) { _, _ in filterTransactions() }
+        // .onChange(of: startDate) { _, _ in filterTransactions() }
+        // .onChange(of: endDate) { _, _ in filterTransactions() }
+        .onChange(of: searchText) { _, _ in filterTransactions() }
     }
     
-    // MARK: - List View
-    private var listView: some View {
-        Group {
-            if filteredItems.isEmpty {
-                VStack {
-                    Spacer()
-                    ContentUnavailableView(L10n("İşlem Bulunamadı"), systemImage: "list.bullet",
-                                          description: Text(L10n("Bu kriterlere uygun işlem bulunamadı.")))
-                    Spacer()
-                }
-            } else {
-                let sortedItems = filteredItems.sorted(by: { $0.date > $1.date })
-                List {
-                    ForEach(sortedItems) { transaction in
-                        listRow(for: transaction, isFirst: transaction.id == sortedItems.first?.id)
-                    }
-                }
-                .listStyle(.plain)
-            }
-        }
-    }
-    
+    /*
     // MARK: - Calendar View
     private var calendarView: some View {
         ScrollViewReader { proxy in
@@ -431,6 +355,7 @@ struct TransactionsView: View {
             }
         }
     }
+    */
     
     // MARK: - View Helpers
     private func listRow(for transaction: TransactionModel, isFirst: Bool) -> some View {
@@ -497,6 +422,7 @@ struct TransactionsView: View {
         }
     }
     
+    /*
     private func dateHeader(_ date: Date) -> some View {
         Text(date.calendarHeaderString)
             .font(.caption.bold())
@@ -521,6 +447,7 @@ struct TransactionsView: View {
         withAnimation { proxy.scrollTo(date, anchor: .top) }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { isInternalUpdate = false }
     }
+    */
 }
 
 #Preview {

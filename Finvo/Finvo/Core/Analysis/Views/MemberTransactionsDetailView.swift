@@ -13,6 +13,18 @@ struct MemberTransactionsDetailView: View {
 
     @State private var userModel: UserModel? = nil
     @State private var selectedType: TransactionType = .expense
+    
+    // Segmented control için Int index ↔ TransactionType dönüşümü
+    private var selectedTypeIndex: Binding<Int> {
+        Binding(
+            get: { selectedType == .expense ? 0 : 1 },
+            set: { selectedType = $0 == 0 ? .expense : .income }
+        )
+    }
+    
+    private var segmentItems: [String] {
+        [L10n("Gider"), L10n("Gelir")]
+    }
 
     private var filteredTransactions: [TransactionModel] {
         transactions.filter { $0.type == selectedType }
@@ -169,18 +181,11 @@ struct MemberTransactionsDetailView: View {
         }
         .navigationTitle("Üye Özeti")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                if !transactions.isEmpty {
-                    Picker("İşlem Türü", selection: $selectedType) {
-                        Text("Gider").tag(TransactionType.expense)
-                        Text("Gelir").tag(TransactionType.income)
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: 160)
-                }
-            }
-        }
+        .navigationSegmentedControl(
+            selection: selectedTypeIndex,
+            items: segmentItems,
+            width: 160
+        )
         .task {
             userModel = try? await FirestoreService.shared.getUserProfileByUsername(username)
         }
