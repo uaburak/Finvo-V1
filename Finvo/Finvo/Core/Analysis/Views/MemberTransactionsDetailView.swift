@@ -26,42 +26,49 @@ struct MemberTransactionsDetailView: View {
         [L10n("Gider"), L10n("Gelir")]
     }
 
-    private var filteredTransactions: [TransactionModel] {
-        transactions.filter { $0.type == selectedType }
+    private func filteredTransactions(for type: TransactionType) -> [TransactionModel] {
+        transactions.filter { $0.type == type }
     }
 
-    private var categorySummaries: [(name: String, amount: Double, icon: String, type: TransactionType, count: Int, color: Color)] {
-        let grouped = Dictionary(grouping: filteredTransactions, by: { $0.resolvedMainCategoryName })
+    private func categorySummaries(for type: TransactionType) -> [(name: String, amount: Double, icon: String, type: TransactionType, count: Int, color: Color)] {
+        let grouped = Dictionary(grouping: filteredTransactions(for: type), by: { $0.resolvedMainCategoryName })
         return grouped.map { key, txs in
             let total = txs.reduce(0) {
                 $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: appCurrency)
             }
             let icon = txs.first?.resolvedIcon ?? "bag"
-            let type = txs.first?.type ?? .expense
+            let catType = txs.first?.type ?? .expense
             let color = txs.first?.resolvedColor() ?? theme.brandPrimary
-            return (name: key, amount: total, icon: icon, type: type, count: txs.count, color: color)
+            return (name: key, amount: total, icon: icon, type: catType, count: txs.count, color: color)
         }.sorted(by: { $0.amount > $1.amount })
     }
 
     /// Bu üyenin seçili türdeki toplam tutarı
-    private var memberTotal: Double {
-        transactions.filter { $0.type == selectedType }.reduce(0) {
+    private func memberTotal(for type: TransactionType) -> Double {
+        transactions.filter { $0.type == type }.reduce(0) {
             $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: appCurrency)
         }
     }
 
     /// Tüm cüzdanın seçili türdeki toplam tutarı
-    private var walletTotal: Double {
-        allTransactions.filter { $0.type == selectedType }.reduce(0) {
+    private func walletTotal(for type: TransactionType) -> Double {
+        allTransactions.filter { $0.type == type }.reduce(0) {
             $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: appCurrency)
         }
     }
 
-    private var contributionRatio: Double {
-        walletTotal > 0 ? min(memberTotal / walletTotal, 1.0) : 0
+    private func contributionRatio(for type: TransactionType) -> Double {
+        let wTotal = walletTotal(for: type)
+        return wTotal > 0 ? min(memberTotal(for: type) / wTotal, 1.0) : 0
     }
 
-    var body: some View {
+    @ViewBuilder
+    private func memberTransactionsContent(for type: TransactionType) -> some View {
+        let summaries = categorySummaries(for: type)
+        let fTransactions = filteredTransactions(for: type)
+        let mTotal = memberTotal(for: type)
+        let ratio = contributionRatio(for: type)
+        
         ZStack(alignment: .top) {
             theme.background1.ignoresSafeArea()
 
@@ -76,7 +83,7 @@ struct MemberTransactionsDetailView: View {
                 }
                 .frame(maxHeight: .infinity)
             } else {
-                if categorySummaries.isEmpty {
+                if summaries.isEmpty {
                     Text("Bu türde işlem yok.")
                         .font(.subheadline)
                         .foregroundColor(theme.labelSecondary)
@@ -84,9 +91,9 @@ struct MemberTransactionsDetailView: View {
                         .safeAreaInset(edge: .top) { Color.clear.frame(height: stickyHeaderHeight) }
                 } else {
                     List {
-                        ForEach(Array(categorySummaries.enumerated()), id: \.element.name) { index, cat in
+                        ForEach(Array(summaries.enumerated()), id: \.element.name) { index, cat in
                             let isFirst = index == 0
-                            let catTxs = filteredTransactions.filter { $0.resolvedMainCategoryName == cat.name }
+                            let catTxs = fTransactions.filter { $0.resolvedMainCategoryName == cat.name }
 
                             ZStack {
                                 NavigationLink(destination: CategoryDistributionTransactionsView(
@@ -149,11 +156,11 @@ struct MemberTransactionsDetailView: View {
                     // Progress bar row
                     VStack(spacing: 6) {
                         HStack {
-                            Text(selectedType == .expense ? "Gider Katkısı" : "Gelir Katkısı")
+                            Text(type == .expense ? "Gider Katkısı" : "Gelir Katkısı")
                                 .font(.caption)
                                 .foregroundColor(theme.labelSecondary)
                             Spacer()
-                            Text("\(appCurrency.symbol)\(memberTotal.formatted(.number.precision(.fractionLength(0)))) — %\((contributionRatio * 100).formatted(.number.precision(.fractionLength(1))))")
+                            Text("\(appCurrency.symbol)\(mTotal.formatted(.number.precision(.fractionLength(0)))) — %\((ratio * 100).formatted(.number.precision(.fractionLength(1))))")
                                 .font(.caption.bold())
                                 .foregroundColor(theme.labelPrimary)
                         }
@@ -164,9 +171,9 @@ struct MemberTransactionsDetailView: View {
                                     .fill(Color.gray.opacity(0.2))
                                     .frame(height: 8)
                                 Capsule()
-                                    .fill(selectedType == .expense ? theme.expense : theme.income)
-                                    .frame(width: geo.size.width * CGFloat(contributionRatio), height: 8)
-                                    .animation(.easeInOut(duration: 0.5), value: contributionRatio)
+                                    .fill(type == .expense ? theme.expense : theme.income)
+                                    .frame(width: geo.size.width * CGFloat(ratio), height: 8)
+                                    .animation(.easeInOut(duration: 0.5), value: ratio)
                             }
                         }
                         .frame(height: 8)
@@ -179,6 +186,18 @@ struct MemberTransactionsDetailView: View {
                 .padding(.top, 16)
             }
         }
+    }
+
+    var body: some View {
+        TabView(selection: $selectedType) {
+            memberTransactionsContent(for: .expense)
+                .tag(TransactionType.expense)
+            
+            memberTransactionsContent(for: .income)
+                .tag(TransactionType.income)
+        }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+        .ignoresSafeArea()
         .navigationTitle("Üye Özeti")
         .navigationBarTitleDisplayMode(.inline)
         .navigationSegmentedControl(

@@ -97,6 +97,16 @@ struct SettingsView: View {
                         }
                     }
                     .tint(theme.labelPrimary)
+                    
+                    NavigationLink {
+                        NotificationSettingsView()
+                    } label: {
+                        Label {
+                            Text(L10n("Bildirim Ayarları")).foregroundColor(theme.labelPrimary)
+                        } icon: {
+                            Image(systemName: "bell.badge").foregroundColor(theme.brandPrimary)
+                        }
+                    }
                 }
                 
                 // MARK: - Abonelik

@@ -98,6 +98,12 @@ struct ContentView: View {
         }
         .onAppear {
             TabBarConfigurator.configure(tabs: AppTab.allCases)
+            Task {
+                _ = await LocalNotificationManager.shared.requestAuthorization()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowNotificationsTab"))) { _ in
+            selectedTab = .home
         }
         .onChange(of: colorScheme) { _, _ in
             TabBarConfigurator.configure(tabs: AppTab.allCases)

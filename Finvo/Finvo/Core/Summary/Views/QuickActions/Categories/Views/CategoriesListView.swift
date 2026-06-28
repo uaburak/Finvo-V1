@@ -3,6 +3,7 @@ import FirebaseAuth
 
 struct CategoriesListView: View {
     @Environment(\.theme) var theme
+    @Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var authManager: AuthenticationManager
     @EnvironmentObject var walletManager: WalletManager
     @EnvironmentObject var notificationManager: NotificationManager
@@ -34,8 +35,9 @@ struct CategoriesListView: View {
         categoryManager.categories.filter { $0.type == selectedType }
     }
     
-    var body: some View {
-        let segmentItems = [L10n("Gider"), L10n("Gelir")]
+    @ViewBuilder
+    private func categoriesList(for type: TransactionType) -> some View {
+        let categories = categoryManager.categories.filter { $0.type == type }
         
         List {
             if categoryManager.isLoading && categoryManager.categories.isEmpty {
@@ -43,12 +45,26 @@ struct CategoriesListView: View {
                     .frame(maxWidth: .infinity, minHeight: 100)
                     .listRowBackground(Color.clear)
             } else {
-                ForEach(filteredCategories) { category in
-                    categoryRow(category)
+                ForEach(categories) { category in
+                    categoryRow(category, categories: categories)
                 }
             }
         }
         .listStyle(.plain)
+    }
+
+    var body: some View {
+        let segmentItems = [L10n("Gider"), L10n("Gelir")]
+        
+        TabView(selection: $selectedType) {
+            categoriesList(for: .expense)
+                .tag(TransactionType.expense)
+            
+            categoriesList(for: .income)
+                .tag(TransactionType.income)
+        }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+        .ignoresSafeArea()
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .navigationSegmentedControl(
@@ -141,10 +157,10 @@ struct CategoriesListView: View {
     }
     
     @ViewBuilder
-    private func categoryRow(_ category: CategoryModel) -> some View {
-        let isFirst = category.id == filteredCategories.first?.id
+    private func categoryRow(_ category: CategoryModel, categories: [CategoryModel]) -> some View {
+        let isFirst = category.id == categories.first?.id
         
-        ZStack {
+        return ZStack {
             NavigationLink(destination: CategoryDetailView(category: category)) {
                 EmptyView()
             }
@@ -158,21 +174,11 @@ struct CategoriesListView: View {
             )
             .padding(.leading, 16)
         }
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+        .listRowSeparator(.visible)
+        .listRowSeparator(isFirst ? .hidden : .visible, edges: .top)
+        .listRowInsets(EdgeInsets(top: 12, leading: 0, bottom: 12, trailing: 20))
+        .contextMenu {
             if categoryManager.checkPermission(authManager: authManager, walletManager: walletManager) {
-                Button {
-                    if authManager.currentUserProfile?.isPro == true {
-                        let impact = transactionManager.getImpact(mainCategoryId: category.id)
-                        impactSummary = "\(impact.transactionCount) işlem girişi ve \(impact.recurringCount) tekrarlayan işleminiz silinecek."
-                        categoryToDelete = category
-                        showDeleteConfirmation = true
-                    } else {
-                        categoryManager.showProAlert = true
-                    }
-                } label: {
-                    Image(systemName: "trash")
-                }.tint(.red)
-                
                 Button {
                     if authManager.currentUserProfile?.isPro == true {
                         hapticMedium.impactOccurred()
@@ -182,13 +188,23 @@ struct CategoriesListView: View {
                         categoryManager.showProAlert = true
                     }
                 } label: {
-                    Image(systemName: "pencil")
-                }.tint(.orange)
+                    Text(L10n("Düzenle"))
+                }
+                
+                Button(role: .destructive) {
+                    if authManager.currentUserProfile?.isPro == true {
+                        let impact = transactionManager.getImpact(mainCategoryId: category.id)
+                        impactSummary = "\(impact.transactionCount) işlem girişi ve \(impact.recurringCount) tekrarlayan işleminiz silinecek."
+                        categoryToDelete = category
+                        showDeleteConfirmation = true
+                    } else {
+                        categoryManager.showProAlert = true
+                    }
+                } label: {
+                    Text(L10n("Sil"))
+                }
             }
         }
-        .listRowSeparator(.visible)
-        .listRowSeparator(isFirst ? .hidden : .visible, edges: .top)
-        .listRowInsets(EdgeInsets(top: 12, leading: 0, bottom: 12, trailing: 20))
     }
     
     private func confirmDelete(_ category: CategoryModel) {

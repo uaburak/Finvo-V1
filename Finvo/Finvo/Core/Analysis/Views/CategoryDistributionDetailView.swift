@@ -21,10 +21,10 @@ struct CategoryDistributionDetailView: View {
     }
     
     // Compute summaries based on selection
-    private var categorySummaries: [CategorySummary] {
+    private func categorySummaries(for type: TransactionType) -> [CategorySummary] {
         var catDict: [String: (amount: Double, icon: String, count: Int, color: Color, members: Set<String>)] = [:]
         
-        let typeFilteredTxs = transactions.filter { $0.type == selectedType }
+        let typeFilteredTxs = transactions.filter { $0.type == type }
         let totalTypeAmount = typeFilteredTxs.reduce(0) { 
             $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: appCurrency)
         }
@@ -78,11 +78,12 @@ struct CategoryDistributionDetailView: View {
         }
     }
     
-    var body: some View {
+    @ViewBuilder
+    private func distributionContent(for type: TransactionType) -> some View {
+        let summaries = categorySummaries(for: type)
+        
         ZStack(alignment: .top) {
             theme.background1.ignoresSafeArea()
-            
-            let summaries = categorySummaries // compute once for the view
             
             if summaries.isEmpty {
                 VStack(spacing: 16) {
@@ -101,7 +102,7 @@ struct CategoryDistributionDetailView: View {
                     ForEach(Array(summaries.enumerated()), id: \.element.id) { index, summary in
                         let isFirst = index == 0
                         let catTxs = transactions.filter {
-                            $0.resolvedMainCategoryName == summary.name && $0.type == selectedType
+                            $0.resolvedMainCategoryName == summary.name && $0.type == type
                         }
                         
                         ZStack {
@@ -118,7 +119,7 @@ struct CategoryDistributionDetailView: View {
                                 iconColor: summary.color,
                                 title: LocalizedStringKey(summary.name),
                                 subtitle: LocalizedStringKey("\(summary.transactionCount) İşlem"),
-                                value: (selectedType == .income ? "+" : "-") + "\(appCurrency.symbol)\(summary.amount.formatted(.number.precision(.fractionLength(0))))",
+                                value: (type == .income ? "+" : "-") + "\(appCurrency.symbol)\(summary.amount.formatted(.number.precision(.fractionLength(0))))",
                                 valueColor: theme.labelPrimary,
                                 secondaryInfo: "%\(summary.percentage.formatted(.number.precision(.fractionLength(1))))",
                                 middleView: AnyView(OverlappingAvatarsView(usernames: summary.members))
@@ -139,7 +140,7 @@ struct CategoryDistributionDetailView: View {
                 
                 // Sticky Top Header
                 VStack(spacing: 16) {
-                    Text(selectedType == .expense ? "Gider Dağılımı" : "Gelir Dağılımı")
+                    Text(type == .expense ? "Gider Dağılımı" : "Gelir Dağılımı")
                         .font(.headline)
                         .foregroundColor(theme.labelPrimary)
                     
@@ -153,6 +154,18 @@ struct CategoryDistributionDetailView: View {
                 .padding(.top, 16)
             }
         }
+    }
+    
+    var body: some View {
+        TabView(selection: $selectedType) {
+            distributionContent(for: .expense)
+                .tag(TransactionType.expense)
+            
+            distributionContent(for: .income)
+                .tag(TransactionType.income)
+        }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+        .ignoresSafeArea()
         .navigationTitle("Dağılım Detayı")
         .navigationBarTitleDisplayMode(.inline)
         .navigationSegmentedControl(

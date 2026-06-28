@@ -23,6 +23,7 @@ class TransactionManager: ObservableObject {
     
     // MARK: - Task iptal mekanizması (Bug #1 fix)
     private var recurringTask: Task<Void, Never>?
+    @MainActor private static var generatedSignatures = Set<String>()
     
     // Geçerli cüzdanın ID'si ile işlemleri dinlemeye başla
     func startListening(walletId: String) {
@@ -95,6 +96,7 @@ class TransactionManager: ObservableObject {
                     self.hasLoaded = true
                     
                     self.evaluateRecurringTransactions(parsed, walletId: walletId)
+                    LocalNotificationManager.shared.scheduleNotifications(for: parsed)
                 }
             }
     }
@@ -114,6 +116,9 @@ class TransactionManager: ObservableObject {
         totalExpense = 0
         topExpenseCategoryName = "-"
         isEvaluatingRecurring = false
+        
+        // Clear notifications on stop
+        LocalNotificationManager.shared.scheduleNotifications(for: [])
     }
     
     @MainActor func recalculateTotals(for currency: CurrencyType) {
@@ -232,6 +237,7 @@ class TransactionManager: ObservableObject {
     /// - Sadece tarihi bugünden geçmiş kopyalar üretilir (retroaktif catch-up, ileriye yazma yok).
     /// - Her kopya parentRecurringId ile orijinaline bağlıdır → "Ana İşleme Git" özelliği için.
     /// - lastGeneratedDate sayesinde sadece eksik olan dönemler işlenir → Firestore'a hafif yük.
+    @MainActor
     private static func processRecurringOriginals(
         _ originals: [TransactionModel],
         existingCopies: [TransactionModel],
@@ -248,6 +254,11 @@ class TransactionManager: ObservableObject {
                 return "\(pid)|\(dayStart.timeIntervalSince1970)"
             }
         )
+        
+        let db = Firestore.firestore()
+        var batch = db.batch()
+        var batchCount = 0
+        var hasChanges = false
         
         for tx in originals {
             guard !Task.isCancelled else { break }
@@ -283,7 +294,7 @@ class TransactionManager: ObservableObject {
                 let dayStart = calendar.startOfDay(for: nextCopyDate)
                 let signature = "\(txId)|\(dayStart.timeIntervalSince1970)"
                 
-                if !existingSignatures.contains(signature) {
+                if !existingSignatures.contains(signature) && !generatedSignatures.contains(signature) {
                     var copy = tx
                     copy.id = nil                    // Firestore yeni ID atar
                     copy.date = nextCopyDate
@@ -293,16 +304,31 @@ class TransactionManager: ObservableObject {
                     copy.recurrenceInterval = nil
                     copy.recurrenceEndDate = nil
                     
+                    let docRef = db.collection("wallets").document(walletId).collection("transactions").document()
                     do {
-                        try FirestoreService.shared.createTransaction(copy)
+                        try batch.setData(from: copy, forDocument: docRef)
+                        generatedSignatures.insert(signature)
                         existingSignatures.insert(signature)
                         newLastGeneratedDate = nextCopyDate
+                        batchCount += 1
+                        hasChanges = true
                     } catch {
-                        print("Recurring copy create error: \(error)")
+                        print("Error adding copy to batch: \(error)")
                     }
                 } else {
-                    // Zaten var, ilerleme kaydedilsin
+                    // Zaten var (veritabanında veya bellekte), ilerleme kaydedilsin
                     newLastGeneratedDate = nextCopyDate
+                }
+                
+                // Eğer batch limiti dolmaya yakınsa commit et ve yeni batch oluştur (Firestore limiti 500'dür)
+                if batchCount >= 450 {
+                    do {
+                        try await batch.commit()
+                        batch = db.batch()
+                        batchCount = 0
+                    } catch {
+                        print("Error committing intermediate batch: \(error)")
+                    }
                 }
                 
                 guard let next = calendar.date(byAdding: component, value: value, to: nextCopyDate) else { break }
@@ -313,7 +339,32 @@ class TransactionManager: ObservableObject {
             if let newDate = newLastGeneratedDate, newDate != tx.lastGeneratedDate {
                 var updatedOriginal = tx
                 updatedOriginal.lastGeneratedDate = newDate
-                try? FirestoreService.shared.updateTransaction(updatedOriginal)
+                let originalRef = db.collection("wallets").document(walletId).collection("transactions").document(txId)
+                do {
+                    try batch.setData(from: updatedOriginal, forDocument: originalRef, merge: true)
+                    batchCount += 1
+                    hasChanges = true
+                } catch {
+                    print("Error adding original update to batch: \(error)")
+                }
+                
+                if batchCount >= 450 {
+                    do {
+                        try await batch.commit()
+                        batch = db.batch()
+                        batchCount = 0
+                    } catch {
+                        print("Error committing intermediate batch: \(error)")
+                    }
+                }
+            }
+        }
+        
+        if hasChanges && batchCount > 0 {
+            do {
+                try await batch.commit()
+            } catch {
+                print("Error committing final batch: \(error)")
             }
         }
     }

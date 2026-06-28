@@ -7,6 +7,7 @@ struct SummaryView: View {
     @EnvironmentObject var authManager: AuthenticationManager
     @EnvironmentObject var notificationManager: NotificationManager
     @EnvironmentObject var transactionManager: TransactionManager
+    @ObservedObject private var localNotificationManager = LocalNotificationManager.shared
     @State private var showCreateWalletSheet = false
     @State private var showSettings = false
     
@@ -87,6 +88,11 @@ struct SummaryView: View {
             }
             .toolbar {
                 summaryToolbar()
+            }
+            .navigationDestination(isPresented: $localNotificationManager.showNotificationsScreen) {
+                NotificationsView()
+                    .environmentObject(notificationManager)
+                    .environmentObject(walletManager)
             }
             .sheet(isPresented: $showCreateWalletSheet) {
                 CreateWalletSheet()

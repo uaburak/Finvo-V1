@@ -24,15 +24,18 @@ struct RecurringAnalysisDetailView: View {
         [L10n("Gider"), L10n("Gelir")]
     }
     
-    private var filteredTransactions: [TransactionModel] {
-        let typeTxs = transactions.filter { $0.type == selectedType }
+    private func filteredTransactions(for type: TransactionType) -> [TransactionModel] {
+        let typeTxs = transactions.filter { $0.type == type }
         if let user = selectedUser {
             return typeTxs.filter { $0.createdBy == user }
         }
         return typeTxs
     }
 
-    var body: some View {
+    @ViewBuilder
+    private func recurringContent(for type: TransactionType) -> some View {
+        let typeTxs = filteredTransactions(for: type)
+        
         ZStack(alignment: .top) {
             theme.background1.ignoresSafeArea()
             
@@ -49,10 +52,8 @@ struct RecurringAnalysisDetailView: View {
                 }
                 .frame(maxHeight: .infinity)
             } else {
-                let typeTxs = filteredTransactions
-                
                 if typeTxs.isEmpty {
-                    Text(verbatim: "\(selectedType.localizedTitle) \("türünde seçili kullanıcıya ait abonelik işlemi yok.".localized)")
+                    Text(verbatim: "\(type.localizedTitle) \("türünde seçili kullanıcıya ait abonelik işlemi yok.".localized)")
                         .font(.subheadline)
                         .foregroundColor(theme.labelSecondary)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
@@ -64,9 +65,9 @@ struct RecurringAnalysisDetailView: View {
                             let amount = txs.reduce(0) { $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: appCurrency) }
                             let count = txs.count
                             let icon = txs.first?.categoryIcon ?? "bag"
-                            let type = txs.first!.type
+                            let catType = txs.first!.type
                             let uniqueMembers = Array(Set(txs.map { $0.createdBy })).sorted()
-                            return (name: key, amount: amount, count: count, icon: icon, type: type, members: uniqueMembers, transactions: txs)
+                            return (name: key, amount: amount, count: count, icon: icon, type: catType, members: uniqueMembers, transactions: txs)
                         }.sorted(by: { $0.amount > $1.amount })
                         
                         ForEach(subCategorySums, id: \.name) { cat in
@@ -106,12 +107,12 @@ struct RecurringAnalysisDetailView: View {
                     let total = typeTxs.reduce(0) { $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: appCurrency) }
                     HStack(spacing: 16) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(selectedType == .expense ? "Aboneliklere Ödenen Toplam" : "Düzenli Gelir Toplamı")
+                            Text(type == .expense ? "Aboneliklere Ödenen Toplam" : "Düzenli Gelir Toplamı")
                                 .font(.footnote)
                                 .foregroundColor(theme.labelSecondary)
-                            Text("\(selectedType == .income ? "+" : "")\(appCurrency.symbol)\(total.formatted(.number.precision(.fractionLength(0))))")
+                            Text("\(type == .income ? "+" : "")\(appCurrency.symbol)\(total.formatted(.number.precision(.fractionLength(0))))")
                                 .font(.system(size: 32, weight: .bold, design: .rounded))
-                                .foregroundColor(selectedType == .expense ? theme.expense : theme.income)
+                                .foregroundColor(type == .expense ? theme.expense : theme.income)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.5)
                         }
@@ -124,6 +125,18 @@ struct RecurringAnalysisDetailView: View {
                 }
             }
         }
+    }
+
+    var body: some View {
+        TabView(selection: $selectedType) {
+            recurringContent(for: .expense)
+                .tag(TransactionType.expense)
+            
+            recurringContent(for: .income)
+                .tag(TransactionType.income)
+        }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+        .ignoresSafeArea()
         .navigationTitle(L10n("Tekrarlayan İşlemler"))
         .navigationBarTitleDisplayMode(.inline)
         .navigationSegmentedControl(

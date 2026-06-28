@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import FirebaseFirestore
+import UIKit
 
 @MainActor
 class NotificationManager: ObservableObject {
@@ -29,13 +30,43 @@ class NotificationManager: ObservableObject {
             .whereField("receiverUsername", isEqualTo: username)
             .whereField("status", isEqualTo: NotificationStatus.pending.rawValue)
             .addSnapshotListener { [weak self] snapshot, error in
+                guard let self = self else { return }
                 guard let documents = snapshot?.documents else {
-                    self?.notifications = []
+                    Task { @MainActor in
+                        self.notifications = []
+                    }
                     return
                 }
                 
-                self?.notifications = documents.compactMap { try? $0.data(as: NotificationModel.self) }
+                let newNotifications = documents.compactMap { try? $0.data(as: NotificationModel.self) }
                     .sorted(by: { $0.createdAt > $1.createdAt })
+                
+                Task { @MainActor in
+                    let oldNotifications = self.notifications
+                    self.notifications = newNotifications
+                    
+                    // İlk yüklemede (uygulama yeni açıldığında) eski bekleyen bildirimler için spam bildirim atmaması için:
+                    guard !oldNotifications.isEmpty else { return }
+                    
+                    // Eski listede olmayan yeni gelen bildirimleri bul
+                    let addedNotifications = newNotifications.filter { newNotif in
+                        !oldNotifications.contains(where: { $0.id == newNotif.id })
+                    }
+                    
+                    // Eğer uygulama arka plandaysa/aktif değilse yerel bildirim gönder
+                    if UIApplication.shared.applicationState != .active {
+                        for notif in addedNotifications {
+                            let title = notif.type == .invitation ? L10n("Cüzdan Daveti") : L10n("Yetki İsteği")
+                            let body: String
+                            if notif.type == .invitation {
+                                body = String(format: L10n("@%@ seni %@ cüzdanına davet etti."), notif.senderUsername, notif.walletName)
+                            } else {
+                                body = String(format: L10n("@%@, %@ cüzdanı için yetki istiyor."), notif.senderUsername, notif.walletName)
+                            }
+                            LocalNotificationManager.shared.triggerInstantNotification(title: title, body: body)
+                        }
+                    }
+                }
             }
     }
     

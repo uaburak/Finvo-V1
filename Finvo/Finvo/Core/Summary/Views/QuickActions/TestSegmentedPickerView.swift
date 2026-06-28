@@ -4,6 +4,7 @@ struct TestSegmentedPickerView: View {
     @State private var selectedIndex = 0
     @State private var searchText = ""
     @Environment(\.theme) var theme
+    @Environment(\.colorScheme) var colorScheme
     
     @EnvironmentObject var transactionManager: TransactionManager
     @EnvironmentObject var walletManager: WalletManager
@@ -12,12 +13,10 @@ struct TestSegmentedPickerView: View {
     @State private var dateFilterMode: DateFilterMode = .all
     @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
     
-    var filteredItems: [TransactionModel] {
-        let targetType: TransactionType = selectedIndex == 0 ? .expense : .income
-        let allItems = transactionManager.transactions
-        
-        return allItems.filter { item in
-            guard item.type == targetType else { return false }
+    @ViewBuilder
+    private func transactionsList(for type: TransactionType) -> some View {
+        let items = transactionManager.transactions.filter { item in
+            guard item.type == type else { return false }
             
             if !searchText.isEmpty {
                 guard item.mainCategoryName.localizedCaseInsensitiveContains(searchText) ||
@@ -52,6 +51,29 @@ struct TestSegmentedPickerView: View {
             }
             return true
         }
+        
+        List {
+            if !transactionManager.hasLoaded {
+                ProgressView()
+                    .frame(maxWidth: .infinity, minHeight: 100)
+                    .listRowBackground(Color.clear)
+            } else if items.isEmpty {
+                VStack {
+                    Spacer()
+                    ContentUnavailableView(L10n("İşlem Bulunamadı"), systemImage: "list.bullet",
+                                          description: Text(L10n("Bu kriterlere uygun işlem bulunamadı.")))
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, minHeight: 300)
+                .listRowBackground(Color.clear)
+            } else {
+                let sortedItems = items.sorted(by: { $0.date > $1.date })
+                ForEach(sortedItems) { transaction in
+                    listRow(for: transaction, isFirst: transaction.id == sortedItems.first?.id)
+                }
+            }
+        }
+        .listStyle(.plain)
     }
     
     private var filterMenuButton: some View {
@@ -69,28 +91,15 @@ struct TestSegmentedPickerView: View {
     }
     
     var body: some View {
-        List {
-            if !transactionManager.hasLoaded {
-                ProgressView()
-                    .frame(maxWidth: .infinity, minHeight: 100)
-                    .listRowBackground(Color.clear)
-            } else if filteredItems.isEmpty {
-                VStack {
-                    Spacer()
-                    ContentUnavailableView(L10n("İşlem Bulunamadı"), systemImage: "list.bullet",
-                                          description: Text(L10n("Bu kriterlere uygun işlem bulunamadı.")))
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, minHeight: 300)
-                .listRowBackground(Color.clear)
-            } else {
-                let sortedItems = filteredItems.sorted(by: { $0.date > $1.date })
-                ForEach(sortedItems) { transaction in
-                    listRow(for: transaction, isFirst: transaction.id == sortedItems.first?.id)
-                }
-            }
+        TabView(selection: $selectedIndex) {
+            transactionsList(for: .expense)
+                .tag(0)
+            
+            transactionsList(for: .income)
+                .tag(1)
         }
-        .listStyle(.plain)
+        .tabViewStyle(.page(indexDisplayMode: .never))
+        .ignoresSafeArea()
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .navigationSegmentedControl(
@@ -136,6 +145,19 @@ struct TestSegmentedPickerView: View {
         .listRowSeparator(.visible)
         .listRowSeparator(isFirst ? .hidden : .visible, edges: .top)
         .listSectionSeparator(isFirst ? .hidden : .visible, edges: .top)
+        .contextMenu {
+            Button {
+                // Düzenleme aksiyonu
+            } label: {
+                Text(L10n("Düzenle"))
+            }
+            
+            Button(role: .destructive) {
+                // Silme aksiyonu
+            } label: {
+                Text(L10n("Sil"))
+            }
+        }
     }
 }
 

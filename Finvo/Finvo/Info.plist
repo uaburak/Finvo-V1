@@ -15,5 +15,9 @@
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Fatura veya fişlerinizi tarayarak bilgileri otomatik doldurmak için kameranıza ihtiyaç duyuyoruz.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 </dict>
 </plist>

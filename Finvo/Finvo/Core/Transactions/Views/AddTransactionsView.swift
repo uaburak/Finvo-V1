@@ -5,6 +5,7 @@
 
 import SwiftUI
 import UIKit
+import FirebaseFirestore
 
 struct AddTransactionsView: View {
     @Environment(\.theme) var theme
@@ -935,7 +936,64 @@ struct AddTransactionsView: View {
                     updated.id = id
                     try FirestoreService.shared.updateTransaction(updated)
                 } else {
-                    try FirestoreService.shared.createTransaction(newTransaction)
+                    let total = newTransaction.totalInstallments ?? 0
+                    let paid = newTransaction.paidInstallments ?? 0
+                    
+                    if isDebt && total > 0 && paid > 0 {
+                        let db = Firestore.firestore()
+                        let batch = db.batch()
+                        
+                        // 1. Ana borç işlemini oluştur
+                        let parentRef = db.collection("wallets").document(newTransaction.walletId).collection("transactions").document()
+                        let parentId = parentRef.documentID
+                        
+                        var parentTx = newTransaction
+                        parentTx.id = parentId
+                        
+                        // Ana borç işleminin tarihini 1. taksit tarihine çek (1. taksit tarihi = selectedDate - (paid - 1) ay)
+                        let calendar = Calendar.current
+                        if let startDate = calendar.date(byAdding: .month, value: -(paid - 1), to: selectedDate) {
+                            parentTx.date = startDate
+                        }
+                        
+                        try batch.setData(from: parentTx, forDocument: parentRef)
+                        
+                        // 2. Ödenmiş taksit işlemlerini oluştur (1'den paid'e kadar)
+                        let isLendingMoney = (parentTx.type == .expense && parentTx.mainCategoryName.lowercased().contains("borç"))
+                        let instType: TransactionType = isLendingMoney ? .income : .expense
+                        let instTitle = parentTx.subCategoryName ?? parentTx.mainCategoryName
+                        let installmentAmount = parentTx.amount / Double(total)
+                        
+                        for i in 1...paid {
+                            let instDate = calendar.date(byAdding: .month, value: -(paid - i), to: selectedDate) ?? selectedDate
+                            
+                            var instTx = parentTx
+                            instTx.id = nil                    // Firestore yeni ID atar
+                            instTx.type = instType
+                            instTx.amount = installmentAmount
+                            instTx.subCategoryName = "\(i). Taksit"
+                            instTx.subCategoryId = nil
+                            instTx.date = instDate
+                            instTx.isDebt = false              // Taksit ödemesi borç değil normal işlemdir
+                            instTx.totalInstallments = total
+                            instTx.paidInstallments = i
+                            instTx.isPaid = true
+                            instTx.parentDebtId = parentId
+                            instTx.installmentNumber = i
+                            instTx.isRecurring = false
+                            instTx.recurrenceInterval = nil
+                            instTx.recurrenceEndDate = nil
+                            instTx.lastGeneratedDate = nil
+                            instTx.parentRecurringId = nil
+                            
+                            let instRef = db.collection("wallets").document(parentTx.walletId).collection("transactions").document()
+                            try batch.setData(from: instTx, forDocument: instRef)
+                        }
+                        
+                        try await batch.commit()
+                    } else {
+                        try FirestoreService.shared.createTransaction(newTransaction)
+                    }
                 }
                 
                 await MainActor.run {
