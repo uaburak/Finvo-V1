@@ -60,8 +60,7 @@ struct AddTransactionsView: View {
             if edit.isDebt, let totalInt = edit.totalInstallments, totalInt > 0 {
                 displayAmount = edit.amount / Double(totalInt)
             }
-            let isInteger = floor(displayAmount) == displayAmount
-            _amount = State(initialValue: isInteger ? String(format: "%.0f", displayAmount) : "\(displayAmount)")
+            _amount = State(initialValue: AmountInput.string(from: displayAmount))
         } else {
             _amount = State(initialValue: "")
         }
@@ -587,8 +586,11 @@ struct AddTransactionsView: View {
         if amount.isEmpty || selectedMainCategory == nil { return false }
         if isDebt {
             if debtContact.isEmpty || installmentCount.isEmpty { return false }
+            // 0 taksit tutarı sıfırlıyor, ödenen > toplam ise borçtan fazla taksit kaydı oluşuyordu
+            guard let total = Int(installmentCount), total >= 1 else { return false }
+            if (Int(paidInstallments) ?? 0) > total { return false }
         }
-        return true
+        return AmountInput.parse(amount) > 0
     }
 
     private func validateForm() -> Bool {
@@ -643,15 +645,7 @@ struct AddTransactionsView: View {
     
     private func formatAmountText() -> String {
         if amount.isEmpty { return "0,00 \(selectedCurrency.symbol)" }
-        var parsedAmount: Double = 0.0
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        if let number = formatter.number(from: amount) {
-            parsedAmount = number.doubleValue
-        } else {
-            let normalized = amount.replacingOccurrences(of: ",", with: ".")
-            parsedAmount = Double(normalized) ?? 0.0
-        }
+        let parsedAmount = AmountInput.parse(amount)
         
         let hasDecimal = amount.contains(",") || amount.contains(".")
         if hasDecimal {
@@ -701,26 +695,27 @@ struct AddTransactionsView: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
-        .alert(L10n("Yetki Hatası"), isPresented: $showPermissionErrorAlert) {
-            Button(L10n("Tamam"), role: .cancel) { }
-        } message: {
-            Text(L10n("Bu işlemi düzenleme yetkiniz bulunmamaktadır. Sadece kendi eklediğiniz işlemleri düzenleyebilirsiniz."))
-        }
+        // Not: Burada aynı bayrağa bağlı ikinci/üçüncü bir alert vardı; görüntüleyiciye yanlış
+        // mesaj gösteriyor ve sunum çakışmasına yol açıyordu. Tek alert gövdede tanımlı.
     }
     
     @ViewBuilder
     private var budgetWarningView: some View {
-        if let limit = walletManager.activeWallet?.monthlyLimit, selectedType == .expense {
+        if let rawLimit = walletManager.activeWallet?.monthlyLimit, selectedType == .expense {
+            // Limit kendi para biriminde saklanıyor; uygulama para birimine çevirmeden karşılaştırılıyordu
+            let limitCurrency = CurrencyType(rawValue: walletManager.activeWallet?.monthlyLimitCurrency ?? "") ?? .tryCurrency
+            let limit = ExchangeRateManager.shared.convert(amount: rawLimit, from: limitCurrency, to: appCurrency)
+            let editingId = transactionToEdit?.id
             let thisMonthTransactions = transactionManager.transactions.filter {
                 $0.type == .expense &&
                 !$0.isDebt &&
+                $0.id != editingId &&  // Düzenlenen işlem hem eski hem yeni tutarıyla iki kez sayılmasın
                 Calendar.current.isDate($0.date, equalTo: Date(), toGranularity: .month)
             }
             let thisMonthExpense = thisMonthTransactions.reduce(0) { $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: appCurrency) }
             
             // Fix #10: Locale-safe parse — virgül ve nokta normalleştiriliyor
-            let normalized = amount.replacingOccurrences(of: ".", with: "").replacingOccurrences(of: ",", with: ".")
-            let parsedAmount = Double(normalized) ?? 0.0
+            let parsedAmount = AmountInput.parse(amount)
             let amountInBase = ExchangeRateManager.shared.convert(amount: parsedAmount, from: selectedCurrency, to: appCurrency)
             
             if thisMonthExpense + amountInBase > limit {
@@ -781,8 +776,7 @@ struct AddTransactionsView: View {
                         // because saveTransaction() will multiply this by the installment count.
                         finalAmount = (amountVal / Double(count)).rounded()
                     }
-                    let isInteger = floor(finalAmount) == finalAmount
-                    self.amount = isInteger ? String(format: "%.0f", finalAmount) : "\(finalAmount)"
+                    self.amount = AmountInput.string(from: finalAmount)
                 }
                 
                 if let dateVal = result.date {
@@ -875,12 +869,7 @@ struct AddTransactionsView: View {
         }
         
         // Fix #10: Locale-safe parse — önce NumberFormatter dene, sonra normalize et
-        var parsedAmount: Double = 0.0
-        let normalizedAmount = amount
-            .replacingOccurrences(of: " ", with: "")   // boşlukları temizle
-            .replacingOccurrences(of: ".", with: "")   // binlik ayıraçları çıkar
-            .replacingOccurrences(of: ",", with: ".")  // ondalık virgülü noktaya çevir
-        parsedAmount = Double(normalizedAmount) ?? 0.0
+        var parsedAmount = AmountInput.parse(amount)
         
         // Fix #3: Borç amount hesabı
         // Yeni işlem: kullanıcı taksit başı tutarı girer → toplam = taksit * sayı
@@ -923,7 +912,7 @@ struct AddTransactionsView: View {
             totalInstallments: isDebt ? Int(installmentCount) : nil,
             paidInstallments: isDebt ? (Int(paidInstallments) ?? 0) : nil,  // Bug #9 fix: nil yerine 0
             dueDay: isDebt ? dueDay : nil,
-            isPaid: false,
+            isPaid: transactionToEdit?.isPaid ?? false,  // Düzenleme ödenmiş borcu/taksiti "devam ediyor"a çevirmesin
             isRecurring: isRecurring,
             recurrenceInterval: isRecurring ? recurringFrequency : nil,
             recurrenceEndDate: (isRecurring && hasRecurrenceEndDate) ? recurrenceEndDate : nil
@@ -935,6 +924,8 @@ struct AddTransactionsView: View {
                     var updated = newTransaction
                     updated.id = id
                     try FirestoreService.shared.updateTransaction(updated)
+                    // merge:true nil alanları yazmadığı için silinen not/alt kategori/bitiş tarihi eski haliyle kalıyordu
+                    FirestoreService.shared.clearRemovedFields(of: updated, previous: editing)
                 } else {
                     let total = newTransaction.totalInstallments ?? 0
                     let paid = newTransaction.paidInstallments ?? 0
@@ -990,7 +981,11 @@ struct AddTransactionsView: View {
                             try batch.setData(from: instTx, forDocument: instRef)
                         }
                         
-                        try await batch.commit()
+                        // Sunucu onayını beklemiyoruz: çevrimdışıyken ekran "Kaydediliyor..."da asılı kalıyordu.
+                        // Yazma yerel olarak hemen uygulanır ve bağlantı gelince gönderilir.
+                        batch.commit { error in
+                            if let error { print("Error saving debt batch: \(error)") }
+                        }
                     } else {
                         try FirestoreService.shared.createTransaction(newTransaction)
                     }

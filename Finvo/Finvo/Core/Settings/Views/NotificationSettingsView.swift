@@ -190,7 +190,8 @@ struct NotificationSettingsView: View {
                     .padding(.horizontal)
                 }
                 
-                // MARK: - Test Bölümü
+                // MARK: - Test Bölümü (sadece debug derlemelerde)
+                #if DEBUG
                 VStack(alignment: .leading, spacing: 16) {
                     HStack(spacing: 12) {
                         Image(systemName: "paperplane.fill")
@@ -251,6 +252,7 @@ struct NotificationSettingsView: View {
                 .padding()
                 .glassEffect(in: RoundedRectangle(cornerRadius: 24))
                 .padding(.horizontal)
+                #endif
             }
             .padding(.vertical)
         }

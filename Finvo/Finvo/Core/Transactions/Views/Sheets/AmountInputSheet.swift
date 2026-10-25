@@ -143,15 +143,7 @@ struct AmountInputSheet: View {
     
     private func adjustAmount(by value: Double) {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-            var current: Double = 0
-            let formatter = NumberFormatter()
-            formatter.numberStyle = .decimal
-            if let number = formatter.number(from: amount) {
-                current = number.doubleValue
-            } else {
-                let normalized = amount.replacingOccurrences(of: ",", with: ".")
-                current = Double(normalized) ?? 0.0
-            }
+            var current = AmountInput.parse(amount)
             
             current += value
             if current < 0 { current = 0 }
@@ -159,8 +151,7 @@ struct AmountInputSheet: View {
             if current == 0 {
                 amount = ""
             } else {
-                let isInteger = floor(current) == current
-                amount = isInteger ? String(format: "%.0f", current) : "\(current)"
+                amount = AmountInput.string(from: current)
             }
         }
     }
@@ -189,15 +180,8 @@ struct AmountInputSheet: View {
     
     private func formatAmountText(_ value: String) -> String {
         if value.isEmpty { return "0" }
-        var parsedAmount: Double = 0.0
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        if let number = formatter.number(from: value) {
-            parsedAmount = number.doubleValue
-        } else {
-            let normalized = value.replacingOccurrences(of: ",", with: ".")
-            parsedAmount = Double(normalized) ?? 0.0
-        }
+        // Cihaz diline bağlı NumberFormatter "12,5"i İngilizce'de 125 okuyordu; sabit formatla ayrıştır.
+        let parsedAmount = AmountInput.parse(value)
         
         let hasDecimal = value.contains(",") || value.contains(".")
         if hasDecimal {

@@ -24,6 +24,15 @@ enum QuickDataType: String, CaseIterable {
         case .testPicker: return "flask"
         }
     }
+    
+    /// Hızlı işlemler satırında gösterilenler. Test ekranı yayın sürümünde gizlenir.
+    static var visibleCases: [QuickDataType] {
+        #if DEBUG
+        allCases
+        #else
+        allCases.filter { $0 != .testPicker }
+        #endif
+    }
 }
 
 // Hızlı İşlemler Görünümü
@@ -36,7 +45,7 @@ struct QuickActionRowView: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 12) {
-                ForEach(QuickDataType.allCases, id: \.self) { type in
+                ForEach(QuickDataType.visibleCases, id: \.self) { type in
                     NavigationLink {
                         destinationView(for: type)
                     } label: {

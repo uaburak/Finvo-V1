@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import Charts
 
 enum TransactionTypeFilter: String, CaseIterable {
@@ -268,7 +269,11 @@ struct AnalysisView: View {
             .onChange(of: selectedTab) {
                 updateData(startAnimation: true)
             }
-            .onChange(of: transactionManager.transactions.count) {
+            // Sadece adet değil içerik değişimini de izle (başka üyenin tutar düzenlemesi vb.)
+            .onChange(of: transactionManager.transactions) {
+                updateData(startAnimation: false)
+            }
+            .onReceive(ExchangeRateManager.shared.$rates.dropFirst().receive(on: DispatchQueue.main)) { _ in
                 updateData(startAnimation: false)
             }
             .onChange(of: categoryManager.categories) { _, _ in
@@ -334,22 +339,11 @@ struct AnalysisView: View {
         
         let baseTxs = transactionManager.transactions
         let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        
-        var expandedTxs: [TransactionModel] = []
-        for tx in baseTxs {
-            if tx.isDebt || tx.isRecurring {
-                let occurrences = tx.allPaymentOccurrences()
-                if tx.isRecurring {
-                    // Sadece bulunduğumuz güne kadar (bugün dahil) tekrarlanmış olanları ekle
-                    expandedTxs.append(contentsOf: occurrences.filter { calendar.startOfDay(for: $0.date) <= today })
-                } else {
-                    expandedTxs.append(contentsOf: occurrences)
-                }
-            } else {
-                expandedTxs.append(tx)
-            }
-        }
+        // Gerçek defter: tekrarlayanların orijinali + TransactionManager'ın ürettiği gerçek kopyalar,
+        // borçlarda ise ödenmiş taksit kayıtları. Eskiden orijinaller sanal tekrarlara açılıp gerçek
+        // kopyaların üstüne ekleniyordu (her dönem iki kez sayılıyordu) ve borçların gelecekteki
+        // taksitleri de harcama gibi gösteriliyordu. Özet ekranı ile aynı kural: borç ana kaydı sayılmaz.
+        var expandedTxs = baseTxs.filter { !$0.isDebt }
         
         // Seçili kategori varsa daralt
         if let catId = selectedCategory {
@@ -475,7 +469,7 @@ struct AnalysisView: View {
             ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: baseCurrency)
         })
         
-        let recurring = filteredTxs.filter { $0.isRecurring }
+        let recurring = filteredTxs.filter { $0.isRecurring || $0.isRecurringCopy }
         
         // 4. Kategori Verileri
         var catDict: [String: (amount: Double, icon: String, count: Int, color: Color, members: Set<String>)] = [:]
@@ -557,6 +551,9 @@ struct AnalysisView: View {
         // Yeniden yüklendiği için animasyon tetikle
         if startAnimation {
             animateGraph(fromChange: true)
+        } else {
+            // Arka plan güncellemelerinde çubuklar animate=false ile sıfır gibi görünüyordu
+            for index in self.flowData.indices { self.flowData[index].animate = true }
         }
     }
     
@@ -603,7 +600,9 @@ struct AnalysisView: View {
             flowData: flowData,
             categorySummaries: categorySummaries,
             biggestTransaction: biggestTransaction,
-            totalRecurring: recurringTransactions.reduce(0.0) { $0 + $1.amount },
+            totalRecurring: recurringTransactions.reduce(0.0) { total, tx in
+                total + ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: UserDefaults.standard.string(forKey: "appCurrency").flatMap { CurrencyType(rawValue: $0) } ?? .tryCurrency)
+            },
             timeFrame: selectedTab.rawValue
         )
         

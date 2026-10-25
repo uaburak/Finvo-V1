@@ -132,7 +132,8 @@ struct SettingsView: View {
                     }
                     .buttonStyle(.plain)
                     
-                    // TEST TOGGLE
+                    // TEST TOGGLE: Sadece debug derlemelerde. Yayın sürümünde herkes kendine ücretsiz Pro verebiliyordu.
+                    #if DEBUG
                     Toggle(isOn: Binding(
                         get: { authManager.currentUserProfile?.isPro ?? false },
                         set: { newValue in
@@ -146,6 +147,7 @@ struct SettingsView: View {
                     )) {
                         Label("Test: Pro Modu", systemImage: "testtube.2")
                     }
+                    #endif
                 }
                 
                 // MARK: - Destek ve Hakkında

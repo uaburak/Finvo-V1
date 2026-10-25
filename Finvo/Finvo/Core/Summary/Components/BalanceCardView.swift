@@ -396,8 +396,11 @@ struct SetSpendingLimitSheet: View {
         }
         .background(theme.background1.ignoresSafeArea())
         .onAppear {
-            if let existing = walletManager.activeWallet?.monthlyLimit, existing > 0 {
-                amountString = String(format: "%.0f", existing)
+            if let wallet = walletManager.activeWallet, let existing = wallet.monthlyLimit, existing > 0 {
+                // Limit kendi para biriminde saklanıyor; ekranda uygulama para birimiyle gösteriliyor
+                let limitCurrency = CurrencyType(rawValue: wallet.monthlyLimitCurrency ?? "") ?? .tryCurrency
+                let converted = ExchangeRateManager.shared.convert(amount: existing, from: limitCurrency, to: appCurrency)
+                amountString = String(format: "%.0f", converted)
             }
         }
     }
@@ -408,6 +411,8 @@ struct SetSpendingLimitSheet: View {
         let cleaned = amountString.replacingOccurrences(of: ",", with: ".")
         if let val = Double(cleaned) {
             wallet.monthlyLimit = val
+            // Para birimi kaydedilmezse limit TRY sayılıyordu (USD kullanıcısında $1000 -> ~$31)
+            wallet.monthlyLimitCurrency = appCurrency.rawValue
             walletManager.updateWallet(wallet)
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             dismiss()

@@ -153,55 +153,24 @@ struct TransactionModel: Codable, Identifiable, Equatable, Hashable {
         return categoryIcon
     }
     
-    // Manual Hashable & Equatable to ensure complete data dependency coverage
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(id)
-        hasher.combine(walletId)
-        hasher.combine(type)
-        hasher.combine(amount)
-        hasher.combine(currency)
-        hasher.combine(mainCategoryId)
-        hasher.combine(subCategoryId)
-        hasher.combine(mainCategoryName)
-        hasher.combine(subCategoryName)
-        hasher.combine(categoryIcon)
-        hasher.combine(categoryColor)
-        hasher.combine(date)
-        hasher.combine(note)
-        hasher.combine(createdBy)
-        hasher.combine(isDebt)
-        hasher.combine(isRecurring)
-        hasher.combine(isPaid)
-        hasher.combine(appCurrencyAmountAtCreation)
-        hasher.combine(parentRecurringId)
-        hasher.combine(lastGeneratedDate)
-    }
-
-    static func == (lhs: TransactionModel, rhs: TransactionModel) -> Bool {
-        return lhs.id == rhs.id &&
-               lhs.walletId == rhs.walletId &&
-               lhs.type == rhs.type &&
-               lhs.amount == rhs.amount &&
-               lhs.currency == rhs.currency &&
-               lhs.mainCategoryId == rhs.mainCategoryId &&
-               lhs.subCategoryId == rhs.subCategoryId &&
-               lhs.mainCategoryName == rhs.mainCategoryName &&
-               lhs.subCategoryName == rhs.subCategoryName &&
-               lhs.categoryIcon == rhs.categoryIcon &&
-               lhs.categoryColor == rhs.categoryColor &&
-               lhs.date == rhs.date &&
-               lhs.note == rhs.note &&
-               lhs.createdBy == rhs.createdBy &&
-               lhs.isDebt == rhs.isDebt &&
-               lhs.isRecurring == rhs.isRecurring &&
-               lhs.isPaid == rhs.isPaid &&
-               lhs.appCurrencyAmountAtCreation == rhs.appCurrencyAmountAtCreation &&
-               lhs.parentRecurringId == rhs.parentRecurringId &&
-               lhs.lastGeneratedDate == rhs.lastGeneratedDate
-    }
+    // Equatable/Hashable derleyici tarafından üretilir: elle yazılan sürüm paidInstallments,
+    // dueDay, recurrenceEndDate gibi alanları atlıyordu; taksit ödemesi gibi değişiklikler
+    // onChange(of: transactions) ve SwiftUI diff'lerinde fark edilmiyordu.
 }
 
 extension TransactionModel {
+    /// Verilen ayın `day`. günü; ay daha kısaysa ayın son günü. Calendar.date(from:) taşan günü
+    /// sonraki aya kaydırıyordu (31 Şubat -> 3 Mart) ve sonraki tüm taksitler kayıyordu.
+    static func clampedMonthDate(monthOffset: Int, from base: Date, day: Int, calendar: Calendar = .current) -> Date? {
+        guard let monthDate = calendar.date(byAdding: .month, value: monthOffset, to: base) else { return nil }
+        var components = calendar.dateComponents([.year, .month], from: monthDate)
+        components.day = 1
+        guard let firstOfMonth = calendar.date(from: components),
+              let daysInMonth = calendar.range(of: .day, in: .month, for: firstOfMonth)?.count else { return nil }
+        components.day = min(max(day, 1), daysInMonth)
+        return calendar.date(from: components)
+    }
+
     /// Orijinal işlemi analiz edip, yaklaşan bir sonraki ödeme (taksit veya abonelik) için
     /// sanal bir TransactionModel kopyası üretir. Eğer borç kapanmışsa veya abonelik süresi geçmişse nil döner.
     func nextPayment(after currentDate: Date = Date()) -> TransactionModel? {
@@ -217,18 +186,13 @@ extension TransactionModel {
             // Sonraki ödeme tarihi hesapla (Ay sonu güvenliği ile)
             let targetDay = self.dueDay ?? calendar.component(.day, from: self.date)
             
-            // Mevcut ayın targetDay gününü oluştur
-            var components = calendar.dateComponents([.year, .month], from: currentDate)
-            components.day = targetDay
-            
-            // Eğer bu ayın ödeme günü geçtiyse veya bugünse, bir sonraki aya bak
-            if let thisMonthPayment = calendar.date(from: components), thisMonthPayment <= currentDate {
-                // date(byAdding: .month) ay sonu (28-31) problemlerini otomatik çözer
-                if let nextMonth = calendar.date(byAdding: .month, value: 1, to: thisMonthPayment) {
-                    copy.date = nextMonth
+            // Bu ayın ödeme günü geçtiyse (veya bugünse) bir sonraki ayın ödeme günü
+            if let thisMonthPayment = Self.clampedMonthDate(monthOffset: 0, from: currentDate, day: targetDay, calendar: calendar) {
+                if thisMonthPayment <= currentDate {
+                    copy.date = Self.clampedMonthDate(monthOffset: 1, from: currentDate, day: targetDay, calendar: calendar) ?? thisMonthPayment
+                } else {
+                    copy.date = thisMonthPayment
                 }
-            } else if let thisMonthPayment = calendar.date(from: components) {
-                copy.date = thisMonthPayment
             }
             
             copy.note = "\(paid + 1). Taksit Ödemesi"
@@ -291,9 +255,7 @@ extension TransactionModel {
             let targetDay = self.dueDay ?? calendar.component(.day, from: self.date)
             
             // İlk taksit tarihini borcun oluşturulduğu aydan başlat
-            var baseComponents = calendar.dateComponents([.year, .month], from: self.createdAt)
-            baseComponents.day = targetDay
-            guard let firstDate = calendar.date(from: baseComponents) else {
+            guard Self.clampedMonthDate(monthOffset: 0, from: self.createdAt, day: targetDay, calendar: calendar) != nil else {
                 var copy = self
                 copy.id = "\(self.id ?? "debt")_occurrence"
                 return [copy]
@@ -305,7 +267,7 @@ extension TransactionModel {
                 copy.installmentNumber = i + 1
                 
                 // Taksit tarihi: ilk tarihten i ay sonrası
-                if let installmentDate = calendar.date(byAdding: .month, value: i, to: firstDate) {
+                if let installmentDate = Self.clampedMonthDate(monthOffset: i, from: self.createdAt, day: targetDay, calendar: calendar) {
                     copy.date = installmentDate
                 } else {
                     continue
@@ -332,23 +294,9 @@ extension TransactionModel {
             case .yearly: component = .year
             }
             
-            // Başlangıç: İşlemin tam hizalı ilk tarihini bul (Geriye doğru giderek)
-            let limit = calendar.startOfDay(for: min(self.createdAt, self.date))
-            var optimalStart = calendar.startOfDay(for: self.date)
-            
-            if optimalStart > limit {
-                var previousDate = optimalStart
-                var safetyInner = 0
-                while let prev = calendar.date(byAdding: component, value: -value, to: previousDate),
-                      prev >= limit,
-                      safetyInner < 500 {  // Bug #3 fix: inner loop güvenlik sınırı
-                    previousDate = prev
-                    safetyInner += 1
-                }
-                optimalStart = previousDate
-            }
-            
-            let startDate = optimalStart
+            // Başlangıç: işlemin kendi tarihi. Eskiden oluşturulma tarihine kadar geriye yürünüyordu;
+            // ileri tarihli başlayan bir seri için başlangıçtan önce hayalet ödemeler üretiliyordu.
+            let startDate = calendar.startOfDay(for: self.date)
             
             // Bitiş sınırı: recurrenceEndDate varsa o, yoksa bugünden 1 yıl sonrası
             let maxFuture = calendar.date(byAdding: .year, value: 1, to: today) ?? today

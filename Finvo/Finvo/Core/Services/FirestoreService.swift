@@ -46,9 +46,27 @@ class FirestoreService: ObservableObject {
         if !wallets.isEmpty { wallets = [] }
     }
     
+    /// Cüzdanda sadece değişen alanları yazar. Üyelik alanları (members/permissions/ownerId) bu yoldan
+    /// hiç yazılmaz; sadece addMember/removeMember ile değişir. Eskiden tüm model merge ile yazıldığı için
+    /// eski bir kopyadan yapılan limit/birikim güncellemesi, çıkarılmış bir üyeyi cüzdana geri ekliyordu.
     func updateWallet(_ wallet: WalletModel) async throws {
         guard let id = wallet.id else { return }
-        try db.collection("wallets").document(id).setData(from: wallet, merge: true)
+        var data = try Firestore.Encoder().encode(wallet)
+        for key in ["members", "permissions", "ownerId"] { data.removeValue(forKey: key) }
+        
+        // Canlı dinlenen son hâl ile karşılaştır, yalnızca farklı alanları gönder
+        if let latest = wallets.first(where: { $0.id == id }) {
+            let latestData = try Firestore.Encoder().encode(latest)
+            data = data.filter { key, value in
+                guard let old = latestData[key] as? NSObject else { return true }
+                return !old.isEqual(value)
+            }
+        }
+        guard !data.isEmpty else { return }
+        // Sunucu onayı beklenmez (çevrimdışıyken arayüz kilitlenmesin); yazma yerelde hemen uygulanır.
+        db.collection("wallets").document(id).updateData(data) { error in
+            if let error { print("Error updating wallet: \(error)") }
+        }
     }
     
     /// Cüzdanı alt koleksiyonlarıyla birlikte siler. Firestore'da doküman silmek alt koleksiyonları
@@ -170,6 +188,24 @@ class FirestoreService: ObservableObject {
     func updateTransaction(_ transaction: TransactionModel) throws {
         guard let id = transaction.id else { return }
         try db.collection("wallets").document(transaction.walletId).collection("transactions").document(id).setData(from: transaction, merge: true)
+    }
+    
+    /// Düzenlemede kaldırılan opsiyonel alanları Firestore'dan siler (setData merge nil alanları atlar).
+    func clearRemovedFields(of updated: TransactionModel, previous: TransactionModel) {
+        guard let id = updated.id else { return }
+        var deletes: [String: Any] = [:]
+        if updated.note == nil && previous.note != nil { deletes["note"] = FieldValue.delete() }
+        if updated.subCategoryName == nil && previous.subCategoryName != nil { deletes["subCategoryName"] = FieldValue.delete() }
+        if updated.subCategoryId == nil && previous.subCategoryId != nil { deletes["subCategoryId"] = FieldValue.delete() }
+        if updated.mainCategoryId == nil && previous.mainCategoryId != nil { deletes["mainCategoryId"] = FieldValue.delete() }
+        if updated.recurrenceEndDate == nil && previous.recurrenceEndDate != nil { deletes["recurrenceEndDate"] = FieldValue.delete() }
+        if updated.recurrenceInterval == nil && previous.recurrenceInterval != nil { deletes["recurrenceInterval"] = FieldValue.delete() }
+        if updated.categoryColor == nil && previous.categoryColor != nil { deletes["categoryColor"] = FieldValue.delete() }
+        if !updated.isDebt && previous.isDebt {
+            for key in ["debtContact", "totalInstallments", "paidInstallments", "dueDay"] { deletes[key] = FieldValue.delete() }
+        }
+        guard !deletes.isEmpty else { return }
+        db.collection("wallets").document(updated.walletId).collection("transactions").document(id).updateData(deletes)
     }
     
     func deleteTransaction(walletId: String, transactionId: String) {

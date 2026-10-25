@@ -10,16 +10,34 @@ struct TransactionDetailView: View {
     
     @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
 
-    let transaction: TransactionModel
+    private let sourceTransaction: TransactionModel
+
+    init(transaction: TransactionModel) {
+        self.sourceTransaction = transaction
+    }
+
+    /// Takvim/analiz ekranlarının ürettiği sanal tekrar/taksit kayıtları ("<id>_occurrence_N").
+    /// Firestore'da karşılığı yok; düzenlenirse sahte ID ile yeni bir doküman (ve yeni bir seri) oluşuyordu.
+    private var isVirtualOccurrence: Bool {
+        guard let id = sourceTransaction.id else { return false }
+        return id.contains("_occurrence_") || id.contains("_installment_")
+    }
+
+    /// Ekranda her zaman güncel veri: düzenleme sonrası eski tutar/kategori görünmeye devam ediyordu.
+    private var transaction: TransactionModel {
+        guard !isVirtualOccurrence, let id = sourceTransaction.id else { return sourceTransaction }
+        return transactionManager.transactions.first(where: { $0.id == id }) ?? sourceTransaction
+    }
 
     @State private var showEditSheet = false
     
     // Yetki kontrolü
     private var canEdit: Bool {
+        guard !isVirtualOccurrence else { return false }
         let username = authManager.currentUserProfile?.username ?? ""
         let wallet = walletManager.activeWallet
-        let roleRaw = wallet?.permissions[username] ?? WalletRole.member.rawValue
-        let role = WalletRole(rawValue: roleRaw) ?? .member
+        let roleRaw = wallet?.permissions[username] ?? WalletRole.viewer.rawValue
+        let role = WalletRole(rawValue: roleRaw) ?? .viewer
         
         let isOwner = wallet?.ownerId == username
         let isAdmin = role == .admin
