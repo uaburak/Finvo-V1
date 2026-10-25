@@ -11,12 +11,30 @@ struct EditWalletSheet: View {
     @State private var selectedType: WalletType
     @State private var selectedContext: WalletContext
     @State private var showDeleteAlert = false
+    @State private var typeChangeError: String?
     
     init(wallet: WalletModel) {
         self.wallet = wallet
         _walletName = State(initialValue: wallet.name)
         _selectedType = State(initialValue: wallet.type)
         _selectedContext = State(initialValue: wallet.context)
+    }
+    
+    /// Tür değişikliği kuralları: Ücretsiz kullanıcı düzenleme yoluyla ikinci paylaşımlı cüzdanı açamaz
+    /// (oluşturma ekranındaki limit atlanıyordu); üyesi olan paylaşımlı cüzdan kişisele çevrilemez
+    /// (üyeler erişimini korurken üye yönetimi gizleniyordu).
+    private func typeChangeValidationError() -> String? {
+        guard selectedType != wallet.type else { return nil }
+        if selectedType == .personal && wallet.members.count > 1 {
+            return L10n("Üyesi olan paylaşımlı bir cüzdan kişisel cüzdana çevrilemez. Önce üyeleri çıkarın.")
+        }
+        if selectedType == .shared, let user = AuthenticationManager.shared.currentUserProfile, !user.isPro {
+            let ownsAnotherShared = walletManager.wallets.contains { $0.ownerId == user.username && $0.type == .shared && $0.id != wallet.id }
+            if ownsAnotherShared {
+                return L10n("Ücretsiz planda yalnızca bir paylaşımlı cüzdan oluşturabilirsiniz. Daha fazlası için Pro'ya geçin.")
+            }
+        }
+        return nil
     }
     
     var body: some View {
@@ -61,6 +79,11 @@ struct EditWalletSheet: View {
                         let feedback = UIImpactFeedbackGenerator(style: .medium)
                         feedback.prepare()
                         guard !walletName.isEmpty else { return }
+                        
+                        if let error = typeChangeValidationError() {
+                            typeChangeError = error
+                            return
+                        }
                         
                         var updatedWallet = wallet
                         updatedWallet.name = walletName
@@ -121,7 +144,15 @@ struct EditWalletSheet: View {
                     dismiss()
                 }
             } message: {
-                Text("Bu cüzdanı silmek istediğinize emin misiniz? (Şimdilik mock veridir)")
+                Text("Bu cüzdanı silmek istediğinize emin misiniz? Bu işlem geri alınamaz.")
+            }
+            .alert(L10n("Değişiklik Kaydedilemedi"), isPresented: Binding(
+                get: { typeChangeError != nil },
+                set: { if !$0 { typeChangeError = nil } }
+            )) {
+                Button(L10n("Tamam"), role: .cancel) { }
+            } message: {
+                Text(typeChangeError ?? "")
             }
         }
     }

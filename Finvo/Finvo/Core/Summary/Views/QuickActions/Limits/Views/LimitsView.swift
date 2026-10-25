@@ -24,6 +24,8 @@ struct LimitsView: View {
                     if limit == 0 {
                         emptyLimitNotice
                         
+                        // Limit cüzdan ayarıdır: sadece kurucu/yönetici değiştirebilir
+                        if walletManager.canManageActiveWallet {
                         Button {
                             limitAmount = nil
                             showEditSheet = true
@@ -39,9 +41,11 @@ struct LimitsView: View {
                         .buttonStyle(.glassProminent)
                         .clipShape(Capsule())
                         .padding(.horizontal)
+                        }
                     } else {
                         limitCard(limit: generalLimitSafe)
                         
+                        if walletManager.canManageActiveWallet {
                         HStack(spacing: 16) {
                             Button {
                                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -76,6 +80,7 @@ struct LimitsView: View {
                         }
                         .padding(.horizontal)
                         .padding(.top, 8)
+                        }
                     }
                 }
                 .padding(.vertical)

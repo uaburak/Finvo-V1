@@ -429,7 +429,10 @@ class TransactionManager: ObservableObject {
         let batch = db.batch()
         try batch.setData(from: newInstallment, forDocument: transactionsRef.document())
         try batch.setData(from: updatedDebt, forDocument: transactionsRef.document(debtId), merge: true)
-        try await batch.commit()
+        // Sunucu onayı beklenmez: çevrimdışıyken "Öde" butonu kilitli kalıyordu. Yazma yerelde anında uygulanır.
+        batch.commit { error in
+            if let error { print("Error paying installment: \(error)") }
+        }
     }
     
     // MARK: - Deletion Impact Assessment

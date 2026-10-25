@@ -18,6 +18,7 @@ class WalletManager: ObservableObject {
     /// Pro durumu sorgulanmış (veya sorgusu devam eden) kullanıcılar. Profil bulunamayan üyeler için
     /// her cüzdan snapshot'ında tekrar tekrar Firestore sorgusu atılmasını önler.
     private var requestedProStatuses = Set<String>()
+    private var didCreateFallbackWallet = false
     
     init() {
         // Dinamik cüzdan verilerini FirestoreService üzerinden takip et
@@ -53,6 +54,19 @@ class WalletManager: ObservableObject {
             }
             .store(in: &cancellables)
         
+        // Profil tamamlanıp cüzdan adımı yarıda kaldıysa (uygulama kapatıldıysa) kullanıcı hiç cüzdanı
+        // olmadan ana ekrana düşüyordu. Sunucu gerçekten boş dediğinde varsayılan kişisel cüzdan oluştur.
+        FirestoreService.shared.$hasServerWalletSnapshot
+            .combineLatest(FirestoreService.shared.$wallets)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] hasServerSnapshot, wallets in
+                guard let self, hasServerSnapshot, wallets.isEmpty, !self.didCreateFallbackWallet,
+                      let username = AuthenticationManager.shared.currentUserProfile?.username, !username.isEmpty else { return }
+                self.didCreateFallbackWallet = true
+                self.createWallet(name: "Kişisel".localized, type: .personal, context: .general)
+            }
+            .store(in: &cancellables)
+        
         // Profil yüklendiğinde ve username oluştuğunda dinleyiciyi başlat
         AuthenticationManager.shared.$currentUserProfile
             .receive(on: DispatchQueue.main)
@@ -66,6 +80,21 @@ class WalletManager: ObservableObject {
             .store(in: &cancellables)
     }
     
+    // MARK: - Aktif Cüzdandaki Yetkiler
+    private var currentUsername: String {
+        AuthenticationManager.shared.currentUserProfile?.username ?? ""
+    }
+
+    /// Aktif cüzdanın ayarlarını değiştirebilir mi (kurucu / yönetici)
+    var canManageActiveWallet: Bool {
+        activeWallet?.canManage(currentUsername) ?? false
+    }
+
+    /// Aktif cüzdana işlem/ödeme yazabilir mi (görüntüleyici değil)
+    var canWriteActiveWallet: Bool {
+        activeWallet?.canWrite(currentUsername) ?? false
+    }
+
     // MARK: - Aktif Cüzdan Seçimi
     func selectWallet(_ wallet: WalletModel) {
         self.activeWallet = wallet
@@ -121,6 +150,8 @@ class WalletManager: ObservableObject {
     
     func deleteWallet(id: String) {
         guard wallets.count > 1 else { return } // Son kalan zorunlu silinmez (Opsiyonel Güvenlik)
+        // Cüzdanı (ve tüm işlemlerini) sadece kurucusu silebilir
+        guard let wallet = wallets.first(where: { $0.id == id }), wallet.ownerId == currentUsername else { return }
         Task {
             try? await FirestoreService.shared.deleteWallet(id: id)
         }

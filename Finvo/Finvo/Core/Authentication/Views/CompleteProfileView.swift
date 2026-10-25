@@ -251,7 +251,8 @@ struct CompleteProfileView: View {
         searchTask?.cancel()
         
         // Sadece alfasayısal ve alt çizgi
-        let cleaned = value.lowercased().filter { "abcdefghijklmnopqrstuvwxyz0123456789_".contains($0) }
+        // En fazla 20 karakter (sınırsız uzunluk listelerde taşmaya yol açıyordu)
+        let cleaned = String(value.lowercased().filter { "abcdefghijklmnopqrstuvwxyz0123456789_".contains($0) }.prefix(20))
         if cleaned != value {
             username = cleaned
         }
@@ -271,6 +272,8 @@ struct CompleteProfileView: View {
             
             do {
                 let taken = try await FirestoreService.shared.isUsernameTaken(cleaned)
+                // Geç dönen eski bir sorgu, yazılan yeni isim için "uygun" sonucunu ezmesin
+                guard !Task.isCancelled, cleaned == username else { return }
                 isUsernameAvailable = !taken
                 isCheckingUsername = false
             } catch {
@@ -287,7 +290,7 @@ struct CompleteProfileView: View {
         
         let newUser = UserModel(
             uid: firebaseUser.uid,
-            email: firebaseUser.email ?? "",
+            email: (firebaseUser.email ?? "").lowercased(),  // e-posta ile arama küçük harfle sorguluyor
             firstName: firstName.trimmingCharacters(in: .whitespaces),
             lastName: lastName.trimmingCharacters(in: .whitespaces),
             username: username.lowercased(),
@@ -297,6 +300,15 @@ struct CompleteProfileView: View {
         
         Task {
             do {
+                // Kontrol ile kayıt arasında başka biri aynı adı almış olabilir: kaydetmeden hemen önce tekrar kontrol et
+                if try await FirestoreService.shared.isUsernameTaken(newUser.username) {
+                    await MainActor.run {
+                        self.isSaving = false
+                        self.isUsernameAvailable = false
+                        self.errorMessage = "Bu kullanıcı adı alınmış.".localized
+                    }
+                    return
+                }
                 try await FirestoreService.shared.saveUserProfile(newUser)
                 
                 await MainActor.run {

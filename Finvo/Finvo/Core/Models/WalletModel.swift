@@ -77,3 +77,22 @@ struct WalletModel: Identifiable, Codable, Equatable {
     var savingsAccounts: [SavingsAccountModel]? // Yeni çoklu birikim hesapları listesi
 }
 
+
+// MARK: - Rol / Yetki Yardımcıları
+extension WalletModel {
+    /// Kullanıcının bu cüzdandaki rolü. Kayıt yoksa en kısıtlı rol (görüntüleyici) varsayılır.
+    func role(of username: String) -> WalletRole {
+        if ownerId == username { return .owner }
+        return WalletRole(rawValue: permissions[username] ?? "") ?? .viewer
+    }
+
+    /// Cüzdan ayarlarını (limit, birikim hesapları, kategoriler, görev onayı) yönetebilir mi?
+    func canManage(_ username: String) -> Bool {
+        [.owner, .admin].contains(role(of: username))
+    }
+
+    /// İşlem ekleyebilir / ödeme yapabilir mi? (Görüntüleyici ve bekleyen davetliler hariç)
+    func canWrite(_ username: String) -> Bool {
+        [.owner, .admin, .member].contains(role(of: username))
+    }
+}

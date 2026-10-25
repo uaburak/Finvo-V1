@@ -84,10 +84,7 @@ class CategoryManager: ObservableObject {
         guard let wallet = walletManager.activeWallet,
               let currentUser = authManager.currentUserProfile?.username else { return false }
         
-        let roleRaw = wallet.permissions[currentUser] ?? WalletRole.member.rawValue
-        let role = WalletRole(rawValue: roleRaw) ?? .member
-        
-        return role == .owner || role == .admin
+        return wallet.canManage(currentUser)
     }
     
     func saveCategory(walletId: String, category: CategoryModel) async throws {

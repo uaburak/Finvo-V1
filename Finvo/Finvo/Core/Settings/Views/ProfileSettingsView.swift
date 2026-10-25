@@ -202,7 +202,7 @@ struct ProfileSettingsView: View {
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.characters)
             Button("Kalıcı Olarak Sil", role: .destructive) {
-                guard deleteConfirmText == "HESABI SİL" else { return }
+                guard isDeleteConfirmTextValid else { return }
                 isDeletingAccount = true
                 Task {
                     do {
@@ -217,7 +217,7 @@ struct ProfileSettingsView: View {
                     }
                 }
             }
-            .disabled(deleteConfirmText != "HESABI SİL")
+            .disabled(!isDeleteConfirmTextValid)
             Button("Vazgeç", role: .cancel) { deleteConfirmText = "" }
         } message: {
             Text("Onaylamak için 'HESABI SİL' yazın. Bu işlem geri alınamaz.")
@@ -427,6 +427,15 @@ struct ProfilePhotoLabelView: View {
             previewImage = nil
             photoUploadError = "Resim yüklenemedi. Lütfen tekrar deneyin."
         }
+    }
+    
+    /// Türkçe olmayan klavyelerde büyük harf "SIL" (noktasız) oluyor ve silme butonu hiç açılmıyordu.
+    private var isDeleteConfirmTextValid: Bool {
+        let normalized = deleteConfirmText
+            .trimmingCharacters(in: .whitespaces)
+            .uppercased(with: Locale(identifier: "tr_TR"))
+            .replacingOccurrences(of: "İ", with: "I")
+        return normalized == "HESABI SIL"
     }
     
     private func logout() {

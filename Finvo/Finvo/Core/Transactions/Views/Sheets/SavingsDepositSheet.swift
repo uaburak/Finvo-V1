@@ -307,12 +307,11 @@ struct SavingsDepositSheet: View {
     
     private func adjustAmount(by value: Double) {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-            var current: Double = 0
-            let normalized = amount.replacingOccurrences(of: ",", with: ".")
-            if let parsed = Double(normalized) { current = parsed }
+            // Ondalık kısım korunur (0,5 gr altın +1 -> "2" oluyordu)
+            var current = AmountInput.parse(amount)
             current += value
             if current < 0 { current = 0 }
-            amount = current == 0 ? "" : String(format: "%.0f", current)
+            amount = AmountInput.string(from: current)
         }
     }
     

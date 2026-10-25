@@ -191,7 +191,15 @@ struct InviteUserSheet: View {
             guard !Task.isCancelled else { return }
             
             do {
-                let results = try await FirestoreService.shared.searchUsers(query: trimmedQuery)
+                // Arama alanı e-posta da kabul ediyor; eskiden sadece kullanıcı adı önekiyle arandığı için
+                // e-posta yazınca hep "Kullanıcı bulunamadı" çıkıyordu.
+                let results: [UserModel]
+                if trimmedQuery.contains("@") {
+                    results = [try await FirestoreService.shared.getUserProfileByEmail(trimmedQuery)].compactMap { $0 }
+                } else {
+                    results = try await FirestoreService.shared.searchUsers(query: trimmedQuery)
+                }
+                guard !Task.isCancelled else { return }
                 
                 await MainActor.run {
                     let currentUsername = self.authManager.currentUserProfile?.username ?? ""

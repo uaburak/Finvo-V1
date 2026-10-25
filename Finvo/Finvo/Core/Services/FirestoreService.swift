@@ -8,6 +8,8 @@ class FirestoreService: ObservableObject {
     private let db = Firestore.firestore()
     
     @Published var wallets: [WalletModel] = []
+    /// Sunucudan (önbellekten değil) en az bir cüzdan snapshot'ı alındı mı?
+    @Published var hasServerWalletSnapshot = false
     private var walletsListener: ListenerRegistration?
     
     private init() {}
@@ -31,7 +33,9 @@ class FirestoreService: ObservableObject {
                     print("Error listening wallets: \(error)")
                     return
                 }
-                guard let documents = snapshot?.documents else { return }
+                guard let snapshot else { return }
+                let documents = snapshot.documents
+                if !snapshot.metadata.isFromCache { self.hasServerWalletSnapshot = true }
                 
                 self.wallets = documents.compactMap { try? $0.data(as: WalletModel.self) }
                     .filter { $0.permissions[identifier] != WalletRole.pending.rawValue }
@@ -41,6 +45,7 @@ class FirestoreService: ObservableObject {
     func stopListeningWallets() {
         walletsListener?.remove()
         walletsListener = nil
+        hasServerWalletSnapshot = false
         // Çıkış yapıldığında önceki kullanıcının cüzdanları bellekte kalmasın
         // (yeni hesapla girişte kısa süreliğine eski cüzdanlar görünüyordu).
         if !wallets.isEmpty { wallets = [] }
@@ -118,6 +123,26 @@ class FirestoreService: ObservableObject {
         ])
     }
     
+    /// Kullanıcı cüzdanda hâlâ "davet bekleniyor" durumunda mı? (Okuma başarısızsa daveti engellemeyiz.)
+    func isPendingMember(walletId: String, username: String) async -> Bool {
+        guard let doc = try? await db.collection("wallets").document(walletId).getDocument() else { return true }
+        guard doc.exists, let permissions = doc.data()?["permissions"] as? [String: String] else { return false }
+        return permissions[username] == WalletRole.pending.rawValue
+    }
+    
+    /// Bekleyen daveti geri çeker: kullanıcıyı cüzdandan çıkarır ve bekleyen davet bildirimini siler.
+    func cancelInvitation(walletId: String, username: String) async {
+        try? await removeMember(walletId: walletId, userId: username)
+        guard let snapshot = try? await db.collection("notifications")
+            .whereField("receiverUsername", isEqualTo: username)
+            .whereField("status", isEqualTo: NotificationStatus.pending.rawValue)
+            .getDocuments() else { return }
+        let refs = snapshot.documents
+            .filter { ($0.data()["walletId"] as? String) == walletId && ($0.data()["type"] as? String) == NotificationType.invitation.rawValue }
+            .map(\.reference)
+        try? await deleteDocuments(refs)
+    }
+    
     // MARK: - User Profile Operations
     func isUsernameTaken(_ username: String) async throws -> Bool {
         let snapshot = try await db.collection("users")
@@ -139,13 +164,21 @@ class FirestoreService: ObservableObject {
         return try? doc.data(as: UserModel.self)
     }
     
+    /// Kullanıcı adına göre profil. Sonuçlar 10 dakika bellekte tutulur ve aynı anda gelen istekler
+    /// tek sorguda birleştirilir: avatar/üye listeleri her satır ve her ekran açılışında ayrı ayrı
+    /// Firestore okuması yapıyordu.
     func getUserProfileByUsername(_ username: String) async throws -> UserModel? {
-        let snapshot = try await db.collection("users")
-            .whereField("username", isEqualTo: username.lowercased())
-            .limit(to: 1)
-            .getDocuments()
-        return try? snapshot.documents.first?.data(as: UserModel.self)
+        let key = username.lowercased()
+        return try await profileCache.profile(for: key) { [db] in
+            let snapshot = try await db.collection("users")
+                .whereField("username", isEqualTo: key)
+                .limit(to: 1)
+                .getDocuments()
+            return try? snapshot.documents.first?.data(as: UserModel.self)
+        }
     }
+    
+    private let profileCache = UserProfileCache()
     
     func getUserProfileByEmail(_ email: String) async throws -> UserModel? {
         let snapshot = try await db.collection("users")
@@ -303,5 +336,32 @@ class FirestoreService: ObservableObject {
             try batch.setData(from: category, forDocument: docRef)
         }
         try await batch.commit()
+    }
+}
+
+
+// MARK: - Profil Önbelleği
+actor UserProfileCache {
+    private struct Entry {
+        let profile: UserModel?
+        let fetchedAt: Date
+    }
+    private let ttl: TimeInterval = 600
+    private var entries: [String: Entry] = [:]
+    private var inFlight: [String: Task<UserModel?, Error>] = [:]
+
+    func profile(for key: String, fetch: @escaping @Sendable () async throws -> UserModel?) async throws -> UserModel? {
+        if let entry = entries[key], Date().timeIntervalSince(entry.fetchedAt) < ttl {
+            return entry.profile
+        }
+        if let task = inFlight[key] {
+            return try await task.value
+        }
+        let task = Task { try await fetch() }
+        inFlight[key] = task
+        defer { inFlight[key] = nil }
+        let profile = try await task.value
+        entries[key] = Entry(profile: profile, fetchedAt: Date())
+        return profile
     }
 }

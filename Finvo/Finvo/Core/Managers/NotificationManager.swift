@@ -134,7 +134,15 @@ class NotificationManager: ObservableObject {
     func approveRequest(_ notification: NotificationModel) {
         Task {
             if notification.type == .invitation {
-                // Davet Kabul Edildi: Rolü .pending'den davet edilen role çevir
+                // Davet Kabul Edildi: Rolü .pending'den davet edilen role çevir.
+                // Davet bu arada geri çekildiyse (kullanıcı cüzdandan çıkarıldıysa) eski bildirimle tekrar eklenmemeli.
+                let stillInvited = await FirestoreService.shared.isPendingMember(walletId: notification.walletId, username: notification.receiverUsername)
+                guard stillInvited else {
+                    if let id = notification.id {
+                        try? await FirestoreService.shared.updateNotificationStatus(id: id, status: .rejected)
+                    }
+                    return
+                }
                 let role = notification.requestedRole ?? .member
                 try? await FirestoreService.shared.addMember(walletId: notification.walletId, userId: notification.receiverUsername, role: role)
             } else {
