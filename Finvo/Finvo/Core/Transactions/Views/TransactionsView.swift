@@ -12,6 +12,15 @@ enum DateFilterMode: String, CaseIterable {
     var title: String { rawValue.localized }
 }
 
+enum TransactionSortOrder: String, CaseIterable {
+    case newest = "Yeniden Eskiye"
+    case oldest = "Eskiden Yeniye"
+    case amountDescending = "Tutar (Yüksekten)"
+    case amountAscending = "Tutar (Düşükten)"
+
+    var title: String { rawValue.localized }
+}
+
 struct TransactionsView: View {
     @Environment(\.theme) var theme
     @Environment(\.colorScheme) var colorScheme
@@ -28,6 +37,8 @@ struct TransactionsView: View {
     @State private var searchText = ""
     
     @State private var dateFilterMode: DateFilterMode = .all
+    @State private var sortOrder: TransactionSortOrder = .newest
+    @State private var memberFilter: String? = nil
     
     @State private var showDeleteConfirmation = false
     @State private var transactionToDelete: TransactionModel? = nil
@@ -37,10 +48,10 @@ struct TransactionsView: View {
         return allItems.filter { item in
             guard item.type == type else { return false }
             
+            if let memberFilter, item.createdBy != memberFilter { return false }
+            
             if !searchText.isEmpty {
-                guard item.mainCategoryName.localizedCaseInsensitiveContains(searchText) ||
-                      (item.subCategoryName ?? "").localizedCaseInsensitiveContains(searchText) ||
-                      (item.note ?? "").localizedCaseInsensitiveContains(searchText) else { return false }
+                guard matchesSearch(item, query: searchText) else { return false }
             }
             
             let calendar = Calendar.current
@@ -73,6 +84,51 @@ struct TransactionsView: View {
     }
     
     
+    /// Arama: kategori (kayıtlı ve çevrilmiş adıyla), not, ekleyen kişi ve tutar
+    private func matchesSearch(_ item: TransactionModel, query rawQuery: String) -> Bool {
+        let query = rawQuery.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else { return true }
+        let texts = [
+            item.mainCategoryName, item.mainCategoryName.localized,
+            item.resolvedMainCategoryName, item.resolvedMainCategoryName.localized,
+            item.subCategoryName ?? "", (item.subCategoryName ?? "").localized,
+            item.resolvedSubCategoryName ?? "",
+            item.note ?? "", item.createdBy, item.debtContact ?? ""
+        ]
+        if texts.contains(where: { $0.localizedCaseInsensitiveContains(query) }) { return true }
+        // Tutar araması: "250" veya "1.250,50" gibi girişler
+        let digitsQuery = query.filter { $0.isNumber || $0 == "," || $0 == "." }
+        if !digitsQuery.isEmpty, digitsQuery.contains(where: \.isNumber) {
+            let queryValue = AmountInput.parse(digitsQuery)
+            let amountText = AmountInput.display(AmountInput.string(from: item.amount))
+            if amountText.contains(digitsQuery) || abs(item.amount - queryValue) < 0.005 { return true }
+        }
+        return false
+    }
+    
+    private func sorted(_ items: [TransactionModel]) -> [TransactionModel] {
+        switch sortOrder {
+        case .newest: return items.sorted { $0.date > $1.date }
+        case .oldest: return items.sorted { $0.date < $1.date }
+        case .amountDescending: return items.sorted { converted($0) > converted($1) }
+        case .amountAscending: return items.sorted { converted($0) < converted($1) }
+        }
+    }
+    
+    private func converted(_ tx: TransactionModel) -> Double {
+        ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: appCurrency)
+    }
+    
+    private var isFiltering: Bool {
+        !searchText.isEmpty || dateFilterMode != .all || memberFilter != nil
+    }
+    
+    /// Paylaşımlı cüzdanda filtrelenebilecek üyeler
+    private var filterableMembers: [String] {
+        guard let wallet = walletManager.activeWallet, wallet.members.count > 1 else { return [] }
+        return wallet.members.filter { wallet.permissions[$0] != WalletRole.pending.rawValue }.sorted()
+    }
+    
     // Segmented control için Int index ↔ TransactionType dönüşümü
     private var selectedTypeIndex: Binding<Int> {
         Binding(
@@ -92,10 +148,44 @@ struct TransactionsView: View {
                     Text(mode.title).tag(mode)
                 }
             }
+            
+            Menu {
+                Picker(L10n("Sıralama"), selection: $sortOrder) {
+                    ForEach(TransactionSortOrder.allCases, id: \.self) { order in
+                        Text(order.title).tag(order)
+                    }
+                }
+            } label: {
+                Label(L10n("Sıralama"), systemImage: "arrow.up.arrow.down")
+            }
+            
+            if !filterableMembers.isEmpty {
+                Menu {
+                    Picker(L10n("Ekleyen"), selection: $memberFilter) {
+                        Text(L10n("Herkes")).tag(String?.none)
+                        ForEach(filterableMembers, id: \.self) { member in
+                            Text("@\(member)").tag(String?.some(member))
+                        }
+                    }
+                } label: {
+                    Label(L10n("Ekleyen"), systemImage: "person.2")
+                }
+            }
+            
+            if dateFilterMode != .all || memberFilter != nil || sortOrder != .newest {
+                Button(role: .destructive) {
+                    dateFilterMode = .all
+                    memberFilter = nil
+                    sortOrder = .newest
+                } label: {
+                    Label(L10n("Filtreleri Temizle"), systemImage: "xmark.circle")
+                }
+            }
         } label: {
-            Image(systemName: dateFilterMode == .all ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+            let isActive = dateFilterMode != .all || memberFilter != nil || sortOrder != .newest
+            Image(systemName: isActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
                 .font(.system(size: 18))
-                .foregroundStyle(dateFilterMode != .all ? Color.accentColor : theme.labelPrimary)
+                .foregroundStyle(isActive ? theme.brandPrimary : theme.labelPrimary)
         }
     }
 
@@ -118,7 +208,23 @@ struct TransactionsView: View {
                 .frame(maxWidth: .infinity, minHeight: 300)
                 .listRowBackground(Color.clear)
             } else {
-                let sortedItems = items.sorted(by: { $0.date > $1.date })
+                let sortedItems = sorted(items)
+                if isFiltering {
+                    // Filtrelenen işlemlerin özeti
+                    let total = items.reduce(0) { $0 + converted($1) }
+                    HStack {
+                        Text(String(format: L10n("%d işlem"), items.count))
+                            .font(.subheadline)
+                            .foregroundStyle(theme.labelSecondary)
+                        Spacer()
+                        Text("\(appCurrency.symbol)\(total.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))")
+                            .font(.subheadline.bold())
+                            .foregroundStyle(type == .income ? theme.income : theme.expense)
+                    }
+                    .padding(.horizontal, 20)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+                    .listRowSeparator(.hidden)
+                }
                 ForEach(sortedItems) { transaction in
                     listRow(for: transaction, isFirst: transaction.id == sortedItems.first?.id)
                 }
@@ -178,8 +284,8 @@ struct TransactionsView: View {
         let subtitleText = transaction.resolvedSubCategoryName != nil ? transaction.resolvedMainCategoryName : transaction.date.formatted(.dateTime.locale(locale).day().month().year().hour().minute())
         
         let currentUser = authManager.currentUserProfile?.username ?? ""
-        let roleRaw = walletManager.activeWallet?.permissions[currentUser] ?? WalletRole.member.rawValue
-        let role = WalletRole(rawValue: roleRaw) ?? .member
+        let roleRaw = walletManager.activeWallet?.permissions[currentUser] ?? WalletRole.viewer.rawValue
+        let role = WalletRole(rawValue: roleRaw) ?? .viewer
         let isOwner = walletManager.activeWallet?.ownerId == currentUser
         
         let isAdminOrOwner = isOwner || role == .admin
