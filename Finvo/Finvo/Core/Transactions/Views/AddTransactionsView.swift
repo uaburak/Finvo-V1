@@ -47,6 +47,12 @@ struct AddTransactionsView: View {
     
     @State private var currentStep: TransactionStep
     @State private var selectedDetent: PresentationDetent
+    /// Sheet'in izin verilen yükseklikleri. Seçim yalnızca bu kümede zaten bulunan bir yüksekliğe
+    /// animasyonla geçebilir; küme değiştirilirse sheet animasyonsuz atlar. Bu yüzden yeni yükseklik önce
+    /// kümeye eklenir, seçim animasyonla değişir, eski yükseklik animasyon bitince kümeden çıkarılır.
+    @State private var sheetDetents: Set<PresentationDetent>
+    /// Üst üste gelen geçişlerde, devam eden animasyonun kaynak yüksekliğinin erken silinmemesi için sayaç
+    @State private var sheetAnimationGeneration = 0
     /// Adım içeriğinin doğal yüksekliği ve navigation bar yüksekliği; sheet boyu bunlardan hesaplanır.
     @State private var measuredContentHeight: CGFloat = 0
     @State private var measuredTopInset: CGFloat = 0
@@ -111,9 +117,11 @@ struct AddTransactionsView: View {
         if transactionToEdit != nil {
             _currentStep = State(initialValue: .details)
             _selectedDetent = State(initialValue: .height(650))
+            _sheetDetents = State(initialValue: [.height(650)])
         } else {
             _currentStep = State(initialValue: .type)
             _selectedDetent = State(initialValue: .height(280))
+            _sheetDetents = State(initialValue: [.height(280)])
         }
     }
     
@@ -204,9 +212,7 @@ struct AddTransactionsView: View {
                 // Sheet boyu içeriğe göre: az seçenekte kısa, çok seçenekte en fazla maxSheetHeight
                 .onChange(of: fittedSheetHeight) { _, newHeight in
                     guard let newHeight else { return }
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                        selectedDetent = .height(newHeight)
-                    }
+                    animateSheet(to: .height(newHeight))
                 }
 
                 .navigationTitle(LocalizedStringKey(currentStep.titleKey))
@@ -242,7 +248,7 @@ struct AddTransactionsView: View {
                 ProSubscriptionPaywallView()
             }
             // Dinamik Sheet Yüksekliği (Animasyonla Geçiş)
-            .presentationDetents([selectedDetent], selection: $selectedDetent)
+            .presentationDetents(sheetDetents, selection: $selectedDetent)
             .presentationDragIndicator(.hidden)
             // Bütün steplerde hiçbir arka plan rengi yok (Tamamen Şeffaf)
             .presentationBackground(.clear) 
@@ -283,6 +289,27 @@ struct AddTransactionsView: View {
             } message: {
                 Text(ocrErrorMessage)
             }
+    }
+
+    /// Sheet'i yeni yüksekliğe eskisi gibi yay animasyonuyla büyütür/küçültür.
+    private func animateSheet(to target: PresentationDetent) {
+        guard target != selectedDetent else { return }
+        // 1) Hedef yüksekliği kümeye ekle (seçim değişmediği için sheet yerinde kalır)
+        sheetDetents.insert(target)
+        sheetAnimationGeneration += 1
+        let generation = sheetAnimationGeneration
+        // 2) Küme güncellendikten sonraki turda seçimi animasyonla değiştir
+        DispatchQueue.main.async {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                selectedDetent = target
+            }
+            // 3) Animasyon bitince kullanılmayan yükseklikleri temizle (sürükleyerek ara boya geçilemesin).
+            //    Bu arada yeni bir geçiş başladıysa temizliği ona bırak.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+                guard generation == sheetAnimationGeneration else { return }
+                sheetDetents = [selectedDetent]
+            }
+        }
     }
 
     /// İçeriğe göre sheet yüksekliği (nav bar + içerik + alt boşluk), üst sınır maxSheetHeight.
