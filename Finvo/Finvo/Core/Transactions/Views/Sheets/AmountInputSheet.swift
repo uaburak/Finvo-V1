@@ -159,41 +159,15 @@ struct AmountInputSheet: View {
     // Bindings ve yardımcı formatlama metodları (imleç ve animasyon uyumu için)
     private var formattedAmount: Binding<String> {
         Binding<String>(
-            get: {
-                formatAmountText(amount)
-            },
+            get: { AmountInput.display(amount) },
             set: { newValue in
-                var cleaned = newValue
-                    .replacingOccurrences(of: ".", with: "")
-                    .replacingOccurrences(of: " ", with: "")
-                
-                // Başındaki gereksiz sıfırı temizleme (örn: "05" -> "5")
-                if cleaned.hasPrefix("0") && cleaned.count > 1 && !cleaned.hasPrefix("0,") && !cleaned.hasPrefix("0.") {
-                    cleaned.removeFirst()
-                }
-                
-                let allowed = cleaned.filter { "0123456789,.".contains($0) }
-                amount = allowed
+                amount = AmountInput.raw(fromEdited: newValue, previousRaw: amount)
             }
         )
     }
     
     private func formatAmountText(_ value: String) -> String {
-        if value.isEmpty { return "0" }
-        // Cihaz diline bağlı NumberFormatter "12,5"i İngilizce'de 125 okuyordu; sabit formatla ayrıştır.
-        let parsedAmount = AmountInput.parse(value)
-        
-        let hasDecimal = value.contains(",") || value.contains(".")
-        if hasDecimal {
-            let separator = value.contains(",") ? "," : "."
-            let parts = value.split(separator: separator.first!, omittingEmptySubsequences: false)
-            let decPart = parts.count > 1 ? parts[1] : ""
-            let intVal = floor(parsedAmount)
-            let formattedInt = intVal.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))
-            return "\(formattedInt),\(decPart)"
-        } else {
-            return parsedAmount.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))
-        }
+        AmountInput.display(value)
     }
 
 }

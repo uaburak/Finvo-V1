@@ -693,19 +693,7 @@ struct AddTransactionsView: View {
     
     private func formatAmountText() -> String {
         if amount.isEmpty { return "0,00 \(selectedCurrency.symbol)" }
-        let parsedAmount = AmountInput.parse(amount)
-        
-        let hasDecimal = amount.contains(",") || amount.contains(".")
-        if hasDecimal {
-            let parts = amount.replacingOccurrences(of: ",", with: ".").split(separator: ".", omittingEmptySubsequences: false)
-            let decPart = parts.count > 1 ? parts[1] : ""
-            let intVal = floor(parsedAmount)
-            let formattedInt = intVal.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))
-            return "\(formattedInt),\(decPart) \(selectedCurrency.symbol)"
-        } else {
-            let formatted = parsedAmount.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))
-            return "\(formatted) \(selectedCurrency.symbol)"
-        }
+        return "\(AmountInput.display(amount)) \(selectedCurrency.symbol)"
     }
 
     private func formRow(_ icon: String, _ title: LocalizedStringKey, _ value: String, action: @escaping () -> Void) -> some View {
