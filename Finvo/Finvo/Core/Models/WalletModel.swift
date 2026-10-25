@@ -63,6 +63,12 @@ struct SavingsAccountModel: Identifiable, Codable, Equatable {
     var createdAt: Date = Date()
 }
 
+/// Bir kategoriye konan aylık harcama limiti (kendi para biriminde saklanır)
+struct CategoryLimitModel: Codable, Equatable, Hashable {
+    var amount: Double
+    var currency: String
+}
+
 struct WalletModel: Identifiable, Codable, Equatable {
     @DocumentID var id: String?
     var name: String
@@ -75,6 +81,7 @@ struct WalletModel: Identifiable, Codable, Equatable {
     var monthlyLimitCurrency: String? // Limitin ana para birimi
     var savingsGoal: Double? // Eski tekil birikim hedefi (geriye dönük uyumluluk için tutulabilir)
     var savingsAccounts: [SavingsAccountModel]? // Yeni çoklu birikim hesapları listesi
+    var categoryLimits: [String: CategoryLimitModel]? // Ana kategori ID -> aylık limit
 }
 
 

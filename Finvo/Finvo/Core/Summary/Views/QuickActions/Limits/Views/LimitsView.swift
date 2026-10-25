@@ -10,6 +10,8 @@ struct LimitsView: View {
     @State private var limitAmount: Double? = nil
     @State private var showEditSheet: Bool = false
     @State private var isLoading: Bool = false
+    @State private var categoryLimitEditor: CategoryLimitEditorTarget?
+    @ObservedObject private var categoryManager = CategoryManager.shared
     
     var body: some View {
         ZStack {
@@ -82,6 +84,8 @@ struct LimitsView: View {
                         .padding(.top, 8)
                         }
                     }
+                    
+                    categoryLimitsSection
                 }
                 .padding(.vertical)
             }
@@ -94,6 +98,111 @@ struct LimitsView: View {
                 .presentationDetents([.height(300)])
                 .presentationDragIndicator(.visible)
         }
+        .sheet(item: $categoryLimitEditor) { target in
+            CategoryLimitEditSheet(target: target)
+                .environmentObject(walletManager)
+                .presentationDetents([.height(380)])
+                .presentationDragIndicator(.visible)
+        }
+    }
+    
+    // MARK: - Kategori Limitleri
+    private var expenseCategories: [CategoryModel] {
+        (categoryManager.categories.isEmpty ? CategoriesMockData.data : categoryManager.categories)
+            .filter { $0.type == .expense && $0.isOn }
+    }
+    
+    @ViewBuilder
+    private var categoryLimitsSection: some View {
+        let limits = walletManager.activeWallet?.categoryLimits ?? [:]
+        let rows = expenseCategories.filter { limits[$0.id] != nil }
+        
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Kategori Limitleri")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(theme.labelPrimary)
+                Spacer()
+                if walletManager.canManageActiveWallet {
+                    Button {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        categoryLimitEditor = CategoryLimitEditorTarget(categoryId: nil)
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(theme.labelPrimary)
+                            .frame(width: 36, height: 36)
+                    }
+                    .buttonStyle(.glass)
+                    .clipShape(Circle())
+                }
+            }
+            .padding(.horizontal)
+            
+            if rows.isEmpty {
+                Text("Market, ulaşım gibi kategorilere ayrı aylık limit koyun; %80'e ulaşınca ve aşınca bildirim alın.")
+                    .font(.subheadline)
+                    .foregroundStyle(theme.labelSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(20)
+                    .glassEffect(in: .rect(cornerRadius: 24))
+                    .padding(.horizontal)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(rows.enumerated()), id: \.element.id) { index, category in
+                        if let limit = limits[category.id] {
+                            categoryLimitRow(category: category, limit: limit)
+                            if index < rows.count - 1 {
+                                Divider().padding(.leading, 62).padding(.trailing, 16)
+                            }
+                        }
+                    }
+                }
+                .padding(.vertical, 6)
+                .glassEffect(in: .rect(cornerRadius: 24))
+                .padding(.horizontal)
+            }
+        }
+    }
+    
+    private func categoryLimitRow(category: CategoryModel, limit: CategoryLimitModel) -> some View {
+        let limitCurrency = CurrencyType(rawValue: limit.currency) ?? .tryCurrency
+        let limitAmount = ExchangeRateManager.shared.convert(amount: limit.amount, from: limitCurrency, to: appCurrency)
+        let spent = SpendingLimitMonitor.monthlySpending(in: transactionManager.transactions, categoryId: category.id,
+                                                         categoryName: category.name, currency: appCurrency)
+        let progress = limitAmount > 0 ? min(spent / limitAmount, 1) : 0
+        let isOver = spent > limitAmount
+        let barColor: Color = isOver ? theme.expense : (progress >= 0.8 ? .orange : theme.brandPrimary)
+        
+        return Button {
+            guard walletManager.canManageActiveWallet else { return }
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            categoryLimitEditor = CategoryLimitEditorTarget(categoryId: category.id)
+        } label: {
+            VStack(spacing: 10) {
+                ListItem(
+                    icon: category.icon,
+                    iconColor: category.uiColor,
+                    title: category.localizedName,
+                    subtitle: LocalizedStringKey("\(appCurrency.symbol)\(spent.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))) / \(appCurrency.symbol)\(limitAmount.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))"),
+                    value: "%\(Int((limitAmount > 0 ? spent / limitAmount : 0) * 100))",
+                    valueColor: isOver ? theme.expense : theme.labelPrimary
+                )
+                
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(theme.separator).frame(height: 6)
+                        Capsule().fill(barColor).frame(width: max(0, geo.size.width * progress), height: 6)
+                    }
+                }
+                .frame(height: 6)
+                .padding(.leading, 46)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
     
     private var emptyLimitNotice: some View {

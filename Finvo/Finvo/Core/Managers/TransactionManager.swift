@@ -79,6 +79,7 @@ class TransactionManager: ObservableObject {
                     
                     self.evaluateRecurringTransactions(parsed, walletId: walletId)
                     LocalNotificationManager.shared.scheduleNotifications(for: parsed)
+                    SpendingLimitMonitor.evaluate(transactions: parsed, walletId: walletId)
                 }
             }
     }
