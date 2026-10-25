@@ -8,6 +8,11 @@ struct AnalysisPDFReportView: View {
     let totalRecurring: Double
     let timeFrame: String
     
+    /// Rapor değerleri uygulama para biriminde hesaplanıyor; sembol sabit "₺" yazılıyordu.
+    private var currencySymbol: String {
+        (UserDefaults.standard.string(forKey: "appCurrency").flatMap { CurrencyType(rawValue: $0) } ?? .tryCurrency).symbol
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 32) {
             // Header
@@ -49,7 +54,7 @@ struct AnalysisPDFReportView: View {
                     Text("Net Akış Özeti")
                         .font(.headline)
                         .foregroundColor(.gray)
-                    Text("\(totalValue >= 0 ? "+" : "")₺\(totalValue.formatted(.number.precision(.fractionLength(0))))")
+                    Text("\(totalValue >= 0 ? "+" : "")\(currencySymbol)\(totalValue.formatted(.number.precision(.fractionLength(0))))")
                         .font(.system(size: 32, weight: .bold))
                         .foregroundColor(totalValue >= 0 ? .green : .red)
                 }
@@ -60,7 +65,7 @@ struct AnalysisPDFReportView: View {
                     Text("Rekor İşlem")
                         .font(.headline)
                         .foregroundColor(.gray)
-                    Text("₺\((biggestTransaction?.amount ?? 0).formatted(.number.precision(.fractionLength(0))))")
+                    Text("\(biggestTransaction?.currency?.symbol ?? currencySymbol)\((biggestTransaction?.amount ?? 0).formatted(.number.precision(.fractionLength(0))))")
                         .font(.system(size: 24, weight: .semibold))
                         .foregroundColor(.black)
                     if let tx = biggestTransaction { Text((tx.note ?? "").isEmpty ? tx.mainCategoryName : tx.note!).font(.caption).foregroundColor(.gray) }
@@ -87,7 +92,7 @@ struct AnalysisPDFReportView: View {
                                 .font(.subheadline)
                                 .foregroundColor(.gray)
                             Spacer()
-                            Text("₺\(summary.amount.formatted(.number.precision(.fractionLength(0))))")
+                            Text("\(currencySymbol)\(summary.amount.formatted(.number.precision(.fractionLength(0))))")
                                 .font(.body.bold())
                                 .foregroundColor(.black)
                             Text("(%\(summary.percentage.formatted(.number.precision(.fractionLength(0)))))")
@@ -105,7 +110,7 @@ struct AnalysisPDFReportView: View {
             
             // Footer
             HStack {
-                Text("Abonelik İşlemleri: ₺\(totalRecurring.formatted(.number.precision(.fractionLength(0))))")
+                Text("Abonelik İşlemleri: \(currencySymbol)\(totalRecurring.formatted(.number.precision(.fractionLength(0))))")
                     .font(.subheadline.bold())
                     .foregroundColor(.blue)
                 

@@ -111,6 +111,15 @@ struct ContentView: View {
         .onChange(of: showAddSheet) { _, newValue in
             if !newValue { hapticLight.impactOccurred() }
         }
+        // Güvenlik ağı: UIKit interceptor herhangi bir sebeple devreye giremezse
+        // (delegate SwiftUI tarafından geri alınırsa) Add sekmesi gerçekten seçilir ve
+        // boş bir ekran görünürdü. Bu durumda sekmeyi geri alıp modalı yine de açıyoruz.
+        .onChange(of: selectedTab) { oldValue, newValue in
+            guard newValue == .add else { return }
+            selectedTab = oldValue == .add ? .home : oldValue
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            showAddSheet = true
+        }
         .sheet(isPresented: $showAddSheet) {
             AddTransactionsView()
                 .environmentObject(walletManager)
@@ -129,14 +138,13 @@ struct ContentView: View {
                 transactionManager.evaluateAllWalletsRecurring(walletIds: allWalletIds)
             }
         }
-        // Aktif cüzdan değiştiğinde tekrarlayan işlemleri tetikle
-        .onChange(of: walletManager.activeWallet?.id) { _, newId in
-            if let walletId = newId {
-                let allWalletIds = walletManager.wallets.compactMap { $0.id }
-                transactionManager.evaluateAllWalletsRecurring(walletIds: [walletId])
-                _ = allWalletIds // Tüm cüzdanlar zaten scenePhase'de taranıyor
-            }
+        // İlk açılışta scenePhase .active olduğunda cüzdanlar henüz yüklenmemiş olabiliyor;
+        // cüzdan listesi gelince de tara (cüzdan başına günde bir kez sınırlı).
+        .onChange(of: walletManager.wallets.compactMap(\.id)) { _, walletIds in
+            transactionManager.evaluateAllWalletsRecurring(walletIds: walletIds)
         }
+        // Not: Aktif cüzdanın tekrarlayan işlemleri TransactionManager listener'ı tarafından
+        // değerlendiriliyor; cüzdan değişiminde ayrıca sorgu atmaya gerek yok.
         .environment(\.locale, Locale(identifier: appLanguage))
         .tint(theme.brandPrimary)
     }

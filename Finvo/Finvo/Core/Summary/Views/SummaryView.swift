@@ -46,16 +46,16 @@ struct SummaryView: View {
                 // Hızlı butonların ekran kenarına kadar kayabilmesi için VStack'deki yatay paddingi kaldırıyoruz.
             }
             .safeAreaPadding(.bottom, 120)
-            .scrollEdgeEffectStyle(.soft, for: .all)
             .scrollBounceBehavior(.always, axes: .vertical)
             .refreshable {
+                // Veriler zaten canlı dinleniyor. Eskiden burada listener'lar kapatılıp yeniden açılıyordu;
+                // bu her yenilemede cüzdanın TÜM işlemlerinin sunucudan tekrar okunmasına (kota israfı) yol açıyordu.
+                // Yenileme artık sadece döviz kurlarını günceller, toplamlar kur değişince otomatik hesaplanır.
                 if let walletId = walletManager.activeWallet?.id {
-                    transactionManager.stopListening()
                     transactionManager.startListening(walletId: walletId)
-                    CategoryManager.shared.stopListening()
                     CategoryManager.shared.startListening(walletId: walletId)
                 }
-                try? await Task.sleep(nanoseconds: 500_000_000)
+                await ExchangeRateManager.shared.fetchRates()
             }
             .navigationTitle(walletManager.activeWallet?.name ?? "Cüzdan Seç")
             .navigationBarTitleDisplayMode(.inline)

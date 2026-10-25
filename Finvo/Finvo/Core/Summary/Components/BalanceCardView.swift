@@ -15,7 +15,7 @@ struct BalanceCardView: View {
     @Environment(\.theme) var theme
     @EnvironmentObject var transactionManager: TransactionManager
     @EnvironmentObject var walletManager: WalletManager
-    @State private var scrolledID: Int? = 50
+    @State private var scrolledID: Int? = nil
     @State private var isDragging: Bool = false
     @State private var showSavingsGoalSheet = false
     @State private var showSpendingLimitSheet = false
@@ -125,11 +125,18 @@ struct BalanceCardView: View {
                 }
         )
         .onAppear {
-            if cards.count > 1 && (scrolledID == nil || scrolledID == 0) {
-                scrolledID = 50
+            // 20 elemanlı döngünün ortasından, ilk karta denk gelen indeksten başla.
+            // (Eskiden 50 veriliyordu; 0..<20 aralığında olmadığı için yukarı kaydırılamıyor,
+            // gösterge de yanlış kartı işaretliyordu.)
+            if cards.count > 1 && (scrolledID == nil || scrolledID == 0 || (scrolledID ?? 0) >= 20) {
+                scrolledID = 10 - (10 % cards.count)
             } else if cards.count <= 1 {
                 scrolledID = 0
             }
+        }
+        // Kart sayısı sonradan değişirse (veri geç geldi / birikim eklendi) geçerli bir konuma dön
+        .onChange(of: cards.count) { _, newCount in
+            scrolledID = newCount > 1 ? 10 - (10 % newCount) : 0
         }
         // İndikatörler
         .overlay(alignment: .trailing) {
@@ -396,8 +403,11 @@ struct SetSpendingLimitSheet: View {
         }
         .background(theme.background1.ignoresSafeArea())
         .onAppear {
-            if let existing = walletManager.activeWallet?.monthlyLimit, existing > 0 {
-                amountString = String(format: "%.0f", existing)
+            if let wallet = walletManager.activeWallet, let existing = wallet.monthlyLimit, existing > 0 {
+                // Limit kendi para biriminde saklanıyor; ekranda uygulama para birimiyle gösteriliyor
+                let limitCurrency = CurrencyType(rawValue: wallet.monthlyLimitCurrency ?? "") ?? .tryCurrency
+                let converted = ExchangeRateManager.shared.convert(amount: existing, from: limitCurrency, to: appCurrency)
+                amountString = String(format: "%.0f", converted)
             }
         }
     }
@@ -408,6 +418,8 @@ struct SetSpendingLimitSheet: View {
         let cleaned = amountString.replacingOccurrences(of: ",", with: ".")
         if let val = Double(cleaned) {
             wallet.monthlyLimit = val
+            // Para birimi kaydedilmezse limit TRY sayılıyordu (USD kullanıcısında $1000 -> ~$31)
+            wallet.monthlyLimitCurrency = appCurrency.rawValue
             walletManager.updateWallet(wallet)
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             dismiss()

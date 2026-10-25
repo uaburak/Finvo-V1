@@ -259,9 +259,13 @@ struct FamilyMissionsView: View {
     private func trailingAction(for item: MissionModel, section: MissionSection) -> some View {
         switch section {
         case .pending:
+            if canManageMission(item) {
             Button { viewModel.deleteMission(item) } label: { Image(systemName: "trash").font(.system(size: 13)).foregroundStyle(.red.opacity(0.7)) }.buttonStyle(.plain)
+            }
         case .completed:
             VStack(spacing: 6) {
+                // Ödülü görevi oluşturan (veya cüzdan yöneticisi) onaylar; üye kendi görevine kendisi ödül veremez
+                if canManageMission(item) {
                 Button { viewModel.approveMission(for: item) } label: {
                     Text("ÖDE".localized)
                         .font(.caption.bold())
@@ -271,6 +275,7 @@ struct FamilyMissionsView: View {
                         .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
+                }
                 
                 if item.rewardAmount > 0 {
                     Text("\(appCurrency.symbol)\(item.rewardAmount.formatted(.number.precision(.fractionLength(0))))")
@@ -280,6 +285,11 @@ struct FamilyMissionsView: View {
         case .paid:
             Image(systemName: "checkmark.seal.fill").foregroundStyle(.green).font(.title3)
         }
+    }
+
+    private func canManageMission(_ item: MissionModel) -> Bool {
+        let username = authManager.currentUserProfile?.username ?? ""
+        return item.createdBy == username || walletManager.canManageActiveWallet
     }
 
     private var emptyStateView: some View {

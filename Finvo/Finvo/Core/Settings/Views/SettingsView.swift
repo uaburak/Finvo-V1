@@ -21,6 +21,7 @@ struct SettingsView: View {
     
     @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
     @AppStorage("appThemeColor") private var appThemeColor: String = AppThemeColor.neonGreen.rawValue
+    @ObservedObject private var appLockManager = AppLockManager.shared
     
     var body: some View {
         NavigationStack {
@@ -98,6 +99,23 @@ struct SettingsView: View {
                     }
                     .tint(theme.labelPrimary)
                     
+                    if appLockManager.isAvailable {
+                        Toggle(isOn: Binding(
+                            get: { appLockManager.isEnabled },
+                            set: { newValue in
+                                Task { _ = await appLockManager.setEnabled(newValue) }
+                            }
+                        )) {
+                            Label {
+                                Text(String(format: L10n("%@ ile Kilitle"), appLockManager.biometryTitle))
+                                    .foregroundColor(theme.labelPrimary)
+                            } icon: {
+                                Image(systemName: appLockManager.biometryIcon).foregroundColor(theme.brandPrimary)
+                            }
+                        }
+                        .tint(theme.brandPrimary)
+                    }
+                    
                     NavigationLink {
                         NotificationSettingsView()
                     } label: {
@@ -132,7 +150,8 @@ struct SettingsView: View {
                     }
                     .buttonStyle(.plain)
                     
-                    // TEST TOGGLE
+                    // TEST TOGGLE: Sadece debug derlemelerde. Yayın sürümünde herkes kendine ücretsiz Pro verebiliyordu.
+                    #if DEBUG
                     Toggle(isOn: Binding(
                         get: { authManager.currentUserProfile?.isPro ?? false },
                         set: { newValue in
@@ -146,6 +165,7 @@ struct SettingsView: View {
                     )) {
                         Label("Test: Pro Modu", systemImage: "testtube.2")
                     }
+                    #endif
                 }
                 
                 // MARK: - Destek ve Hakkında

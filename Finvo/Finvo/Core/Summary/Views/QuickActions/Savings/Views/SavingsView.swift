@@ -46,6 +46,8 @@ struct SavingsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
+                // Birikim hesabı oluşturmak cüzdan ayarıdır (kurucu/yönetici)
+                if walletManager.canManageActiveWallet {
                 Button {
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     showCreateSheet = true
@@ -53,6 +55,7 @@ struct SavingsView: View {
                     Image(systemName: "plus")
                         .fontWeight(.semibold)
                         .foregroundStyle(theme.labelPrimary)
+                }
                 }
             }
         }
@@ -82,6 +85,7 @@ struct SavingsView: View {
                 .foregroundColor(theme.labelSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
+            if walletManager.canManageActiveWallet {
             Button {
                 showCreateSheet = true
             } label: {
@@ -97,6 +101,7 @@ struct SavingsView: View {
             .buttonStyle(.glassProminent)
             .padding(.top, 10)
             .padding(.horizontal, 30)
+            }
             Spacer()
         }
     }

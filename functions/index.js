@@ -13,11 +13,19 @@ exports.sendNotificationPush = functions.firestore
     if (!data) return null;
 
     const receiverUsername = data.receiverUsername;
-    const senderUsername = data.senderUsername;
-    const walletName = data.walletName;
+    const senderUsername = data.senderUsername || "";
+    const walletName = data.walletName || "";
     const type = data.type; // 'invitation' veya 'role_request'
 
+    if (typeof receiverUsername !== "string" || !receiverUsername) {
+      console.log("Notification has no valid receiverUsername, skipping.");
+      return null;
+    }
+
     console.log(`New notification created. Sender: ${senderUsername}, Receiver: ${receiverUsername}, Type: ${type}`);
+
+    // catch bloğunda geçersiz token temizliği için dışarıda tutuluyor
+    let receiverDocRef = null;
 
     try {
       // 1. Alıcı kullanıcının FCM Token adresini Firestore'dan çekelim
@@ -32,6 +40,7 @@ exports.sendNotificationPush = functions.firestore
       }
 
       const receiverDoc = userQuery.docs[0];
+      receiverDocRef = receiverDoc.ref;
       const receiverData = receiverDoc.data();
       const fcmToken = receiverData.fcmToken;
 
@@ -56,17 +65,20 @@ exports.sendNotificationPush = functions.firestore
       }
 
       // 3. APNs & FCM mesaj paketi hazırlama
+      // FCM data payload'ında tüm değerler string olmak zorundadır; undefined/null bir alan
+      // gönderimin tamamen hata vermesine yol açar (ör. walletId olmayan bir bildirim kaydı).
+      const payloadData = {};
+      if (type) payloadData.type = String(type);
+      if (data.walletId) payloadData.walletId = String(data.walletId);
+      if (senderUsername) payloadData.senderUsername = String(senderUsername);
+
       const message = {
         token: fcmToken,
         notification: {
           title: title,
           body: body
         },
-        data: {
-          type: type,
-          walletId: data.walletId,
-          senderUsername: senderUsername
-        },
+        data: payloadData,
         apns: {
           payload: {
             aps: {
@@ -83,6 +95,25 @@ exports.sendNotificationPush = functions.firestore
       return response;
 
     } catch (error) {
+      // Cihaz uygulamayı silmiş / token geçersizse kaydı temizle, aksi halde
+      // her bildirimde aynı ölü token'a gönderim denenmeye devam eder.
+      // Not: "messaging/invalid-argument" bilerek listede değil — token dışındaki
+      // hatalı alanlar için de dönebiliyor ve geçerli bir token'ı silmemize yol açardı.
+      const invalidTokenCodes = [
+        "messaging/registration-token-not-registered",
+        "messaging/invalid-registration-token"
+      ];
+
+      if (invalidTokenCodes.includes(error.code) && receiverDocRef) {
+        console.log(`Removing invalid fcmToken for ${receiverUsername} (${error.code})`);
+        await receiverDocRef.update({
+          fcmToken: admin.firestore.FieldValue.delete()
+        }).catch((cleanupError) => {
+          console.error("Error cleaning up invalid fcmToken:", cleanupError);
+        });
+        return null;
+      }
+
       console.error("Error triggering push notification cloud function:", error);
       return null;
     }

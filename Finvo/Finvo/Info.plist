@@ -13,6 +13,8 @@
 			</array>
 		</dict>
 	</array>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Uygulama kilidini Face ID ile açabilmeniz için kullanılır.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Fatura veya fişlerinizi tarayarak bilgileri otomatik doldurmak için kameranıza ihtiyaç duyuyoruz.</string>
 	<key>UIBackgroundModes</key>

@@ -63,7 +63,7 @@ struct DebtDetailView: View {
                     
                     Spacer()
                     
-                    Text("₺\(currentDebt.amount.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))")
+                    Text("\(currentDebt.currency?.symbol ?? "₺")\(currentDebt.amount.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))")
                         .font(.title3.bold())
                         .foregroundColor(theme.expense)
                 }
@@ -71,7 +71,8 @@ struct DebtDetailView: View {
                 // Progress Bar Large
                 let total = Double(currentDebt.totalInstallments ?? 1)
                 let paid = Double(currentDebt.paidInstallments ?? 0)
-                let progress = paid / total
+                // total 0 ise NaN/inf genişlik, paid > total ise taşma oluyordu
+                let progress = total > 0 ? min(max(paid / total, 0), 1) : 0
                 
                 VStack(spacing: 12) {
                     HStack {
@@ -163,7 +164,7 @@ struct DebtDetailView: View {
             
             Spacer()
             
-            if isNext {
+            if isNext && canPay {
                 Button {
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     payInstallment()
@@ -190,9 +191,20 @@ struct DebtDetailView: View {
         )
     }
     
+    /// Görüntüleyiciler taksit ödeyemez (ödeme cüzdana işlem yazar)
+    private var canPay: Bool {
+        let username = authManager.currentUserProfile?.username ?? ""
+        guard let wallet = FirestoreService.shared.wallets.first(where: { $0.id == currentDebt.walletId }) else { return true }
+        return wallet.canWrite(username)
+    }
+    
     private func payInstallment() {
         let username = authManager.currentUserProfile?.username ?? "unknown"
         isPaying = true
+        // Ödemeden önceki değerler: listener ödemeyi hemen yansıttığı için sonradan okunan değerle
+        // kontrol, bir taksit kala ekranı kapatıyordu.
+        let paidBefore = currentDebt.paidInstallments ?? 0
+        let totalInstallments = currentDebt.totalInstallments ?? 0
         
         Task {
             do {
@@ -200,7 +212,7 @@ struct DebtDetailView: View {
                 await MainActor.run {
                     isPaying = false
                     // Eğer son taksit ödendiysek ve borç kapandıysa geri çıkabiliriz
-                    if (currentDebt.paidInstallments ?? 0) + 1 >= (currentDebt.totalInstallments ?? 0) {
+                    if paidBefore + 1 >= totalInstallments {
                         dismiss()
                     }
                 }

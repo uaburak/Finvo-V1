@@ -253,7 +253,12 @@ struct SavingsDepositSheet: View {
                         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: amount)
                         .allowsHitTesting(false)
                     
-                    TextField("", text: $amount)
+                    // Ham metin değil biçimli gösterim bağlanır: İngilizce bölgede "." ile girilen ondalık
+                    // kaydederken binlik ayırıcı sanılıp siliniyordu (1.5 -> 15).
+                    TextField("", text: Binding(
+                        get: { AmountInput.display(amount) },
+                        set: { amount = AmountInput.raw(fromEdited: $0, previousRaw: amount) }
+                    ))
                         .keyboardType(.decimalPad)
                         .multilineTextAlignment(.center)
                         .font(.system(size: 48, weight: .bold, design: .rounded))
@@ -307,32 +312,15 @@ struct SavingsDepositSheet: View {
     
     private func adjustAmount(by value: Double) {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-            var current: Double = 0
-            let normalized = amount.replacingOccurrences(of: ",", with: ".")
-            if let parsed = Double(normalized) { current = parsed }
+            // Ondalık kısım korunur (0,5 gr altın +1 -> "2" oluyordu)
+            var current = AmountInput.parse(amount)
             current += value
             if current < 0 { current = 0 }
-            amount = current == 0 ? "" : String(format: "%.0f", current)
+            amount = AmountInput.string(from: current)
         }
     }
     
     private func formatAmountText() -> String {
-        if amount.isEmpty { return "0" }
-        let normalized = amount.replacingOccurrences(of: ",", with: ".")
-        if let parsed = Double(normalized) {
-            let hasDecimal = amount.contains(",") || amount.contains(".")
-            if hasDecimal {
-                let parts = normalized.split(separator: ".", omittingEmptySubsequences: false)
-                let intPart = parts.first ?? ""
-                let decPart = parts.count > 1 ? parts[1] : ""
-                if let intVal = Double(intPart) {
-                    let formattedInt = intVal.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))
-                    return "\(formattedInt),\(decPart)"
-                }
-            } else {
-                return parsed.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))
-            }
-        }
-        return amount
+        AmountInput.display(amount)
     }
 }

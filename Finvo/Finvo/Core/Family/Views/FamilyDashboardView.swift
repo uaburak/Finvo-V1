@@ -60,14 +60,20 @@ struct FamilyDashboardView: View {
                 }
                 guard isSharedWalletActive else { return }
                 viewModel.calculateWholesomeDebts(from: transactionManager.transactions, targetCurrency: appCurrency)
-                if let members = walletManager.activeWallet?.members {
-                    viewModel.fetchMemberProfiles(usernames: members)
-                }
                 if let walletId = walletManager.activeWallet?.id {
                     viewModel.startCountListeners(walletId: walletId)
                 }
             }
-            .onDisappear { viewModel.stopListeners() }
+            // Not: Eskiden root onDisappear'da dinleyiciler kapatılıyordu; Alışveriş/Görevler ekranına her
+            // geçişte kapanıp dönüşte bekleyen tüm kayıtlar baştan okunuyordu. Artık sadece cüzdan değişince
+            // yeniden kuruluyor. (Hiç kullanılmayan üye profili sorguları da kaldırıldı.)
+            .onChange(of: walletManager.activeWallet?.id) { _, newId in
+                if let newId, isSharedWalletActive {
+                    viewModel.startCountListeners(walletId: newId)
+                } else {
+                    viewModel.stopListeners()
+                }
+            }
             .onChange(of: transactionManager.transactions) { _, newTx in
                 if isSharedWalletActive { viewModel.calculateWholesomeDebts(from: newTx, targetCurrency: appCurrency) }
             }
@@ -325,6 +331,11 @@ struct FamilyDashboardView: View {
                 featureGridCard(icon: "star.fill", title: "Görevler".localized,
                     subtitle: viewModel.pendingMissionsCount == 0 ? "Görev yok".localized : "%d Aktif".localized(with: viewModel.pendingMissionsCount),
                     gradient: [Color.purple.opacity(0.8), Color.purple])
+            }
+            NavigationLink { FamilySettleUpView() } label: {
+                featureGridCard(icon: "arrow.left.arrow.right", title: "Hesaplaşma".localized,
+                    subtitle: "Kim kime ne kadar?".localized,
+                    gradient: [Color.teal.opacity(0.8), Color.teal])
             }
         }
         .padding(.horizontal)

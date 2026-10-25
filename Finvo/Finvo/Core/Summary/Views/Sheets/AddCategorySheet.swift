@@ -165,13 +165,26 @@ struct AddCategorySheet: View {
             showDuplicateAlert = true
             return
         }
+        // Doküman ID'si: düzenlemede mevcut ID korunur (isim değişince yeni doküman açılıp eskisi kalıyordu).
+        // Yeni kategoride isimden türetilen ID boşsa (emoji, Kiril vb. -> çökme) veya başka bir kategoriyle
+        // çakışıyorsa (gelir/gider aynı isim -> birbirinin üzerine yazma) benzersiz ID üretilir.
+        let documentId: String
+        if let editing = categoryToEdit {
+            documentId = editing.firestoreId ?? editing.id
+        } else {
+            let derived = CategoryModel(type: selectedType, name: categoryName, icon: selectedIcon, color: "", subCategories: []).safeId
+            let collides = derived.isEmpty || categoryManager.categories.contains { $0.id == derived }
+            documentId = collides ? UUID().uuidString : derived
+        }
+        
         let newCategory = CategoryModel(
-            firestoreId: categoryToEdit?.firestoreId,
+            firestoreId: documentId,
             type: selectedType,
             name: categoryName,
             icon: selectedIcon,
             color: selectedColor.toHex(),
-            subCategories: categoryToEdit?.subCategories ?? []
+            subCategories: categoryToEdit?.subCategories ?? [],
+            isOn: categoryToEdit?.isOn ?? true  // Kapalı bir kategori düzenlenince yeniden açılmasın
         )
         
         Task {

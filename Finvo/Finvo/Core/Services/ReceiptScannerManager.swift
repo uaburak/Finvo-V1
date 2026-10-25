@@ -25,7 +25,11 @@ class ReceiptScannerManager {
         print("DEBUG: Receipt scanning process started.")
         
         var availableCategories: [CategoryModel] = []
-        if !walletId.isEmpty {
+        // Kategoriler zaten canlı dinleniyorsa bellekteki listeyi kullan (ekstra Firestore okuması yok)
+        let cached = await MainActor.run { CategoryManager.shared.cachedCategories(for: walletId) }
+        if let cached, !cached.isEmpty {
+            availableCategories = cached
+        } else if !walletId.isEmpty {
             do {
                 availableCategories = try await FirestoreService.shared.fetchCategories(walletId: walletId)
                 print("DEBUG: Fetched \(availableCategories.count) categories dynamically from Firestore for wallet \(walletId)")

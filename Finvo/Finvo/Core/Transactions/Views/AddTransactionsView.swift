@@ -47,6 +47,22 @@ struct AddTransactionsView: View {
     
     @State private var currentStep: TransactionStep
     @State private var selectedDetent: PresentationDetent
+    /// Sheet'in izin verilen yükseklikleri. Seçim yalnızca bu kümede zaten bulunan bir yüksekliğe
+    /// animasyonla geçebilir; küme değiştirilirse sheet animasyonsuz atlar. Bu yüzden yeni yükseklik önce
+    /// kümeye eklenir, seçim animasyonla değişir, eski yükseklik animasyon bitince kümeden çıkarılır.
+    @State private var sheetDetents: Set<PresentationDetent>
+    /// Üst üste gelen geçişlerde, devam eden animasyonun kaynak yüksekliğinin erken silinmemesi için sayaç
+    @State private var sheetAnimationGeneration = 0
+    /// Adım içeriğinin doğal yüksekliği ve navigation bar yüksekliği; sheet boyu bunlardan hesaplanır.
+    @State private var measuredContentHeight: CGFloat = 0
+    @State private var measuredTopInset: CGFloat = 0
+    
+    /// Sheet en fazla bu kadar uzar; içerik daha uzunsa kaydırılır.
+    private static let maxSheetHeight: CGFloat = 650
+    private static let minSheetHeight: CGFloat = 220
+    /// Hesaplanan yüksekliğe eklenen pay. Yüzen sheet altta kendi boşluğunu (~29pt) zaten bıraktığı için
+    /// küçük negatif değer, son kartın altında ~22pt görünür boşluk bırakır.
+    private static let sheetBottomMargin: CGFloat = -7
     
     init(transactionToEdit: TransactionModel? = nil) {
         self.transactionToEdit = transactionToEdit
@@ -60,8 +76,7 @@ struct AddTransactionsView: View {
             if edit.isDebt, let totalInt = edit.totalInstallments, totalInt > 0 {
                 displayAmount = edit.amount / Double(totalInt)
             }
-            let isInteger = floor(displayAmount) == displayAmount
-            _amount = State(initialValue: isInteger ? String(format: "%.0f", displayAmount) : "\(displayAmount)")
+            _amount = State(initialValue: AmountInput.string(from: displayAmount))
         } else {
             _amount = State(initialValue: "")
         }
@@ -102,9 +117,11 @@ struct AddTransactionsView: View {
         if transactionToEdit != nil {
             _currentStep = State(initialValue: .details)
             _selectedDetent = State(initialValue: .height(650))
+            _sheetDetents = State(initialValue: [.height(650)])
         } else {
             _currentStep = State(initialValue: .type)
             _selectedDetent = State(initialValue: .height(280))
+            _sheetDetents = State(initialValue: [.height(280)])
         }
     }
     
@@ -181,10 +198,22 @@ struct AddTransactionsView: View {
                             stepContent
                                 .padding(.top, 0)
                         }
+                        // İçeriğin gerçek yüksekliği (alttaki kaydırma boşluğu hariç)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                            measuredContentHeight = height
+                        }
                         .padding(.horizontal, 24)
                         .padding(.bottom, 100)
                     }
+                    .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { inset in
+                        measuredTopInset = inset
+                    }
                 } // Ends VStack
+                // Sheet boyu içeriğe göre: az seçenekte kısa, çok seçenekte en fazla maxSheetHeight
+                .onChange(of: fittedSheetHeight) { _, newHeight in
+                    guard let newHeight else { return }
+                    animateSheet(to: .height(newHeight))
+                }
 
                 .navigationTitle(LocalizedStringKey(currentStep.titleKey))
                 .navigationBarTitleDisplayMode(.inline)
@@ -219,7 +248,7 @@ struct AddTransactionsView: View {
                 ProSubscriptionPaywallView()
             }
             // Dinamik Sheet Yüksekliği (Animasyonla Geçiş)
-            .presentationDetents([.height(280), .height(650)], selection: $selectedDetent)
+            .presentationDetents(sheetDetents, selection: $selectedDetent)
             .presentationDragIndicator(.hidden)
             // Bütün steplerde hiçbir arka plan rengi yok (Tamamen Şeffaf)
             .presentationBackground(.clear) 
@@ -260,6 +289,35 @@ struct AddTransactionsView: View {
             } message: {
                 Text(ocrErrorMessage)
             }
+    }
+
+    /// Sheet'i yeni yüksekliğe eskisi gibi yay animasyonuyla büyütür/küçültür.
+    private func animateSheet(to target: PresentationDetent) {
+        guard target != selectedDetent else { return }
+        // 1) Hedef yüksekliği kümeye ekle (seçim değişmediği için sheet yerinde kalır)
+        sheetDetents.insert(target)
+        sheetAnimationGeneration += 1
+        let generation = sheetAnimationGeneration
+        // 2) Küme güncellendikten sonraki turda seçimi animasyonla değiştir
+        DispatchQueue.main.async {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                selectedDetent = target
+            }
+            // 3) Animasyon bitince kullanılmayan yükseklikleri temizle (sürükleyerek ara boya geçilemesin).
+            //    Bu arada yeni bir geçiş başladıysa temizliği ona bırak.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+                guard generation == sheetAnimationGeneration else { return }
+                sheetDetents = [selectedDetent]
+            }
+        }
+    }
+
+    /// İçeriğe göre sheet yüksekliği (nav bar + içerik + alt boşluk), üst sınır maxSheetHeight.
+    /// Henüz ölçüm yoksa nil döner ve mevcut yükseklik korunur.
+    private var fittedSheetHeight: CGFloat? {
+        guard measuredContentHeight > 0 else { return nil }
+        let total = measuredTopInset + measuredContentHeight + Self.sheetBottomMargin
+        return min(max(total, Self.minSheetHeight), Self.maxSheetHeight).rounded()
     }
 
     @ViewBuilder
@@ -587,8 +645,11 @@ struct AddTransactionsView: View {
         if amount.isEmpty || selectedMainCategory == nil { return false }
         if isDebt {
             if debtContact.isEmpty || installmentCount.isEmpty { return false }
+            // 0 taksit tutarı sıfırlıyor, ödenen > toplam ise borçtan fazla taksit kaydı oluşuyordu
+            guard let total = Int(installmentCount), total >= 1 else { return false }
+            if (Int(paidInstallments) ?? 0) > total { return false }
         }
-        return true
+        return AmountInput.parse(amount) > 0
     }
 
     private func validateForm() -> Bool {
@@ -605,17 +666,12 @@ struct AddTransactionsView: View {
         if next == .subcategory, (selectedMainCategory?.subCategories ?? []).filter({ $0.isOn }).isEmpty {
             guard let skip = TransactionStep(rawValue: next.rawValue + 1) else { return }
             currentStep = skip
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                selectedDetent = .height(650)
-            }
             return
         }
         
         // Normal adım geçişi
         currentStep = next
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-            selectedDetent = next == .type ? .height(280) : .height(650)
-        }
+        // Sheet yüksekliği yeni adımın içeriği ölçülünce fittedSheetHeight üzerinden animasyonla güncellenir
     }
     
     /// Geri navigasyon — nextStep() ile simetrik çalışır.
@@ -628,42 +684,16 @@ struct AddTransactionsView: View {
         if prev == .subcategory, (selectedMainCategory?.subCategories ?? []).filter({ $0.isOn }).isEmpty {
             guard let skip = TransactionStep(rawValue: prev.rawValue - 1) else { return }
             currentStep = skip
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                selectedDetent = skip == .type ? .height(280) : .height(650)
-            }
             return
         }
         
         // Normal geri geçiş
         currentStep = prev
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-            selectedDetent = prev == .type ? .height(280) : .height(650)
-        }
     }
     
     private func formatAmountText() -> String {
         if amount.isEmpty { return "0,00 \(selectedCurrency.symbol)" }
-        var parsedAmount: Double = 0.0
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        if let number = formatter.number(from: amount) {
-            parsedAmount = number.doubleValue
-        } else {
-            let normalized = amount.replacingOccurrences(of: ",", with: ".")
-            parsedAmount = Double(normalized) ?? 0.0
-        }
-        
-        let hasDecimal = amount.contains(",") || amount.contains(".")
-        if hasDecimal {
-            let parts = amount.replacingOccurrences(of: ",", with: ".").split(separator: ".", omittingEmptySubsequences: false)
-            let decPart = parts.count > 1 ? parts[1] : ""
-            let intVal = floor(parsedAmount)
-            let formattedInt = intVal.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))
-            return "\(formattedInt),\(decPart) \(selectedCurrency.symbol)"
-        } else {
-            let formatted = parsedAmount.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))
-            return "\(formatted) \(selectedCurrency.symbol)"
-        }
+        return "\(AmountInput.display(amount)) \(selectedCurrency.symbol)"
     }
 
     private func formRow(_ icon: String, _ title: LocalizedStringKey, _ value: String, action: @escaping () -> Void) -> some View {
@@ -701,26 +731,27 @@ struct AddTransactionsView: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
-        .alert(L10n("Yetki Hatası"), isPresented: $showPermissionErrorAlert) {
-            Button(L10n("Tamam"), role: .cancel) { }
-        } message: {
-            Text(L10n("Bu işlemi düzenleme yetkiniz bulunmamaktadır. Sadece kendi eklediğiniz işlemleri düzenleyebilirsiniz."))
-        }
+        // Not: Burada aynı bayrağa bağlı ikinci/üçüncü bir alert vardı; görüntüleyiciye yanlış
+        // mesaj gösteriyor ve sunum çakışmasına yol açıyordu. Tek alert gövdede tanımlı.
     }
     
     @ViewBuilder
     private var budgetWarningView: some View {
-        if let limit = walletManager.activeWallet?.monthlyLimit, selectedType == .expense {
+        if let rawLimit = walletManager.activeWallet?.monthlyLimit, selectedType == .expense {
+            // Limit kendi para biriminde saklanıyor; uygulama para birimine çevirmeden karşılaştırılıyordu
+            let limitCurrency = CurrencyType(rawValue: walletManager.activeWallet?.monthlyLimitCurrency ?? "") ?? .tryCurrency
+            let limit = ExchangeRateManager.shared.convert(amount: rawLimit, from: limitCurrency, to: appCurrency)
+            let editingId = transactionToEdit?.id
             let thisMonthTransactions = transactionManager.transactions.filter {
                 $0.type == .expense &&
                 !$0.isDebt &&
+                $0.id != editingId &&  // Düzenlenen işlem hem eski hem yeni tutarıyla iki kez sayılmasın
                 Calendar.current.isDate($0.date, equalTo: Date(), toGranularity: .month)
             }
             let thisMonthExpense = thisMonthTransactions.reduce(0) { $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: appCurrency) }
             
             // Fix #10: Locale-safe parse — virgül ve nokta normalleştiriliyor
-            let normalized = amount.replacingOccurrences(of: ".", with: "").replacingOccurrences(of: ",", with: ".")
-            let parsedAmount = Double(normalized) ?? 0.0
+            let parsedAmount = AmountInput.parse(amount)
             let amountInBase = ExchangeRateManager.shared.convert(amount: parsedAmount, from: selectedCurrency, to: appCurrency)
             
             if thisMonthExpense + amountInBase > limit {
@@ -781,8 +812,7 @@ struct AddTransactionsView: View {
                         // because saveTransaction() will multiply this by the installment count.
                         finalAmount = (amountVal / Double(count)).rounded()
                     }
-                    let isInteger = floor(finalAmount) == finalAmount
-                    self.amount = isInteger ? String(format: "%.0f", finalAmount) : "\(finalAmount)"
+                    self.amount = AmountInput.string(from: finalAmount)
                 }
                 
                 if let dateVal = result.date {
@@ -810,18 +840,12 @@ struct AddTransactionsView: View {
                     
                     // Instantly navigate to detail screen
                     self.currentStep = .details
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                        self.selectedDetent = .height(650)
-                    }
                 } else {
                     self.selectedMainCategory = nil
                     self.selectedSubCategory = nil
                     
                     // Category couldn't be matched. Let user select it directly (step 2)
                     self.currentStep = .category
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                        self.selectedDetent = .height(650)
-                    }
                 }
                 
                 // OCR scanned transactions are always expenses
@@ -875,12 +899,7 @@ struct AddTransactionsView: View {
         }
         
         // Fix #10: Locale-safe parse — önce NumberFormatter dene, sonra normalize et
-        var parsedAmount: Double = 0.0
-        let normalizedAmount = amount
-            .replacingOccurrences(of: " ", with: "")   // boşlukları temizle
-            .replacingOccurrences(of: ".", with: "")   // binlik ayıraçları çıkar
-            .replacingOccurrences(of: ",", with: ".")  // ondalık virgülü noktaya çevir
-        parsedAmount = Double(normalizedAmount) ?? 0.0
+        var parsedAmount = AmountInput.parse(amount)
         
         // Fix #3: Borç amount hesabı
         // Yeni işlem: kullanıcı taksit başı tutarı girer → toplam = taksit * sayı
@@ -923,7 +942,7 @@ struct AddTransactionsView: View {
             totalInstallments: isDebt ? Int(installmentCount) : nil,
             paidInstallments: isDebt ? (Int(paidInstallments) ?? 0) : nil,  // Bug #9 fix: nil yerine 0
             dueDay: isDebt ? dueDay : nil,
-            isPaid: false,
+            isPaid: transactionToEdit?.isPaid ?? false,  // Düzenleme ödenmiş borcu/taksiti "devam ediyor"a çevirmesin
             isRecurring: isRecurring,
             recurrenceInterval: isRecurring ? recurringFrequency : nil,
             recurrenceEndDate: (isRecurring && hasRecurrenceEndDate) ? recurrenceEndDate : nil
@@ -935,6 +954,8 @@ struct AddTransactionsView: View {
                     var updated = newTransaction
                     updated.id = id
                     try FirestoreService.shared.updateTransaction(updated)
+                    // merge:true nil alanları yazmadığı için silinen not/alt kategori/bitiş tarihi eski haliyle kalıyordu
+                    FirestoreService.shared.clearRemovedFields(of: updated, previous: editing)
                 } else {
                     let total = newTransaction.totalInstallments ?? 0
                     let paid = newTransaction.paidInstallments ?? 0
@@ -990,7 +1011,11 @@ struct AddTransactionsView: View {
                             try batch.setData(from: instTx, forDocument: instRef)
                         }
                         
-                        try await batch.commit()
+                        // Sunucu onayını beklemiyoruz: çevrimdışıyken ekran "Kaydediliyor..."da asılı kalıyordu.
+                        // Yazma yerel olarak hemen uygulanır ve bağlantı gelince gönderilir.
+                        batch.commit { error in
+                            if let error { print("Error saving debt batch: \(error)") }
+                        }
                     } else {
                         try FirestoreService.shared.createTransaction(newTransaction)
                     }

@@ -57,7 +57,20 @@ class AuthenticationManager: ObservableObject {
             self.isProfileLoading = true
         }
         
-        if let profile = try? await FirestoreService.shared.getUserProfile(uid: uid) {
+        let profile: UserModel?
+        do {
+            profile = try await FirestoreService.shared.getUserProfile(uid: uid)
+        } catch {
+            // Ağ hatası "profil yok" ile karıştırılmamalı: eskiden bağlantı koptuğunda
+            // mevcut kullanıcı profil tamamlama ekranına düşüyordu. Kısa bir süre sonra tekrar dene.
+            print("Error fetching user profile: \(error)")
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            guard self.user?.uid == uid else { return }
+            await checkUserProfile()
+            return
+        }
+
+        if let profile {
             await MainActor.run {
                 self.currentUserProfile = profile
                 self.isProfileComplete = !profile.username.isEmpty
@@ -95,8 +108,15 @@ class AuthenticationManager: ObservableObject {
     }
     
     func signOut() throws {
+        CategoryManager.shared.stopListening()
         try Auth.auth().signOut()
         GIDSignIn.sharedInstance.signOut()
+    }
+
+    /// Kullanıcının başlattığı çıkış: önce push token'ını profilden temizler, sonra oturumu kapatır.
+    func signOutUser() async throws {
+        await LocalNotificationManager.shared.removeFcmTokenBeforeSignOut()
+        try signOut()
     }
 
     // MARK: - Native Google Sign In
@@ -212,12 +232,16 @@ class AuthenticationManager: ObservableObject {
         }
         
         // Adım 2: Bildirimleri sil (kullanıcıya gönderilen veya kullanıcının gönderdiği)
-        let notifSnapshot = try await db.collection("notifications")
-            .whereField("recipientUsername", isEqualTo: username)
+        // Not: Alan adı "receiverUsername"; eskiden "recipientUsername" sorgulandığı için hiçbir bildirim silinmiyordu.
+        // Bildirim temizliği en iyi çaba ile yapılır; başarısız olsa bile hesap silme devam etmeli.
+        let receivedSnapshot = try? await db.collection("notifications")
+            .whereField("receiverUsername", isEqualTo: username)
             .getDocuments()
-        let notifBatch = db.batch()
-        for doc in notifSnapshot.documents { notifBatch.deleteDocument(doc.reference) }
-        try await notifBatch.commit()
+        let sentSnapshot = try? await db.collection("notifications")
+            .whereField("senderUsername", isEqualTo: username)
+            .getDocuments()
+        let notificationRefs = ((receivedSnapshot?.documents ?? []) + (sentSnapshot?.documents ?? [])).map(\.reference)
+        try? await FirestoreService.shared.deleteDocuments(notificationRefs)
         
         // Adım 3: Firestore kullanıcı profilini sil
         try await db.collection("users").document(uid).delete()
@@ -242,33 +266,7 @@ class AuthenticationManager: ObservableObject {
     
     /// Bir cüzdanı tüm alt koleksiyonlarıyla birlikte Firestore'dan siler.
     private func deleteWalletCompletely(walletId: String, db: Firestore) async throws {
-        // İşlemleri sil (batch, max 500 — büyük cüzdanlar için döngü)
-        try await deleteBatchedSubcollection(walletId: walletId, subcollection: "transactions", db: db)
-        
-        // Kategorileri sil
-        try await deleteBatchedSubcollection(walletId: walletId, subcollection: "categories", db: db)
-        
-        // Cüzdan dokümanını sil
-        try await db.collection("wallets").document(walletId).delete()
-    }
-    
-    private func deleteBatchedSubcollection(walletId: String, subcollection: String, db: Firestore) async throws {
-        var hasMore = true
-        while hasMore {
-            let snapshot = try await db
-                .collection("wallets").document(walletId)
-                .collection(subcollection)
-                .limit(to: 400) // Firestore batch limiti 500, güvenli pay bırakıyoruz
-                .getDocuments()
-            
-            guard !snapshot.documents.isEmpty else { break }
-            
-            let batch = db.batch()
-            for doc in snapshot.documents { batch.deleteDocument(doc.reference) }
-            try await batch.commit()
-            
-            hasMore = snapshot.documents.count == 400
-        }
+        try await FirestoreService.shared.deleteWallet(id: walletId)
     }
 }
 

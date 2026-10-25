@@ -188,9 +188,33 @@ struct NotificationSettingsView: View {
                     .padding()
                     .glassEffect(in: RoundedRectangle(cornerRadius: 24))
                     .padding(.horizontal)
+                    
+                    // Aylık Özet
+                    VStack(spacing: 16) {
+                        Toggle(isOn: $localNotificationManager.monthlySummaryEnabled) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "chart.bar.doc.horizontal.fill")
+                                    .font(.title3)
+                                    .foregroundStyle(theme.brandPrimary)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Aylık Özet")
+                                        .font(.headline)
+                                        .foregroundStyle(theme.labelPrimary)
+                                    Text("Her ayın 1'inde geçen ayın harcama özeti.")
+                                        .font(.caption)
+                                        .foregroundStyle(theme.labelSecondary)
+                                }
+                            }
+                        }
+                        .tint(theme.brandPrimary)
+                    }
+                    .padding()
+                    .glassEffect(in: RoundedRectangle(cornerRadius: 24))
+                    .padding(.horizontal)
                 }
                 
-                // MARK: - Test Bölümü
+                // MARK: - Test Bölümü (sadece debug derlemelerde)
+                #if DEBUG
                 VStack(alignment: .leading, spacing: 16) {
                     HStack(spacing: 12) {
                         Image(systemName: "paperplane.fill")
@@ -251,6 +275,7 @@ struct NotificationSettingsView: View {
                 .padding()
                 .glassEffect(in: RoundedRectangle(cornerRadius: 24))
                 .padding(.horizontal)
+                #endif
             }
             .padding(.vertical)
         }
@@ -272,6 +297,7 @@ struct NotificationSettingsView: View {
         .onChange(of: localNotificationManager.expenseNotificationDays) { _, _ in reschedule() }
         .onChange(of: localNotificationManager.incomeNotificationsEnabled) { _, _ in reschedule() }
         .onChange(of: localNotificationManager.incomeNotificationDays) { _, _ in reschedule() }
+        .onChange(of: localNotificationManager.monthlySummaryEnabled) { _, _ in reschedule() }
     }
     
     // Binding helper for custom Time Picker

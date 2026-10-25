@@ -4,173 +4,265 @@ struct ProSubscriptionPaywallView: View {
     @Environment(\.theme) var theme
     @Environment(\.openURL) var openURL
     @Environment(\.dismiss) var dismiss
-    @State private var isAnimating: Bool = false
-    
+    @ObservedObject private var authManager = AuthenticationManager.shared
+
+    private var isPro: Bool { authManager.currentUserProfile?.isPro == true }
+
+    // Ücretsiz plan sınırları uygulamadaki kontrollerle birebir aynı
+    // (CreateWalletSheet, InviteUserSheet, kategori ekranları, AnalysisView).
+    private struct PlanFeature: Identifiable {
+        let id = UUID()
+        let icon: String
+        let color: Color
+        let title: String
+        let free: String?   // nil = ücretsiz planda yok
+        let pro: String?    // nil = sadece onay işareti
+    }
+
+    private var planFeatures: [PlanFeature] {
+        [
+            PlanFeature(icon: "wallet.bifold.fill", color: .blue, title: "Cüzdan Sayısı", free: "2", pro: "Sınırsız"),
+            PlanFeature(icon: "person.2.fill", color: .purple, title: "Paylaşımlı Cüzdan", free: "1", pro: "Sınırsız"),
+            PlanFeature(icon: "person.3.fill", color: .orange, title: "Cüzdan Üyesi", free: "2", pro: "Sınırsız"),
+            PlanFeature(icon: "square.grid.2x2.fill", color: .teal, title: "Kategori Yönetimi", free: nil, pro: nil),
+            PlanFeature(icon: "calendar", color: .pink, title: "Özel Tarih Aralığı", free: nil, pro: nil),
+            PlanFeature(icon: "doc.richtext.fill", color: .indigo, title: "PDF ve CSV Dışa Aktarma", free: nil, pro: nil)
+        ]
+    }
+
     var body: some View {
         NavigationStack {
-            ZStack {
-                // MARK: - Animated Background
-                theme.background1.ignoresSafeArea()
-                
-                Circle()
-                    .fill(theme.brandPrimary.opacity(0.15))
-                    .frame(width: 300, height: 300)
-                    .blur(radius: 60)
-                    .offset(x: isAnimating ? 100 : -50, y: isAnimating ? -100 : -200)
-                
-                Circle()
-                    .fill(Color.orange.opacity(0.1))
-                    .frame(width: 250, height: 250)
-                    .blur(radius: 50)
-                    .offset(x: isAnimating ? -100 : 50, y: isAnimating ? 150 : 50)
-                
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 32) {
-                        
-                        // MARK: - Hero Icon
-                        ZStack {
-                            Circle()
-                                .fill(theme.brandPrimary.opacity(0.1))
-                                .frame(width: 100, height: 100)
-                            
-                            Image(systemName: "crown.fill")
-                                .font(.system(size: 40))
-                                .foregroundStyle(
-                                    LinearGradient(
-                                        colors: [theme.brandPrimary, Color.orange],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-                                .shadow(color: theme.brandPrimary.opacity(0.3), radius: 10, y: 5)
-                        }
-                        .padding(.top, 40)
-                        
-                        // MARK: - Title & Subtitle
-                        VStack(spacing: 12) {
-                            Text("Finvo Pro")
-                                .font(.title.weight(.black))
-                                .foregroundStyle(theme.labelPrimary)
-                            
-                            Text("Ailenizle Finansal Özgürlük")
-                                .font(.headline)
-                                .foregroundStyle(
-                                    LinearGradient(
-                                        colors: [theme.brandPrimary, theme.brandPrimary.opacity(0.7)],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                )
-                            
-                            Text("Finvo Pro'ya geçerek ailenizle paylaşımlı cüzdanlar oluşturun, bütçenizi beraber yönetin.")
-                                .font(.subheadline)
-                                .foregroundStyle(theme.labelSecondary)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal)
-                        }
-                        
-                        // MARK: - Features List
-                        VStack(spacing: 20) {
-                            featureRow(icon: "person.3.fill", title: "Sınırsız Aile Üyesi", subtitle: "Ailenizdeki herkesi ortak cüzdanlara davet edin.")
-                            featureRow(icon: "wallet.pass.fill", title: "Paylaşımlı Cüzdanlar", subtitle: "Ortak gelir ve giderlerinizi tek bir yerden takip edin.")
-                            featureRow(icon: "shield.lefthalf.filled", title: "Rol ve Yetki Yönetimi", subtitle: "Üyelere Görme, Ekleme veya Yönetici yetkileri atayın.")
-                            featureRow(icon: "chart.pie.fill", title: "Gelişmiş Analizler", subtitle: "Ailenizin toplam finansal durumunu detaylı şekilde görün.")
-                        }
-                        .padding()
-                        .background(
-                            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                                .fill(theme.background2.opacity(0.3))
-                                .background(.regularMaterial)
-                                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                                        .stroke(theme.separator, lineWidth: 1)
-                                )
-                        )
-                        .padding(.horizontal)
-                        
-                        // MARK: - CTA Button
-                        Button {
-                            // TODO: Replace with real RevenueCat paywall trigger or App Store ID
-                            if let url = URL(string: "https://apps.apple.com") {
-                                openURL(url)
-                            }
-                        } label: {
-                            HStack {
-                                Text("Aboneliği Başlat")
-                                    .font(.headline.weight(.bold))
-                                Image(systemName: "arrow.right.circle.fill")
-                            }
-                            .foregroundStyle(theme.onBrandPrimary)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 18)
-                            .background(
-                                LinearGradient(
-                                    colors: [theme.brandPrimary, theme.brandPrimary.opacity(0.8)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                            .shadow(color: theme.brandPrimary.opacity(0.3), radius: 15, y: 5)
-                        }
-                        .padding(.horizontal)
-                        .padding(.top, 10)
-                        
-                        // Subscription disclaimer
-                        Text("Aylık yenilenir. İstediğiniz zaman iptal edebilirsiniz.")
-                            .font(.caption2)
-                            .foregroundStyle(theme.labelSecondary.opacity(0.8))
-                            .padding(.bottom, 40)
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 24) {
+                    heroCard
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Ücretsiz ve Pro")
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(theme.labelPrimary)
+                            .padding(.horizontal)
+
+                        comparisonCard
+                    }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Neler Kazanırsınız?")
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(theme.labelPrimary)
+                            .padding(.horizontal)
+
+                        benefitsCard
                     }
                 }
+                .padding(.vertical)
             }
-            .navigationTitle("Aile")
+            .background(theme.background1.ignoresSafeArea())
+            // safeAreaBar: içerik altından kayarken iOS 26 yumuşak kenar efekti uygulanır
+            .safeAreaBar(edge: .bottom) {
+                bottomBar
+            }
+            .navigationTitle("Finvo Pro")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         dismiss()
                     } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.title3)
-                            .foregroundStyle(theme.labelSecondary)
+                        Image(systemName: "xmark")
+                            .fontWeight(.bold)
+                            .foregroundStyle(theme.labelPrimary)
                     }
                 }
             }
-            .onAppear {
-                withAnimation(.easeInOut(duration: 4).repeatForever(autoreverses: true)) {
-                    isAnimating = true
+        }
+        // fullScreenCover ana görünümün tint'ini devralmıyor; buton marka renginde olsun
+        .tint(theme.brandPrimary)
+    }
+
+    // MARK: - Hero
+    private var heroCard: some View {
+        VStack(spacing: 16) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(theme.brandPrimary)
+                    .frame(width: 72, height: 72)
+
+                Image(systemName: "crown.fill")
+                    .font(.system(size: 30, weight: .semibold))
+                    .foregroundStyle(theme.onBrandPrimary)
+            }
+
+            VStack(spacing: 8) {
+                Text("Finvo Pro")
+                    .font(.system(size: 30, weight: .black, design: .rounded))
+                    .foregroundStyle(theme.labelPrimary)
+
+                Text(isPro
+                     ? "Pro üyeliğiniz aktif. Tüm özellikler sizin için açık."
+                     : "Ailenizle paylaşımlı cüzdanlar oluşturun, bütçenizi sınırsız şekilde beraber yönetin.")
+                    .font(.subheadline)
+                    .foregroundStyle(theme.labelSecondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if isPro {
+                Label("Aktif", systemImage: "checkmark.seal.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(theme.brandPrimary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .glassEffect(in: Capsule())
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(24)
+        .glassEffect(in: .rect(cornerRadius: 24))
+        .padding(.horizontal)
+    }
+
+    // MARK: - Ücretsiz / Pro Karşılaştırma
+    private var comparisonCard: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Spacer()
+                Text("Ücretsiz")
+                    .frame(width: 64)
+                Text("Pro")
+                    .foregroundStyle(theme.brandPrimary)
+                    .frame(width: 64)
+            }
+            .font(.caption.weight(.bold))
+            .foregroundStyle(theme.labelSecondary)
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 4)
+
+            ForEach(Array(planFeatures.enumerated()), id: \.element.id) { index, feature in
+                HStack(spacing: 10) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(feature.color)
+                            .frame(width: 36, height: 36)
+                        Image(systemName: feature.icon)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.white)
+                    }
+
+                    Text(LocalizedStringKey(feature.title))
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(theme.labelPrimary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Spacer(minLength: 4)
+
+                    planValue(feature.free, included: false)
+                        .frame(width: 64)
+                    planValue(feature.pro, included: true)
+                        .frame(width: 64)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+
+                if index < planFeatures.count - 1 {
+                    Divider()
+                        .padding(.leading, 62)
+                        .padding(.trailing, 16)
                 }
             }
         }
+        .padding(.bottom, 8)
+        .glassEffect(in: .rect(cornerRadius: 24))
+        .padding(.horizontal)
     }
-    
+
     @ViewBuilder
-    private func featureRow(icon: String, title: String, subtitle: String) -> some View {
-        HStack(spacing: 16) {
-            ZStack {
-                Circle()
-                    .fill(theme.brandPrimary.opacity(0.1))
-                    .frame(width: 44, height: 44)
-                
-                Image(systemName: icon)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(theme.brandPrimary)
-            }
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(theme.labelPrimary)
-                
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(theme.labelSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer()
+    private func planValue(_ value: String?, included: Bool) -> some View {
+        if let value {
+            Text(LocalizedStringKey(value))
+                .font(.footnote.weight(included ? .bold : .regular))
+                .foregroundStyle(included ? theme.brandPrimary : theme.labelSecondary)
+                .lineLimit(1)
+        } else if included {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 18))
+                .foregroundStyle(theme.brandPrimary)
+        } else {
+            Image(systemName: "minus")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(theme.labelSecondary.opacity(0.6))
         }
+    }
+
+    // MARK: - Avantajlar
+    private var benefitsCard: some View {
+        VStack(spacing: 0) {
+            benefitRow(icon: "person.3.fill", color: .orange, title: "Sınırsız Aile Üyesi", subtitle: "Ailenizdeki herkesi ortak cüzdanlara davet edin.")
+            benefitDivider
+            benefitRow(icon: "shield.lefthalf.filled", color: .green, title: "Rol ve Yetki Yönetimi", subtitle: "Üyelere Görme, Ekleme veya Yönetici yetkileri atayın.")
+            benefitDivider
+            benefitRow(icon: "chart.pie.fill", color: .blue, title: "Gelişmiş Analizler", subtitle: "Ailenizin toplam finansal durumunu detaylı şekilde görün.")
+        }
+        .padding(.vertical, 6)
+        .glassEffect(in: .rect(cornerRadius: 24))
+        .padding(.horizontal)
+    }
+
+    private var benefitDivider: some View {
+        Divider()
+            .padding(.leading, 62)
+            .padding(.trailing, 16)
+    }
+
+    private func benefitRow(icon: String, color: Color, title: LocalizedStringKey, subtitle: LocalizedStringKey) -> some View {
+        ListItem(icon: icon, iconColor: color, title: title, subtitle: subtitle)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+    }
+
+    // MARK: - Alt Buton
+    private var bottomBar: some View {
+        VStack(spacing: 8) {
+            if isPro {
+                Button {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    dismiss()
+                } label: {
+                    Text("Tamam")
+                        .font(.headline)
+                        .foregroundStyle(theme.onBrandPrimary)
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                }
+                .buttonStyle(.glassProminent)
+                .clipShape(Capsule())
+            } else {
+                Button {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    // TODO: Gerçek satın alma akışı (StoreKit / RevenueCat) bağlanınca değiştirilecek
+                    if let url = URL(string: "https://apps.apple.com") {
+                        openURL(url)
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "crown.fill")
+                        Text("Aboneliği Başlat")
+                    }
+                    .font(.headline)
+                    .foregroundStyle(theme.onBrandPrimary)
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                }
+                .buttonStyle(.glassProminent)
+                .clipShape(Capsule())
+
+                Text("Aylık yenilenir. İstediğiniz zaman iptal edebilirsiniz.")
+                    .font(.caption2)
+                    .foregroundStyle(theme.labelSecondary)
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
     }
 }
 

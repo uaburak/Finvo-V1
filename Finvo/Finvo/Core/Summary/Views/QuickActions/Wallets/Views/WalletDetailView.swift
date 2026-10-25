@@ -93,7 +93,9 @@ struct WalletDetailView: View {
                                     Spacer()
                                     
                                     if memberId == currentUsername && activeWallet.ownerId != currentUsername {
-                                        if activeWallet.permissions[currentUsername] != WalletRole.member.rawValue {
+                                        // Yetki isteği sadece üye/görüntüleyici için anlamlı (admin zaten tam yetkili, bekleyen davetli henüz üye değil)
+                                        let myRole = activeWallet.permissions[currentUsername]
+                                        if myRole == WalletRole.member.rawValue || myRole == WalletRole.viewer.rawValue {
                                             Menu {
                                                 Button("Yetki İste") {
                                         if let walletId = activeWallet.id {
@@ -115,6 +117,13 @@ struct WalletDetailView: View {
                                     
                                     if activeWallet.ownerId == currentUsername && memberId != currentUsername {
                                         Menu {
+                                            if activeWallet.permissions[memberId] == WalletRole.pending.rawValue {
+                                                // Bekleyen davetliye rol atamak, kabul etmeden onu üye yapıyordu.
+                                                // Çıkarıldığında da eski davet bildirimi kalıp sonradan onaylanınca geri ekleniyordu.
+                                                Button("Daveti İptal Et", role: .destructive) {
+                                                    Task { await FirestoreService.shared.cancelInvitation(walletId: walletId, username: memberId) }
+                                                }
+                                            } else {
                                             Button("Admin") {
                                                 walletManager.addMember(to: walletId, memberId: memberId, role: .admin)
                                             }
@@ -127,6 +136,7 @@ struct WalletDetailView: View {
                                             Divider()
                                             Button("Üyeyi Çıkar", role: .destructive) {
                                                 walletManager.removeMember(from: walletId, memberId: memberId)
+                                            }
                                             }
                                         } label: {
                                             Image(systemName: "ellipsis")

@@ -48,6 +48,8 @@ struct CategoryDetailView: View {
                         ),
                         toggleTint: theme.brandPrimary
                     )
+                    // Kategori ayarlarını sadece kurucu/yönetici değiştirebilir
+                    .disabled(!walletManager.canManageActiveWallet)
                     .padding(.leading)
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         if categoryManager.checkPermission(authManager: authManager, walletManager: walletManager) {
@@ -115,6 +117,7 @@ struct CategoryDetailView: View {
                 Toggle("", isOn: $category.isOn)
                     .labelsHidden()
                     .tint(theme.brandPrimary)
+                    .disabled(!walletManager.canManageActiveWallet)
                     .onChange(of: category.isOn) {
                         saveChanges()
                     }
@@ -216,6 +219,7 @@ struct CategoryDetailView: View {
                     try await FirestoreService.shared.deleteTransactionsBySubCategory(
                         walletId: walletId,
                         mainCategoryId: category.id,
+                        mainCategoryName: category.name,
                         subCategoryId: subId,
                         subCategoryName: subName
                     )

@@ -143,15 +143,7 @@ struct AmountInputSheet: View {
     
     private func adjustAmount(by value: Double) {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-            var current: Double = 0
-            let formatter = NumberFormatter()
-            formatter.numberStyle = .decimal
-            if let number = formatter.number(from: amount) {
-                current = number.doubleValue
-            } else {
-                let normalized = amount.replacingOccurrences(of: ",", with: ".")
-                current = Double(normalized) ?? 0.0
-            }
+            var current = AmountInput.parse(amount)
             
             current += value
             if current < 0 { current = 0 }
@@ -159,8 +151,7 @@ struct AmountInputSheet: View {
             if current == 0 {
                 amount = ""
             } else {
-                let isInteger = floor(current) == current
-                amount = isInteger ? String(format: "%.0f", current) : "\(current)"
+                amount = AmountInput.string(from: current)
             }
         }
     }
@@ -168,48 +159,15 @@ struct AmountInputSheet: View {
     // Bindings ve yardımcı formatlama metodları (imleç ve animasyon uyumu için)
     private var formattedAmount: Binding<String> {
         Binding<String>(
-            get: {
-                formatAmountText(amount)
-            },
+            get: { AmountInput.display(amount) },
             set: { newValue in
-                var cleaned = newValue
-                    .replacingOccurrences(of: ".", with: "")
-                    .replacingOccurrences(of: " ", with: "")
-                
-                // Başındaki gereksiz sıfırı temizleme (örn: "05" -> "5")
-                if cleaned.hasPrefix("0") && cleaned.count > 1 && !cleaned.hasPrefix("0,") && !cleaned.hasPrefix("0.") {
-                    cleaned.removeFirst()
-                }
-                
-                let allowed = cleaned.filter { "0123456789,.".contains($0) }
-                amount = allowed
+                amount = AmountInput.raw(fromEdited: newValue, previousRaw: amount)
             }
         )
     }
     
     private func formatAmountText(_ value: String) -> String {
-        if value.isEmpty { return "0" }
-        var parsedAmount: Double = 0.0
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        if let number = formatter.number(from: value) {
-            parsedAmount = number.doubleValue
-        } else {
-            let normalized = value.replacingOccurrences(of: ",", with: ".")
-            parsedAmount = Double(normalized) ?? 0.0
-        }
-        
-        let hasDecimal = value.contains(",") || value.contains(".")
-        if hasDecimal {
-            let separator = value.contains(",") ? "," : "."
-            let parts = value.split(separator: separator.first!, omittingEmptySubsequences: false)
-            let decPart = parts.count > 1 ? parts[1] : ""
-            let intVal = floor(parsedAmount)
-            let formattedInt = intVal.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))
-            return "\(formattedInt),\(decPart)"
-        } else {
-            return parsedAmount.formatted(.number.grouping(.automatic).precision(.fractionLength(0)))
-        }
+        AmountInput.display(value)
     }
 
 }

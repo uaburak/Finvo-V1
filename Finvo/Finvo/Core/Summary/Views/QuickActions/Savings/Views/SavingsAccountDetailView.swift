@@ -9,9 +9,20 @@ struct SavingsAccountDetailView: View {
     
     @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
     
-    let account: SavingsAccountModel
+    private let initialAccount: SavingsAccountModel
+    
+    init(account: SavingsAccountModel) {
+        self.initialAccount = account
+    }
+    
+    /// Hesabın güncel hâli: eskiden ekrana açılıştaki kopya veriliyordu, para ekleyip çıkarınca
+    /// bakiye/varlıklar ve yeniden adlandırma ekrana yansımıyordu.
+    private var account: SavingsAccountModel {
+        walletManager.activeWallet?.savingsAccounts?.first(where: { $0.id == initialAccount.id }) ?? initialAccount
+    }
     
     @State private var showAmountSheet = false
+    @State private var showInsufficientAlert = false
     @State private var showEditSheet = false
     @State private var amountInput: String = ""
     @State private var selectedCurrency: CurrencyType = .tryCurrency
@@ -162,9 +173,11 @@ struct SavingsAccountDetailView: View {
             // Scrollable content (header + button + list)
             // Birikim işlemleri için sabit kategori isimleri — yeni dil eklenirse buraya ekle
             let savingsCategoryNames: Set<String> = ["Birikim İşlemleri", "Savings Transactions", "Sparkonten-Transaktionen"]
+            // Hesap ID'si ile eşleştir; ID'siz eski kayıtlar için isim eşleşmesi.
+            // (Sadece isimle eşleşince hesap yeniden adlandırılınca geçmiş kayboluyordu.)
             let accountTransactions = transactionManager.transactions.filter {
-                $0.subCategoryName == account.name &&
-                savingsCategoryNames.contains($0.mainCategoryName)
+                savingsCategoryNames.contains($0.mainCategoryName) &&
+                ($0.subCategoryId == account.id || ($0.subCategoryId == nil && $0.subCategoryName == account.name))
             }.sorted(by: { $0.date > $1.date })
             
             ScrollView(showsIndicators: false) {
@@ -172,7 +185,8 @@ struct SavingsAccountDetailView: View {
                     // Header kartın kapladığı alan kadar boşluk
                     Color.clear.frame(height: 220)
                     
-                    // İşlem Yap butonu (scroll ile birlikte kayar)
+                    // İşlem Yap butonu (scroll ile birlikte kayar) — görüntüleyiciler işlem yapamaz
+                    if walletManager.canWriteActiveWallet {
                     Button {
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                         showAmountSheet = true
@@ -190,6 +204,7 @@ struct SavingsAccountDetailView: View {
                     .padding(.horizontal, 16)
                     .padding(.top, 16)
                     .padding(.bottom, 8)
+                    }
                     
                     // İşlem listesi
                     if accountTransactions.isEmpty {
@@ -223,6 +238,7 @@ struct SavingsAccountDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
+                if walletManager.canManageActiveWallet {
                 Button(action: { showEditSheet = true }) {
                     Image(systemName: "pencil")
                         .foregroundColor(theme.labelPrimary)
@@ -232,6 +248,7 @@ struct SavingsAccountDetailView: View {
                     Image(systemName: "trash")
                         .foregroundColor(.red)
                         .font(.system(size: 16, weight: .semibold))
+                }
                 }
             }
         }
@@ -250,6 +267,11 @@ struct SavingsAccountDetailView: View {
                 isAdding = adding
                 handleTransaction(adding: adding)
             }
+        }
+        .alert(L10n("Yetersiz Bakiye"), isPresented: $showInsufficientAlert) {
+            Button(L10n("Tamam"), role: .cancel) { }
+        } message: {
+            Text(L10n("Bu hesapta çekmek istediğiniz kadar varlık bulunmuyor."))
         }
         .alert("Hesabı Sil", isPresented: $showDeleteConfirm) {
             Button(L10n("İptal"), role: .cancel) { }
@@ -301,8 +323,17 @@ struct SavingsAccountDetailView: View {
     private func handleTransaction(adding: Bool) {
         guard let wallet = walletManager.activeWallet,
               let currentUser = authManager.currentUserProfile?.username else { return }
-        let rawAmount = amountInput.replacingOccurrences(of: ",", with: ".")
-        guard let validAmount = Double(rawAmount), validAmount > 0 else { return }
+        let validAmount = AmountInput.parse(amountInput)
+        guard validAmount > 0 else { return }
+        
+        // Hesapta olmayan varlık çekilemez: eskiden varlık 0'a sabitlenip yine de gelir kaydı oluşuyordu
+        if !adding {
+            let held = account.assets?[selectedCurrency.rawValue] ?? 0
+            guard validAmount <= held + 0.000001 else {
+                showInsufficientAlert = true
+                return
+            }
+        }
         
         isProcessing = true
         let txType: TransactionType = adding ? .expense : .income
@@ -323,6 +354,7 @@ struct SavingsAccountDetailView: View {
             currency: selectedCurrency,
             mainCategoryName: "Birikim İşlemleri",
             subCategoryName: account.name,
+            subCategoryId: account.id,
             categoryIcon: "lanyardcard.fill",
             categoryColor: account.color,
             date: Date(),

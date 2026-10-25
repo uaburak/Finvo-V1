@@ -8,6 +8,8 @@ class FirestoreService: ObservableObject {
     private let db = Firestore.firestore()
     
     @Published var wallets: [WalletModel] = []
+    /// Sunucudan (önbellekten değil) en az bir cüzdan snapshot'ı alındı mı?
+    @Published var hasServerWalletSnapshot = false
     private var walletsListener: ListenerRegistration?
     
     private init() {}
@@ -25,10 +27,15 @@ class FirestoreService: ObservableObject {
             .whereField("members", arrayContains: identifier)
             .addSnapshotListener { [weak self] snapshot, error in
                 guard let self = self else { return }
-                guard let documents = snapshot?.documents else {
-                    self.wallets = []
+                // Geçici bir ağ/izin hatasında listeyi boşaltmıyoruz; aksi halde aktif cüzdan
+                // nil olup tüm dinleyiciler kapanıyor ve tekrar açılınca her şey baştan okunuyordu.
+                if let error = error {
+                    print("Error listening wallets: \(error)")
                     return
                 }
+                guard let snapshot else { return }
+                let documents = snapshot.documents
+                if !snapshot.metadata.isFromCache { self.hasServerWalletSnapshot = true }
                 
                 self.wallets = documents.compactMap { try? $0.data(as: WalletModel.self) }
                     .filter { $0.permissions[identifier] != WalletRole.pending.rawValue }
@@ -38,15 +45,67 @@ class FirestoreService: ObservableObject {
     func stopListeningWallets() {
         walletsListener?.remove()
         walletsListener = nil
+        hasServerWalletSnapshot = false
+        // Çıkış yapıldığında önceki kullanıcının cüzdanları bellekte kalmasın
+        // (yeni hesapla girişte kısa süreliğine eski cüzdanlar görünüyordu).
+        if !wallets.isEmpty { wallets = [] }
     }
     
+    /// Cüzdanda sadece değişen alanları yazar. Üyelik alanları (members/permissions/ownerId) bu yoldan
+    /// hiç yazılmaz; sadece addMember/removeMember ile değişir. Eskiden tüm model merge ile yazıldığı için
+    /// eski bir kopyadan yapılan limit/birikim güncellemesi, çıkarılmış bir üyeyi cüzdana geri ekliyordu.
     func updateWallet(_ wallet: WalletModel) async throws {
         guard let id = wallet.id else { return }
-        try db.collection("wallets").document(id).setData(from: wallet, merge: true)
+        var data = try Firestore.Encoder().encode(wallet)
+        for key in ["members", "permissions", "ownerId"] { data.removeValue(forKey: key) }
+        
+        // Canlı dinlenen son hâl ile karşılaştır, yalnızca farklı alanları gönder
+        if let latest = wallets.first(where: { $0.id == id }) {
+            let latestData = try Firestore.Encoder().encode(latest)
+            data = data.filter { key, value in
+                guard let old = latestData[key] as? NSObject else { return true }
+                return !old.isEqual(value)
+            }
+        }
+        guard !data.isEmpty else { return }
+        // Sunucu onayı beklenmez (çevrimdışıyken arayüz kilitlenmesin); yazma yerelde hemen uygulanır.
+        db.collection("wallets").document(id).updateData(data) { error in
+            if let error { print("Error updating wallet: \(error)") }
+        }
     }
     
+    /// Cüzdanı alt koleksiyonlarıyla birlikte siler. Firestore'da doküman silmek alt koleksiyonları
+    /// silmez; eskiden işlemler/kategoriler sahipsiz kalıp depolama kotasını boşuna dolduruyordu.
     func deleteWallet(id: String) async throws {
-        try await db.collection("wallets").document(id).delete()
+        let walletRef = db.collection("wallets").document(id)
+        for subcollection in Self.walletSubcollections {
+            try await deleteAllDocuments(in: walletRef.collection(subcollection))
+        }
+        try await walletRef.delete()
+    }
+
+    static let walletSubcollections = ["transactions", "categories", "shoppingList", "missions", "settlements"]
+
+    /// Bir koleksiyondaki tüm dokümanları 400'lük parçalar halinde siler (batch limiti 500).
+    func deleteAllDocuments(in collection: CollectionReference) async throws {
+        while true {
+            let snapshot = try await collection.limit(to: 400).getDocuments()
+            guard !snapshot.documents.isEmpty else { return }
+            try await deleteDocuments(snapshot.documents.map(\.reference))
+            if snapshot.documents.count < 400 { return }
+        }
+    }
+
+    /// Referansları 400'lük batch'ler halinde siler. Tek bir batch 500 işlemden fazlasını kabul etmez.
+    func deleteDocuments(_ references: [DocumentReference]) async throws {
+        var start = 0
+        while start < references.count {
+            let end = min(start + 400, references.count)
+            let batch = db.batch()
+            for ref in references[start..<end] { batch.deleteDocument(ref) }
+            try await batch.commit()
+            start = end
+        }
     }
     
     // MARK: - Member Operations
@@ -62,6 +121,26 @@ class FirestoreService: ObservableObject {
             "members": FieldValue.arrayRemove([userId]),
             "permissions.\(userId)": FieldValue.delete()
         ])
+    }
+    
+    /// Kullanıcı cüzdanda hâlâ "davet bekleniyor" durumunda mı? (Okuma başarısızsa daveti engellemeyiz.)
+    func isPendingMember(walletId: String, username: String) async -> Bool {
+        guard let doc = try? await db.collection("wallets").document(walletId).getDocument() else { return true }
+        guard doc.exists, let permissions = doc.data()?["permissions"] as? [String: String] else { return false }
+        return permissions[username] == WalletRole.pending.rawValue
+    }
+    
+    /// Bekleyen daveti geri çeker: kullanıcıyı cüzdandan çıkarır ve bekleyen davet bildirimini siler.
+    func cancelInvitation(walletId: String, username: String) async {
+        try? await removeMember(walletId: walletId, userId: username)
+        guard let snapshot = try? await db.collection("notifications")
+            .whereField("receiverUsername", isEqualTo: username)
+            .whereField("status", isEqualTo: NotificationStatus.pending.rawValue)
+            .getDocuments() else { return }
+        let refs = snapshot.documents
+            .filter { ($0.data()["walletId"] as? String) == walletId && ($0.data()["type"] as? String) == NotificationType.invitation.rawValue }
+            .map(\.reference)
+        try? await deleteDocuments(refs)
     }
     
     // MARK: - User Profile Operations
@@ -85,13 +164,21 @@ class FirestoreService: ObservableObject {
         return try? doc.data(as: UserModel.self)
     }
     
+    /// Kullanıcı adına göre profil. Sonuçlar 10 dakika bellekte tutulur ve aynı anda gelen istekler
+    /// tek sorguda birleştirilir: avatar/üye listeleri her satır ve her ekran açılışında ayrı ayrı
+    /// Firestore okuması yapıyordu.
     func getUserProfileByUsername(_ username: String) async throws -> UserModel? {
-        let snapshot = try await db.collection("users")
-            .whereField("username", isEqualTo: username.lowercased())
-            .limit(to: 1)
-            .getDocuments()
-        return try? snapshot.documents.first?.data(as: UserModel.self)
+        let key = username.lowercased()
+        return try await profileCache.profile(for: key) { [db] in
+            let snapshot = try await db.collection("users")
+                .whereField("username", isEqualTo: key)
+                .limit(to: 1)
+                .getDocuments()
+            return try? snapshot.documents.first?.data(as: UserModel.self)
+        }
     }
+    
+    private let profileCache = UserProfileCache()
     
     func getUserProfileByEmail(_ email: String) async throws -> UserModel? {
         let snapshot = try await db.collection("users")
@@ -136,6 +223,24 @@ class FirestoreService: ObservableObject {
         try db.collection("wallets").document(transaction.walletId).collection("transactions").document(id).setData(from: transaction, merge: true)
     }
     
+    /// Düzenlemede kaldırılan opsiyonel alanları Firestore'dan siler (setData merge nil alanları atlar).
+    func clearRemovedFields(of updated: TransactionModel, previous: TransactionModel) {
+        guard let id = updated.id else { return }
+        var deletes: [String: Any] = [:]
+        if updated.note == nil && previous.note != nil { deletes["note"] = FieldValue.delete() }
+        if updated.subCategoryName == nil && previous.subCategoryName != nil { deletes["subCategoryName"] = FieldValue.delete() }
+        if updated.subCategoryId == nil && previous.subCategoryId != nil { deletes["subCategoryId"] = FieldValue.delete() }
+        if updated.mainCategoryId == nil && previous.mainCategoryId != nil { deletes["mainCategoryId"] = FieldValue.delete() }
+        if updated.recurrenceEndDate == nil && previous.recurrenceEndDate != nil { deletes["recurrenceEndDate"] = FieldValue.delete() }
+        if updated.recurrenceInterval == nil && previous.recurrenceInterval != nil { deletes["recurrenceInterval"] = FieldValue.delete() }
+        if updated.categoryColor == nil && previous.categoryColor != nil { deletes["categoryColor"] = FieldValue.delete() }
+        if !updated.isDebt && previous.isDebt {
+            for key in ["debtContact", "totalInstallments", "paidInstallments", "dueDay"] { deletes[key] = FieldValue.delete() }
+        }
+        guard !deletes.isEmpty else { return }
+        db.collection("wallets").document(updated.walletId).collection("transactions").document(id).updateData(deletes)
+    }
+    
     func deleteTransaction(walletId: String, transactionId: String) {
         db.collection("wallets").document(walletId).collection("transactions").document(transactionId).delete()
     }
@@ -144,29 +249,24 @@ class FirestoreService: ObservableObject {
         let transactions = db.collection("wallets").document(walletId).collection("transactions")
         
         // Hem ID hem de isim ile kontrol et (Geriye dönük uyumluluk için)
-        // Önce ID ile olanları bul
         let snapshotById = try await transactions.whereField("mainCategoryId", isEqualTo: categoryId).getDocuments()
-        
-        // Sonra İsim ile olanları bul (ID'si olmayan eski kayıtlar için)
         let snapshotByName = try await transactions.whereField("mainCategoryName", isEqualTo: categoryName).getDocuments()
         
-        let batch = db.batch()
-        
-        for doc in snapshotById.documents {
-            batch.deleteDocument(doc.reference)
-        }
-        
+        var refs: [String: DocumentReference] = [:]
+        for doc in snapshotById.documents { refs[doc.documentID] = doc.reference }
         for doc in snapshotByName.documents {
-            // Zaten eklenmişse tekrar ekleme (Opsiyonel ama temizlik için)
-            if !snapshotById.documents.contains(where: { $0.documentID == doc.documentID }) {
-                batch.deleteDocument(doc.reference)
+            // İsim eşleşmesi sadece ID'si olmayan (eski) kayıtlar ya da aynı ID'li kayıtlar için geçerli;
+            // aynı isimli ama farklı ID'li başka bir kategorinin işlemleri silinmemeli.
+            let docCategoryId = doc.data()["mainCategoryId"] as? String
+            if docCategoryId == nil || docCategoryId == categoryId {
+                refs[doc.documentID] = doc.reference
             }
         }
         
-        try await batch.commit()
+        try await deleteDocuments(Array(refs.values))
     }
     
-    func deleteTransactionsBySubCategory(walletId: String, mainCategoryId: String, subCategoryId: String, subCategoryName: String) async throws {
+    func deleteTransactionsBySubCategory(walletId: String, mainCategoryId: String, mainCategoryName: String? = nil, subCategoryId: String, subCategoryName: String) async throws {
         let transactions = db.collection("wallets").document(walletId).collection("transactions")
         
         // ID ile bul
@@ -176,19 +276,26 @@ class FirestoreService: ObservableObject {
             .getDocuments()
         
         // İsim ile bul (ID'si olmayan eski kayıtlar için)
-        // Not: subCategoryName tek başına güvenli olmayabilir, mainCategoryName ile birleştirmek daha iyi
         let snapshotByName = try await transactions
             .whereField("subCategoryName", isEqualTo: subCategoryName)
             .getDocuments()
         
-        let batch = db.batch()
-        for doc in snapshotById.documents { batch.deleteDocument(doc.reference) }
+        var refs: [String: DocumentReference] = [:]
+        for doc in snapshotById.documents { refs[doc.documentID] = doc.reference }
         for doc in snapshotByName.documents {
-            // Sadece doğru ana kategoriye ait olanları sil (Eski kayıtlar için isim bazlı kontrol)
-            // Bu kısım biraz riskli olsa da kullanıcının isteği yönünde cascade delete sağlar.
-            batch.deleteDocument(doc.reference)
+            // Eskiden aynı isimli alt kategoriye sahip TÜM ana kategorilerin işlemleri siliniyordu
+            // (ör. "Diğer"). Sadece bu ana kategoriye ait olanları sil.
+            let data = doc.data()
+            let docMainId = data["mainCategoryId"] as? String
+            let docMainName = data["mainCategoryName"] as? String
+            let docSubId = data["subCategoryId"] as? String
+            let belongsToMain = docMainId == mainCategoryId || (docMainId == nil && mainCategoryName != nil && docMainName == mainCategoryName)
+            let subMatches = docSubId == nil || docSubId == subCategoryId
+            if belongsToMain && subMatches {
+                refs[doc.documentID] = doc.reference
+            }
         }
-        try await batch.commit()
+        try await deleteDocuments(Array(refs.values))
     }
     
     // MARK: - Category Operations
@@ -197,13 +304,20 @@ class FirestoreService: ObservableObject {
         return snapshot.documents.compactMap { try? $0.data(as: CategoryModel.self) }
     }
     
+    func hasAnyCategory(walletId: String) async throws -> Bool {
+        let snapshot = try await db.collection("wallets").document(walletId).collection("categories").limit(to: 1).getDocuments()
+        return !snapshot.isEmpty
+    }
+    
     func saveCategory(walletId: String, category: CategoryModel) async throws {
         let docRef: DocumentReference
-        if let fid = category.firestoreId {
+        if let fid = category.firestoreId, !fid.isEmpty {
             docRef = db.collection("wallets").document(walletId).collection("categories").document(fid)
         } else {
-            // Eğer ID henüz yoksa (mock data), deterministik safeId kullan
-            docRef = db.collection("wallets").document(walletId).collection("categories").document(category.safeId)
+            // Eğer ID henüz yoksa (mock data), deterministik safeId kullan; boşsa (sadece emoji vb.) otomatik ID
+            let safeId = category.safeId
+            let categories = db.collection("wallets").document(walletId).collection("categories")
+            docRef = safeId.isEmpty ? categories.document() : categories.document(safeId)
         }
         try docRef.setData(from: category, merge: true)
     }
@@ -213,12 +327,7 @@ class FirestoreService: ObservableObject {
     }
     
     func deleteAllCategories(walletId: String) async throws {
-        let snapshot = try await db.collection("wallets").document(walletId).collection("categories").getDocuments()
-        let batch = db.batch()
-        for doc in snapshot.documents {
-            batch.deleteDocument(doc.reference)
-        }
-        try await batch.commit()
+        try await deleteAllDocuments(in: db.collection("wallets").document(walletId).collection("categories"))
     }
     
     func initializeDefaultCategories(walletId: String, categories: [CategoryModel]) async throws {
@@ -229,5 +338,32 @@ class FirestoreService: ObservableObject {
             try batch.setData(from: category, forDocument: docRef)
         }
         try await batch.commit()
+    }
+}
+
+
+// MARK: - Profil Önbelleği
+actor UserProfileCache {
+    private struct Entry {
+        let profile: UserModel?
+        let fetchedAt: Date
+    }
+    private let ttl: TimeInterval = 600
+    private var entries: [String: Entry] = [:]
+    private var inFlight: [String: Task<UserModel?, Error>] = [:]
+
+    func profile(for key: String, fetch: @escaping @Sendable () async throws -> UserModel?) async throws -> UserModel? {
+        if let entry = entries[key], Date().timeIntervalSince(entry.fetchedAt) < ttl {
+            return entry.profile
+        }
+        if let task = inFlight[key] {
+            return try await task.value
+        }
+        let task = Task { try await fetch() }
+        inFlight[key] = task
+        defer { inFlight[key] = nil }
+        let profile = try await task.value
+        entries[key] = Entry(profile: profile, fetchedAt: Date())
+        return profile
     }
 }
