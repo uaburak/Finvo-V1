@@ -116,8 +116,39 @@ struct MetricCardView: View {
 
 struct PaymentCalendarDetailView: View {
     @Environment(\.theme) var theme
-    let upcomingPayments: [TransactionModel]
+    @EnvironmentObject var transactionManager: TransactionManager
+    @EnvironmentObject var authManager: AuthenticationManager
+    /// Açılış anındaki liste; ekranda canlı veri kullanılır ki taksit ödenince takvim hemen güncellensin
+    let initialPayments: [TransactionModel]
     @AppStorage("appCurrency") private var appCurrency: CurrencyType = .tryCurrency
+    @State private var installmentToPay: TransactionModel?
+
+    init(upcomingPayments: [TransactionModel]) {
+        self.initialPayments = upcomingPayments
+    }
+
+    private var upcomingPayments: [TransactionModel] {
+        guard transactionManager.hasLoaded else { return initialPayments }
+        return transactionManager.transactions
+            .filter { $0.isDebt || $0.isRecurring }
+            .flatMap { $0.allPaymentOccurrences() }
+            .sorted { $0.date < $1.date }
+    }
+
+    /// Sanal taksit kaydının ait olduğu gerçek borç (ödenecek sıradaki taksitse)
+    private func payableDebt(for occurrence: TransactionModel) -> TransactionModel? {
+        guard occurrence.isDebt, !occurrence.isPaid,
+              let occurrenceId = occurrence.id, occurrenceId.contains("_installment_") else { return nil }
+        let debtId = occurrenceId.components(separatedBy: "_installment_").first
+        guard let debt = transactionManager.transactions.first(where: { $0.id == debtId }),
+              let total = debt.totalInstallments, let paid = debt.paidInstallments, paid < total,
+              occurrence.installmentNumber == paid + 1 else { return nil }
+        let username = authManager.currentUserProfile?.username ?? ""
+        if let wallet = FirestoreService.shared.wallets.first(where: { $0.id == debt.walletId }), !wallet.canWrite(username) {
+            return nil
+        }
+        return debt
+    }
     
     @State private var selectedDate = Date().startOfDay
     @State private var scrollID: Date? = Date().startOfDay
@@ -240,6 +271,22 @@ struct PaymentCalendarDetailView: View {
                     }
                 }
             }
+            .alert(L10n("Taksiti Öde"), isPresented: Binding(
+                get: { installmentToPay != nil },
+                set: { if !$0 { installmentToPay = nil } }
+            )) {
+                Button(L10n("Vazgeç"), role: .cancel) { }
+                Button(L10n("Öde")) {
+                    if let occurrence = installmentToPay { payInstallment(occurrence) }
+                }
+            } message: {
+                if let occurrence = installmentToPay {
+                    Text(String(format: L10n("%@ için %d. taksit (%@) ödendi olarak kaydedilecek."),
+                                occurrence.resolvedSubCategoryName ?? occurrence.mainCategoryName,
+                                occurrence.installmentNumber ?? 1,
+                                "\(occurrence.currency?.symbol ?? appCurrency.symbol)\(occurrence.amount.formatted(.number.precision(.fractionLength(0))))"))
+                }
+            }
         }
     }
     
@@ -319,6 +366,39 @@ struct PaymentCalendarDetailView: View {
         }
         .listRowBackground(Color.clear)
         .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 12))
+        // Sıradaki borç taksiti takvimden doğrudan ödenebilir
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            if payableDebt(for: tx) != nil {
+                Button {
+                    installmentToPay = tx
+                } label: {
+                    Label(L10n("Öde"), systemImage: "checkmark.circle.fill")
+                }
+                .tint(theme.income)
+            }
+        }
+        .contextMenu {
+            if payableDebt(for: tx) != nil {
+                Button {
+                    installmentToPay = tx
+                } label: {
+                    Label(L10n("Taksiti Öde"), systemImage: "checkmark.circle")
+                }
+            }
+        }
+    }
+
+    private func payInstallment(_ occurrence: TransactionModel) {
+        guard let debt = payableDebt(for: occurrence) else { return }
+        let username = authManager.currentUserProfile?.username ?? "unknown"
+        Task {
+            do {
+                try await transactionManager.payDebtInstallment(for: debt, currentUsername: username)
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+            } catch {
+                print("Installment payment failed: \(error)")
+            }
+        }
     }
 
     private func syncToDate(_ date: Date, proxy: ScrollViewProxy) {
