@@ -258,8 +258,29 @@ class TransactionManager: ObservableObject {
         let db = Firestore.firestore()
         var batch = db.batch()
         var batchCount = 0
-        var hasChanges = false
-        
+        // Bu batch ile yazılmayı bekleyen imzalar. Commit başarısız olursa geri alınmalı,
+        // aksi halde kopyalar "üretildi" sayılıp bu oturumda bir daha hiç oluşturulmaz.
+        var pendingSignatures: [String] = []
+
+        /// Batch'i commit eder ve sonucundan bağımsız olarak yeni bir batch'e geçer.
+        /// (Eskiden hata durumunda batch sıfırlanmadığı için aynı başarısız batch büyüyerek
+        /// tekrar tekrar commit edilmeye çalışılıyor ve 500 limitine takılıyordu.)
+        func commitBatch() async {
+            guard batchCount > 0 else { return }
+            do {
+                try await batch.commit()
+            } catch {
+                print("Error committing recurring batch: \(error)")
+                for signature in pendingSignatures {
+                    generatedSignatures.remove(signature)
+                    existingSignatures.remove(signature)
+                }
+            }
+            batch = db.batch()
+            batchCount = 0
+            pendingSignatures.removeAll()
+        }
+
         for tx in originals {
             guard !Task.isCancelled else { break }
             guard let txId = tx.id else { continue }
@@ -309,9 +330,9 @@ class TransactionManager: ObservableObject {
                         try batch.setData(from: copy, forDocument: docRef)
                         generatedSignatures.insert(signature)
                         existingSignatures.insert(signature)
+                        pendingSignatures.append(signature)
                         newLastGeneratedDate = nextCopyDate
                         batchCount += 1
-                        hasChanges = true
                     } catch {
                         print("Error adding copy to batch: \(error)")
                     }
@@ -319,18 +340,12 @@ class TransactionManager: ObservableObject {
                     // Zaten var (veritabanında veya bellekte), ilerleme kaydedilsin
                     newLastGeneratedDate = nextCopyDate
                 }
-                
+
                 // Eğer batch limiti dolmaya yakınsa commit et ve yeni batch oluştur (Firestore limiti 500'dür)
                 if batchCount >= 450 {
-                    do {
-                        try await batch.commit()
-                        batch = db.batch()
-                        batchCount = 0
-                    } catch {
-                        print("Error committing intermediate batch: \(error)")
-                    }
+                    await commitBatch()
                 }
-                
+
                 guard let next = calendar.date(byAdding: component, value: value, to: nextCopyDate) else { break }
                 nextCopyDate = next
             }
@@ -343,30 +358,17 @@ class TransactionManager: ObservableObject {
                 do {
                     try batch.setData(from: updatedOriginal, forDocument: originalRef, merge: true)
                     batchCount += 1
-                    hasChanges = true
                 } catch {
                     print("Error adding original update to batch: \(error)")
                 }
-                
+
                 if batchCount >= 450 {
-                    do {
-                        try await batch.commit()
-                        batch = db.batch()
-                        batchCount = 0
-                    } catch {
-                        print("Error committing intermediate batch: \(error)")
-                    }
+                    await commitBatch()
                 }
             }
         }
-        
-        if hasChanges && batchCount > 0 {
-            do {
-                try await batch.commit()
-            } catch {
-                print("Error committing final batch: \(error)")
-            }
-        }
+
+        await commitBatch()
     }
     
     // MARK: - Borç Ödeme Operasyonu

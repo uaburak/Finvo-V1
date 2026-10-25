@@ -46,7 +46,6 @@ struct SummaryView: View {
                 // Hızlı butonların ekran kenarına kadar kayabilmesi için VStack'deki yatay paddingi kaldırıyoruz.
             }
             .safeAreaPadding(.bottom, 120)
-            .scrollEdgeEffectStyle(.soft, for: .all)
             .scrollBounceBehavior(.always, axes: .vertical)
             .refreshable {
                 if let walletId = walletManager.activeWallet?.id {

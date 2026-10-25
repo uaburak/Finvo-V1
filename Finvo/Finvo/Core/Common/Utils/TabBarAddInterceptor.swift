@@ -30,6 +30,10 @@ struct TabBarAddInterceptor: UIViewRepresentable {
         context.coordinator.onAddTapped = {
             showAddSheet = true
         }
+        // SwiftUI, TabView'ı her yeniden kurduğunda UITabBarController.delegate'ini
+        // kendi delegate'i ile geri alabiliyor. Her güncellemede kurulumu tazeleyerek
+        // delegate elimizden alındıysa yeniden bağlanıyoruz.
+        context.coordinator.install(from: uiView)
     }
 }
 
@@ -51,7 +55,7 @@ extension TabBarAddInterceptor {
             guard window != nil else { return }
             // SwiftUI kendi delegate kurulumunu bitirsin diye bir tik bekle
             DispatchQueue.main.async { [weak self] in
-                self?.coordinator.install(from: self)
+                self?.coordinator.install(from: self, retryIfNotFound: true)
             }
         }
     }
@@ -64,23 +68,32 @@ extension TabBarAddInterceptor {
         var onAddTapped: (() -> Void)?
 
         private weak var originalDelegate: UITabBarControllerDelegate?
-        private weak var managedTBC: UITabBarController?
 
         init(addTabIndex: Int) {
             self.addTabIndex = addTabIndex
         }
 
         // MARK: Install
-        func install(from view: UIView?) {
-            guard let tbc = findTabBarController(from: view) else { return }
-            guard managedTBC !== tbc else { return } // zaten kurulu
+        /// - Parameter retryIfNotFound: UITabBarController henüz hiyerarşide yoksa
+        ///   kısa aralıklarla tekrar dener. (İlk kurulumda SwiftUI tab bar'ı geç kurabiliyor.)
+        func install(from view: UIView?, retryIfNotFound: Bool = false, attempt: Int = 0) {
+            guard let tbc = findTabBarController(from: view) else {
+                guard retryIfNotFound, attempt < 10 else { return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self, weak view] in
+                    self?.install(from: view, retryIfNotFound: true, attempt: attempt + 1)
+                }
+                return
+            }
+
+            // Kurulu olup olmadığımızı TBC kimliğinden değil, delegate'in gerçekten biz olup
+            // olmadığından anlıyoruz: SwiftUI delegate'i geri aldığında yeniden bağlanmalıyız.
+            guard tbc.delegate !== self else { return }
 
             // SwiftUI'nin mevcut delegate'ini sakla → forwarding için
             if !(tbc.delegate is Coordinator) {
                 originalDelegate = tbc.delegate
             }
             tbc.delegate = self
-            managedTBC = tbc
         }
 
         // MARK: - UITabBarControllerDelegate

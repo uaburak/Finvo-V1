@@ -111,6 +111,15 @@ struct ContentView: View {
         .onChange(of: showAddSheet) { _, newValue in
             if !newValue { hapticLight.impactOccurred() }
         }
+        // Güvenlik ağı: UIKit interceptor herhangi bir sebeple devreye giremezse
+        // (delegate SwiftUI tarafından geri alınırsa) Add sekmesi gerçekten seçilir ve
+        // boş bir ekran görünürdü. Bu durumda sekmeyi geri alıp modalı yine de açıyoruz.
+        .onChange(of: selectedTab) { oldValue, newValue in
+            guard newValue == .add else { return }
+            selectedTab = oldValue == .add ? .home : oldValue
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            showAddSheet = true
+        }
         .sheet(isPresented: $showAddSheet) {
             AddTransactionsView()
                 .environmentObject(walletManager)

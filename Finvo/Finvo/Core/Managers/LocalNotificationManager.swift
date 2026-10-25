@@ -22,27 +22,43 @@ class LocalNotificationManager: NSObject, ObservableObject, UNUserNotificationCe
     @AppStorage("expenseNotificationsEnabled") var expenseNotificationsEnabled: Bool = true
     @AppStorage("incomeNotificationsEnabled") var incomeNotificationsEnabled: Bool = true
     
+    /// Oturumu açık olan kullanıcının uid'si. Çıkış yapıldığında token'ı doğru dokümandan silebilmek için tutulur.
+    private var lastKnownUid: String?
+
     private override init() {
         super.init()
         checkAuthorizationStatus()
         setupAuthListener()
     }
-    
+
     private func setupAuthListener() {
         Auth.auth().addStateDidChangeListener { [weak self] _, user in
-            guard let self = self, user != nil else { return }
+            guard let self = self else { return }
             Task { @MainActor in
-                if let currentToken = Messaging.messaging().fcmToken {
-                    self.updateFcmTokenInFirestore(token: currentToken)
+                if let uid = user?.uid {
+                    self.lastKnownUid = uid
+                    if let currentToken = Messaging.messaging().fcmToken {
+                        self.updateFcmTokenInFirestore(token: currentToken)
+                    }
+                } else if let previousUid = self.lastKnownUid {
+                    // Çıkış yapıldı: cihazın token'ı eski kullanıcının dokümanında kalırsa
+                    // bu cihaza artık ona ait olmayan push bildirimleri düşmeye devam eder.
+                    self.lastKnownUid = nil
+                    self.removeFcmTokenFromFirestore(uid: previousUid)
                 }
             }
         }
     }
-    
+
     func checkAuthorizationStatus() {
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             Task { @MainActor in
-                self.isAuthorized = (settings.authorizationStatus == .authorized)
+                switch settings.authorizationStatus {
+                case .authorized, .provisional, .ephemeral:
+                    self.isAuthorized = true
+                default:
+                    self.isAuthorized = false
+                }
             }
         }
     }
@@ -78,18 +94,33 @@ class LocalNotificationManager: NSObject, ObservableObject, UNUserNotificationCe
     
     func updateFcmTokenInFirestore(token: String) {
         guard let uid = Auth.auth().currentUser?.uid else { return }
+        lastKnownUid = uid
         Firestore.firestore().collection("users").document(uid).setData(["fcmToken": token], merge: true)
     }
+
+    private func removeFcmTokenFromFirestore(uid: String) {
+        Firestore.firestore().collection("users").document(uid)
+            .updateData(["fcmToken": FieldValue.delete()]) { error in
+                if let error = error {
+                    print("Error removing fcmToken on sign out: \(error)")
+                }
+            }
+    }
     
+    /// iOS uygulama başına en fazla 64 bekleyen yerel bildirim tutar; fazlası sessizce yok sayılır.
+    /// Bu yüzden adayları tetiklenme tarihine göre sıralayıp en yakın olanları planlıyoruz.
+    private static let pendingNotificationLimit = 64
+
     func scheduleNotifications(for transactions: [TransactionModel]) {
         // Clear existing notifications
         UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
-        
+
         guard localNotificationsEnabled && isAuthorized else { return }
-        
+
         let calendar = Calendar.current
         let today = Date()
-        
+        var candidates: [(triggerDate: Date, request: UNNotificationRequest)] = []
+
         for tx in transactions {
             guard let txId = tx.id else { continue }
             
@@ -130,15 +161,11 @@ class LocalNotificationManager: NSObject, ObservableObject, UNUserNotificationCe
                 }
                 
                 content.sound = .default
-                
+                content.userInfo = ["deeplink": "transactions"]
+
                 let trigger = UNCalendarNotificationTrigger(dateMatching: dueComponents, repeats: false)
                 let request = UNNotificationRequest(identifier: "\(txId)_due", content: content, trigger: trigger)
-                
-                UNUserNotificationCenter.current().add(request) { error in
-                    if let error = error {
-                        print("Error scheduling due notification: \(error)")
-                    }
-                }
+                candidates.append((dueTriggerDate, request))
             }
             
             // 2. Schedule Advance Reminder Notification (if daysBefore > 0)
@@ -163,16 +190,26 @@ class LocalNotificationManager: NSObject, ObservableObject, UNUserNotificationCe
                         }
                         
                         content.sound = .default
-                        
+                        content.userInfo = ["deeplink": "transactions"]
+
                         let trigger = UNCalendarNotificationTrigger(dateMatching: reminderComponents, repeats: false)
                         let request = UNNotificationRequest(identifier: "\(txId)_reminder", content: content, trigger: trigger)
-                        
-                        UNUserNotificationCenter.current().add(request) { error in
-                            if let error = error {
-                                print("Error scheduling reminder notification: \(error)")
-                            }
-                        }
+                        candidates.append((reminderTriggerDate, request))
                     }
+                }
+            }
+        }
+
+        // En yakın tarihli bildirimler önce planlansın; 64 üstü kalanlar bir sonraki
+        // yeniden planlamada (yeni snapshot / ayar değişikliği) sıraya girer.
+        let scheduled = candidates
+            .sorted { $0.triggerDate < $1.triggerDate }
+            .prefix(Self.pendingNotificationLimit)
+
+        for candidate in scheduled {
+            UNUserNotificationCenter.current().add(candidate.request) { error in
+                if let error = error {
+                    print("Error scheduling notification \(candidate.request.identifier): \(error)")
                 }
             }
         }
@@ -215,9 +252,22 @@ class LocalNotificationManager: NSObject, ObservableObject, UNUserNotificationCe
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
+        let userInfo = response.notification.request.content.userInfo
+        let type = userInfo["type"] as? String
+
+        // Sadece davet / yetki isteği bildirimleri "Bildirimler" ekranına yönlendirilir.
+        // Ödeme ve gelir hatırlatıcıları bu ekranla ilgisiz olduğu için sadece uygulamayı açar.
+        guard type == "invitation" || type == "role_request" else {
+            completionHandler()
+            return
+        }
+
         Task { @MainActor in
-            LocalNotificationManager.shared.showNotificationsScreen = true
+            // Önce ana sekmeye geç, sonraki runloop turunda NotificationsView'a push et.
+            // Aynı turda yapılırsa hedef NavigationStack henüz görünür olmadığı için binding yutulabiliyor.
             NotificationCenter.default.post(name: NSNotification.Name("ShowNotificationsTab"), object: nil)
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            LocalNotificationManager.shared.showNotificationsScreen = true
         }
         completionHandler()
     }

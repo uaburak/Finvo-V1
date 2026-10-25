@@ -8,8 +8,11 @@ class NotificationManager: ObservableObject {
     @Published var notifications: [NotificationModel] = []
     
     private var listener: ListenerRegistration?
+    private var listeningUsername: String?
+    /// İlk snapshot geçmişteki bekleyen tüm bildirimleri getirir; onlar için yerel bildirim atmıyoruz.
+    private var hasLoadedInitialSnapshot = false
     private var cancellables = Set<AnyCancellable>()
-    
+
     init() {
         AuthenticationManager.shared.$currentUserProfile
             .receive(on: DispatchQueue.main)
@@ -22,10 +25,13 @@ class NotificationManager: ObservableObject {
             }
             .store(in: &cancellables)
     }
-    
+
     private func startListening(for username: String) {
-        if listener != nil { return }
-        
+        // Aynı kullanıcı için zaten dinliyorsak tekrar kurma; kullanıcı değiştiyse eskisini kapat.
+        if listeningUsername == username, listener != nil { return }
+        stopListening()
+        listeningUsername = username
+
         listener = Firestore.firestore().collection("notifications")
             .whereField("receiverUsername", isEqualTo: username)
             .whereField("status", isEqualTo: NotificationStatus.pending.rawValue)
@@ -37,22 +43,26 @@ class NotificationManager: ObservableObject {
                     }
                     return
                 }
-                
+
                 let newNotifications = documents.compactMap { try? $0.data(as: NotificationModel.self) }
                     .sorted(by: { $0.createdAt > $1.createdAt })
-                
+
                 Task { @MainActor in
                     let oldNotifications = self.notifications
                     self.notifications = newNotifications
-                    
-                    // İlk yüklemede (uygulama yeni açıldığında) eski bekleyen bildirimler için spam bildirim atmaması için:
-                    guard !oldNotifications.isEmpty else { return }
-                    
+
+                    // İlk snapshot uygulama açılışındaki eski bekleyen kayıtları getirir; onlar için bildirim atma.
+                    // (Liste boş olup olmamasına bakılamaz: ilk snapshot boşsa sonraki ilk davet de atlanıyordu.)
+                    guard self.hasLoadedInitialSnapshot else {
+                        self.hasLoadedInitialSnapshot = true
+                        return
+                    }
+
                     // Eski listede olmayan yeni gelen bildirimleri bul
                     let addedNotifications = newNotifications.filter { newNotif in
                         !oldNotifications.contains(where: { $0.id == newNotif.id })
                     }
-                    
+
                     // Eğer uygulama arka plandaysa/aktif değilse yerel bildirim gönder
                     if UIApplication.shared.applicationState != .active {
                         for notif in addedNotifications {
@@ -63,7 +73,12 @@ class NotificationManager: ObservableObject {
                             } else {
                                 body = String(format: L10n("@%@, %@ cüzdanı için yetki istiyor."), notif.senderUsername, notif.walletName)
                             }
-                            LocalNotificationManager.shared.triggerInstantNotification(title: title, body: body)
+                            LocalNotificationManager.shared.triggerInstantNotification(
+                                title: title,
+                                body: body,
+                                userInfo: ["type": notif.type == .invitation ? "invitation" : "role_request",
+                                           "walletId": notif.walletId]
+                            )
                         }
                     }
                 }
@@ -73,6 +88,8 @@ class NotificationManager: ObservableObject {
     private func stopListening() {
         listener?.remove()
         listener = nil
+        listeningUsername = nil
+        hasLoadedInitialSnapshot = false
         notifications = []
     }
     
