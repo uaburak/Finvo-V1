@@ -332,6 +332,11 @@ struct FamilyDashboardView: View {
                     subtitle: viewModel.pendingMissionsCount == 0 ? "Görev yok".localized : "%d Aktif".localized(with: viewModel.pendingMissionsCount),
                     gradient: [Color.purple.opacity(0.8), Color.purple])
             }
+            NavigationLink { FamilySettleUpView() } label: {
+                featureGridCard(icon: "arrow.left.arrow.right", title: "Hesaplaşma".localized,
+                    subtitle: "Kim kime ne kadar?".localized,
+                    gradient: [Color.teal.opacity(0.8), Color.teal])
+            }
         }
         .padding(.horizontal)
     }

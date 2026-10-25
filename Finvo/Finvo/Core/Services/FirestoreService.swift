@@ -84,7 +84,7 @@ class FirestoreService: ObservableObject {
         try await walletRef.delete()
     }
 
-    static let walletSubcollections = ["transactions", "categories", "shoppingList", "missions"]
+    static let walletSubcollections = ["transactions", "categories", "shoppingList", "missions", "settlements"]
 
     /// Bir koleksiyondaki tüm dokümanları 400'lük parçalar halinde siler (batch limiti 500).
     func deleteAllDocuments(in collection: CollectionReference) async throws {
