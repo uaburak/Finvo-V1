@@ -80,6 +80,7 @@ class TransactionManager: ObservableObject {
                     self.evaluateRecurringTransactions(parsed, walletId: walletId)
                     LocalNotificationManager.shared.scheduleNotifications(for: parsed)
                     SpendingLimitMonitor.evaluate(transactions: parsed, walletId: walletId)
+                    WidgetSnapshotWriter.update(transactions: parsed, walletId: walletId)
                 }
             }
     }
@@ -142,6 +143,10 @@ class TransactionManager: ObservableObject {
         self.totalIncome = income
         self.totalExpense = expense
         self.todaysProfit = todayIncome - todayExpense
+        // Para birimi / kur değişince widget da güncellensin
+        if let walletId = currentWalletId, hasLoaded {
+            WidgetSnapshotWriter.update(transactions: transactions, walletId: walletId)
+        }
         self.topExpenseCategoryId = topEntry?.key
         self.topExpenseCategoryName = topEntry?.value.name ?? "-"
     }

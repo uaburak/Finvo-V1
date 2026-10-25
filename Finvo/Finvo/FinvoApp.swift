@@ -104,6 +104,7 @@ struct FinvoApp: App {
                 if !isAuthenticated {
                     transactionManager.stopListening()
                     CategoryManager.shared.stopListening()
+                    WidgetSnapshotWriter.clear()
                 }
             }
             }
