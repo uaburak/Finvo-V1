@@ -25,10 +25,13 @@ class FirestoreService: ObservableObject {
             .whereField("members", arrayContains: identifier)
             .addSnapshotListener { [weak self] snapshot, error in
                 guard let self = self else { return }
-                guard let documents = snapshot?.documents else {
-                    self.wallets = []
+                // Geçici bir ağ/izin hatasında listeyi boşaltmıyoruz; aksi halde aktif cüzdan
+                // nil olup tüm dinleyiciler kapanıyor ve tekrar açılınca her şey baştan okunuyordu.
+                if let error = error {
+                    print("Error listening wallets: \(error)")
                     return
                 }
+                guard let documents = snapshot?.documents else { return }
                 
                 self.wallets = documents.compactMap { try? $0.data(as: WalletModel.self) }
                     .filter { $0.permissions[identifier] != WalletRole.pending.rawValue }
@@ -38,6 +41,9 @@ class FirestoreService: ObservableObject {
     func stopListeningWallets() {
         walletsListener?.remove()
         walletsListener = nil
+        // Çıkış yapıldığında önceki kullanıcının cüzdanları bellekte kalmasın
+        // (yeni hesapla girişte kısa süreliğine eski cüzdanlar görünüyordu).
+        if !wallets.isEmpty { wallets = [] }
     }
     
     func updateWallet(_ wallet: WalletModel) async throws {
@@ -45,8 +51,38 @@ class FirestoreService: ObservableObject {
         try db.collection("wallets").document(id).setData(from: wallet, merge: true)
     }
     
+    /// Cüzdanı alt koleksiyonlarıyla birlikte siler. Firestore'da doküman silmek alt koleksiyonları
+    /// silmez; eskiden işlemler/kategoriler sahipsiz kalıp depolama kotasını boşuna dolduruyordu.
     func deleteWallet(id: String) async throws {
-        try await db.collection("wallets").document(id).delete()
+        let walletRef = db.collection("wallets").document(id)
+        for subcollection in Self.walletSubcollections {
+            try await deleteAllDocuments(in: walletRef.collection(subcollection))
+        }
+        try await walletRef.delete()
+    }
+
+    static let walletSubcollections = ["transactions", "categories", "shoppingList", "missions"]
+
+    /// Bir koleksiyondaki tüm dokümanları 400'lük parçalar halinde siler (batch limiti 500).
+    func deleteAllDocuments(in collection: CollectionReference) async throws {
+        while true {
+            let snapshot = try await collection.limit(to: 400).getDocuments()
+            guard !snapshot.documents.isEmpty else { return }
+            try await deleteDocuments(snapshot.documents.map(\.reference))
+            if snapshot.documents.count < 400 { return }
+        }
+    }
+
+    /// Referansları 400'lük batch'ler halinde siler. Tek bir batch 500 işlemden fazlasını kabul etmez.
+    func deleteDocuments(_ references: [DocumentReference]) async throws {
+        var start = 0
+        while start < references.count {
+            let end = min(start + 400, references.count)
+            let batch = db.batch()
+            for ref in references[start..<end] { batch.deleteDocument(ref) }
+            try await batch.commit()
+            start = end
+        }
     }
     
     // MARK: - Member Operations
@@ -144,29 +180,24 @@ class FirestoreService: ObservableObject {
         let transactions = db.collection("wallets").document(walletId).collection("transactions")
         
         // Hem ID hem de isim ile kontrol et (Geriye dönük uyumluluk için)
-        // Önce ID ile olanları bul
         let snapshotById = try await transactions.whereField("mainCategoryId", isEqualTo: categoryId).getDocuments()
-        
-        // Sonra İsim ile olanları bul (ID'si olmayan eski kayıtlar için)
         let snapshotByName = try await transactions.whereField("mainCategoryName", isEqualTo: categoryName).getDocuments()
         
-        let batch = db.batch()
-        
-        for doc in snapshotById.documents {
-            batch.deleteDocument(doc.reference)
-        }
-        
+        var refs: [String: DocumentReference] = [:]
+        for doc in snapshotById.documents { refs[doc.documentID] = doc.reference }
         for doc in snapshotByName.documents {
-            // Zaten eklenmişse tekrar ekleme (Opsiyonel ama temizlik için)
-            if !snapshotById.documents.contains(where: { $0.documentID == doc.documentID }) {
-                batch.deleteDocument(doc.reference)
+            // İsim eşleşmesi sadece ID'si olmayan (eski) kayıtlar ya da aynı ID'li kayıtlar için geçerli;
+            // aynı isimli ama farklı ID'li başka bir kategorinin işlemleri silinmemeli.
+            let docCategoryId = doc.data()["mainCategoryId"] as? String
+            if docCategoryId == nil || docCategoryId == categoryId {
+                refs[doc.documentID] = doc.reference
             }
         }
         
-        try await batch.commit()
+        try await deleteDocuments(Array(refs.values))
     }
     
-    func deleteTransactionsBySubCategory(walletId: String, mainCategoryId: String, subCategoryId: String, subCategoryName: String) async throws {
+    func deleteTransactionsBySubCategory(walletId: String, mainCategoryId: String, mainCategoryName: String? = nil, subCategoryId: String, subCategoryName: String) async throws {
         let transactions = db.collection("wallets").document(walletId).collection("transactions")
         
         // ID ile bul
@@ -176,25 +207,37 @@ class FirestoreService: ObservableObject {
             .getDocuments()
         
         // İsim ile bul (ID'si olmayan eski kayıtlar için)
-        // Not: subCategoryName tek başına güvenli olmayabilir, mainCategoryName ile birleştirmek daha iyi
         let snapshotByName = try await transactions
             .whereField("subCategoryName", isEqualTo: subCategoryName)
             .getDocuments()
         
-        let batch = db.batch()
-        for doc in snapshotById.documents { batch.deleteDocument(doc.reference) }
+        var refs: [String: DocumentReference] = [:]
+        for doc in snapshotById.documents { refs[doc.documentID] = doc.reference }
         for doc in snapshotByName.documents {
-            // Sadece doğru ana kategoriye ait olanları sil (Eski kayıtlar için isim bazlı kontrol)
-            // Bu kısım biraz riskli olsa da kullanıcının isteği yönünde cascade delete sağlar.
-            batch.deleteDocument(doc.reference)
+            // Eskiden aynı isimli alt kategoriye sahip TÜM ana kategorilerin işlemleri siliniyordu
+            // (ör. "Diğer"). Sadece bu ana kategoriye ait olanları sil.
+            let data = doc.data()
+            let docMainId = data["mainCategoryId"] as? String
+            let docMainName = data["mainCategoryName"] as? String
+            let docSubId = data["subCategoryId"] as? String
+            let belongsToMain = docMainId == mainCategoryId || (docMainId == nil && mainCategoryName != nil && docMainName == mainCategoryName)
+            let subMatches = docSubId == nil || docSubId == subCategoryId
+            if belongsToMain && subMatches {
+                refs[doc.documentID] = doc.reference
+            }
         }
-        try await batch.commit()
+        try await deleteDocuments(Array(refs.values))
     }
     
     // MARK: - Category Operations
     func fetchCategories(walletId: String) async throws -> [CategoryModel] {
         let snapshot = try await db.collection("wallets").document(walletId).collection("categories").getDocuments()
         return snapshot.documents.compactMap { try? $0.data(as: CategoryModel.self) }
+    }
+    
+    func hasAnyCategory(walletId: String) async throws -> Bool {
+        let snapshot = try await db.collection("wallets").document(walletId).collection("categories").limit(to: 1).getDocuments()
+        return !snapshot.isEmpty
     }
     
     func saveCategory(walletId: String, category: CategoryModel) async throws {
@@ -213,12 +256,7 @@ class FirestoreService: ObservableObject {
     }
     
     func deleteAllCategories(walletId: String) async throws {
-        let snapshot = try await db.collection("wallets").document(walletId).collection("categories").getDocuments()
-        let batch = db.batch()
-        for doc in snapshot.documents {
-            batch.deleteDocument(doc.reference)
-        }
-        try await batch.commit()
+        try await deleteAllDocuments(in: db.collection("wallets").document(walletId).collection("categories"))
     }
     
     func initializeDefaultCategories(walletId: String, categories: [CategoryModel]) async throws {

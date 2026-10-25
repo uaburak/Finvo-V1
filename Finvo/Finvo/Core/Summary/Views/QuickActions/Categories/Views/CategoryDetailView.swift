@@ -216,6 +216,7 @@ struct CategoryDetailView: View {
                     try await FirestoreService.shared.deleteTransactionsBySubCategory(
                         walletId: walletId,
                         mainCategoryId: category.id,
+                        mainCategoryName: category.name,
                         subCategoryId: subId,
                         subCategoryName: subName
                     )

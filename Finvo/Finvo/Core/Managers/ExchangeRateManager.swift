@@ -115,7 +115,21 @@ class ExchangeRateManager: ObservableObject {
         .gbp: 40.0,
         .gold: 2400.0,
         .silver: 30.0
-    ]
+    ] {
+        didSet { rebuildRateIndex() }
+    }
+    
+    /// Kod -> kur. convert() her çağrıda tüm sözlüğü taramasın diye (işlem başına O(n) idi).
+    private var ratesByCode: [String: Double] = [:]
+    private static let cachedRatesKey = "cachedExchangeRates"
+    
+    private func rebuildRateIndex() {
+        var index: [String: Double] = [:]
+        for (currency, rate) in rates {
+            index[currency.code] = rate
+        }
+        ratesByCode = index
+    }
     
     @Published var marketData: [CurrencyType: (buy: Double, sell: Double, change: String)] = [:]
     @Published var allCurrencies: [CurrencyType] = CurrencyType.allCases
@@ -123,6 +137,21 @@ class ExchangeRateManager: ObservableObject {
     private let apiURL = "https://finans.truncgil.com/today.json"
     
     private init() {
+        rebuildRateIndex()
+        // Son başarılı kurları yükle: çevrimdışı açılışta veya API gecikirken
+        // toplamlar kodda gömülü eski kurlarla hesaplanmasın.
+        if let cached = UserDefaults.standard.dictionary(forKey: Self.cachedRatesKey) as? [String: Double], !cached.isEmpty {
+            var restored = rates
+            for (code, rate) in cached where rate > 0 {
+                // Aynı koda sahip mevcut anahtarı güncelle (CurrencyType eşitliği isim/sembolü de içerir)
+                if let existing = restored.keys.first(where: { $0.code == code }) {
+                    restored[existing] = rate
+                } else {
+                    restored[CurrencyType(code: code)] = rate
+                }
+            }
+            rates = restored
+        }
         Task {
             await fetchRates()
         }
@@ -214,6 +243,7 @@ class ExchangeRateManager: ObservableObject {
                 
                 // Uygulamanın kullandığı güncel listeyi set et
                 self.rates = newRates
+                UserDefaults.standard.set(self.ratesByCode, forKey: Self.cachedRatesKey)
             }
         } catch {
             print("Exchange Rate Fetch Error: \(error)")
@@ -226,20 +256,9 @@ class ExchangeRateManager: ObservableObject {
     func convert(amount: Double, from inputCurrency: CurrencyType, to targetCurrency: CurrencyType) -> Double {
         if inputCurrency == targetCurrency { return amount }
         
-        // Find input rate dynamically
-        var inputRateToTry = 1.0
-        if let exact = rates.keys.first(where: { $0.code == inputCurrency.code }) {
-            inputRateToTry = rates[exact] ?? 1.0
-        } else {
-            inputRateToTry = rates[inputCurrency] ?? 1.0
-        }
-        
-        var targetRateToTry = 1.0
-        if let exact = rates.keys.first(where: { $0.code == targetCurrency.code }) {
-            targetRateToTry = rates[exact] ?? 1.0
-        } else {
-            targetRateToTry = rates[targetCurrency] ?? 1.0
-        }
+        let inputRateToTry = ratesByCode[inputCurrency.code] ?? rates[inputCurrency] ?? 1.0
+        var targetRateToTry = ratesByCode[targetCurrency.code] ?? rates[targetCurrency] ?? 1.0
+        if targetRateToTry <= 0 { targetRateToTry = 1.0 } // Sıfıra bölme -> inf/NaN koruması
         
         // Convert input to TRY first
         let amountInTry = amount * inputRateToTry

@@ -84,6 +84,14 @@ struct FinvoApp: App {
             .onChange(of: appLanguage) { _, newLanguage in
                 LocalizationManager.setLanguage(newLanguage)
             }
+            // Çıkış yapıldığında ContentView kaldırılıyor ama yöneticiler uygulama ömrü boyunca yaşıyor;
+            // açık kalan işlem/kategori dinleyicileri izin hatası verip bir sonraki hesaba veri sızdırabiliyordu.
+            .onChange(of: authManager.isAuthenticated) { _, isAuthenticated in
+                if !isAuthenticated {
+                    transactionManager.stopListening()
+                    CategoryManager.shared.stopListening()
+                }
+            }
             }
     }
 }

@@ -21,6 +21,21 @@ class TransactionManager: ObservableObject {
     
     private var currentWalletId: String?
     
+    private var cancellables = Set<AnyCancellable>()
+    
+    init() {
+        // Kurlar ağdan geç gelir; ilk hesaplama varsayılan (eski) kurlarla yapıldığı için
+        // kurlar güncellenince toplamları yeniden hesapla.
+        ExchangeRateManager.shared.$rates
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self, self.hasLoaded else { return }
+                self.recalculateTotals(for: Self.appCurrency)
+            }
+            .store(in: &cancellables)
+    }
+    
     // MARK: - Task iptal mekanizması (Bug #1 fix)
     private var recurringTask: Task<Void, Never>?
     @MainActor private static var generatedSignatures = Set<String>()
@@ -54,51 +69,22 @@ class TransactionManager: ObservableObject {
                 // Swift 6: Firestore callback farklı thread'den gelir.
                 // @Published değişkenlere assignment'ı Main Actor'da guarantee etmek için:
                 Task { @MainActor in
+                    // Cüzdan değiştiyse eski listener'dan geç gelen snapshot'ı yok say
+                    guard self.currentWalletId == walletId else { return }
                     let parsed = documents.compactMap { try? $0.data(as: TransactionModel.self) }
                     
-                    let baseCurrency = UserDefaults.standard.string(forKey: "appCurrency").flatMap { CurrencyType(rawValue: $0) } ?? .tryCurrency
-                    
-                    let income = parsed.filter { $0.type == .income && !$0.isDebt }.reduce(0) { total, tx in
-                        total + ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: baseCurrency)
-                    }
-                    let expense = parsed.filter { $0.type == .expense && !$0.isDebt }.reduce(0) { total, tx in
-                        total + ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: baseCurrency)
-                    }
-                    
-                    let today = Date()
-                    let calendar = Calendar.current
-                    let todaysTx = parsed.filter { calendar.isDate($0.date, inSameDayAs: today) }
-                    
-                    let tIncome = todaysTx.filter { $0.type == .income && !$0.isDebt }.reduce(0) { total, tx in
-                        total + ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: baseCurrency)
-                    }
-                    let tExpense = todaysTx.filter { $0.type == .expense && !$0.isDebt }.reduce(0) { total, tx in
-                        total + ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: baseCurrency)
-                    }
-                    let profit = tIncome - tExpense
-                    
-                    let expenseOnly = parsed.filter { $0.type == .expense && !$0.isDebt }
-                    let expenseDict = Dictionary(grouping: expenseOnly, by: { $0.mainCategoryId ?? $0.mainCategoryName })
-                    let topEntry = expenseDict.max(by: { a, b in
-                        a.value.reduce(0) { $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: baseCurrency) } <
-                        b.value.reduce(0) { $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: baseCurrency) }
-                    })
-                    let topId = topEntry?.key
-                    let topName = topEntry?.value.first?.mainCategoryName ?? "-"
-                    
-                    // Verileri güncelle (Main Actor garantili)
                     self.transactions = parsed
-                    self.totalIncome = income
-                    self.totalExpense = expense
-                    self.todaysProfit = profit
-                    self.topExpenseCategoryId = topId
-                    self.topExpenseCategoryName = topName
+                    self.recalculateTotals(for: Self.appCurrency)
                     self.hasLoaded = true
                     
                     self.evaluateRecurringTransactions(parsed, walletId: walletId)
                     LocalNotificationManager.shared.scheduleNotifications(for: parsed)
                 }
             }
+    }
+    
+    private static var appCurrency: CurrencyType {
+        UserDefaults.standard.string(forKey: "appCurrency").flatMap { CurrencyType(rawValue: $0) } ?? .tryCurrency
     }
     
     func stopListening() {
@@ -114,49 +100,49 @@ class TransactionManager: ObservableObject {
         transactions = []
         totalIncome = 0
         totalExpense = 0
+        todaysProfit = 0
+        topExpenseCategoryId = nil
         topExpenseCategoryName = "-"
-        isEvaluatingRecurring = false
         
         // Clear notifications on stop
         LocalNotificationManager.shared.scheduleNotifications(for: [])
     }
     
     @MainActor func recalculateTotals(for currency: CurrencyType) {
-        let baseCurrency = currency
-        
-        let income = transactions.filter { $0.type == .income && !$0.isDebt }.reduce(0) { total, tx in
-            total + ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: baseCurrency)
-        }
-        let expense = transactions.filter { $0.type == .expense && !$0.isDebt }.reduce(0) { total, tx in
-            total + ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: baseCurrency)
-        }
-        
-        let today = Date()
+        let rates = ExchangeRateManager.shared
         let calendar = Calendar.current
-        let todaysTx = transactions.filter { calendar.isDate($0.date, inSameDayAs: today) }
+        let today = Date()
         
-        let tIncome = todaysTx.filter { $0.type == .income && !$0.isDebt }.reduce(0) { total, tx in
-            total + ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: baseCurrency)
-        }
-        let tExpense = todaysTx.filter { $0.type == .expense && !$0.isDebt }.reduce(0) { total, tx in
-            total + ExchangeRateManager.shared.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: baseCurrency)
-        }
-        let profit = tIncome - tExpense
+        var income = 0.0
+        var expense = 0.0
+        var todayIncome = 0.0
+        var todayExpense = 0.0
+        var expenseByCategory: [String: (total: Double, name: String)] = [:]
         
-        let expenseOnly = transactions.filter { $0.type == .expense && !$0.isDebt }
-        let expenseDict = Dictionary(grouping: expenseOnly, by: { $0.mainCategoryId ?? $0.mainCategoryName })
-        let topEntry = expenseDict.max(by: { a, b in 
-            a.value.reduce(0) { $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: baseCurrency) } < 
-            b.value.reduce(0) { $0 + ExchangeRateManager.shared.convert(amount: $1.amount, from: $1.currency ?? .tryCurrency, to: baseCurrency) } 
-        })
-        let topId = topEntry?.key
-        let topName = topEntry?.value.first?.mainCategoryName ?? "-"
+        // Tek geçişte tüm toplamlar (eskiden aynı liste 6+ kez filtrelenip dönüştürülüyordu)
+        for tx in transactions where !tx.isDebt {
+            let converted = rates.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: currency)
+            let isToday = calendar.isDate(tx.date, inSameDayAs: today)
+            switch tx.type {
+            case .income:
+                income += converted
+                if isToday { todayIncome += converted }
+            case .expense:
+                expense += converted
+                if isToday { todayExpense += converted }
+                let key = tx.mainCategoryId ?? tx.mainCategoryName
+                let current = expenseByCategory[key]
+                expenseByCategory[key] = ((current?.total ?? 0) + converted, current?.name ?? tx.mainCategoryName)
+            }
+        }
+        
+        let topEntry = expenseByCategory.max(by: { $0.value.total < $1.value.total })
         
         self.totalIncome = income
         self.totalExpense = expense
-        self.todaysProfit = profit
-        self.topExpenseCategoryId = topId
-        self.topExpenseCategoryName = topName
+        self.todaysProfit = todayIncome - todayExpense
+        self.topExpenseCategoryId = topEntry?.key
+        self.topExpenseCategoryName = topEntry?.value.name ?? "-"
     }
     
     // MARK: - Wallet-agnostic: Tüm Cüzdanlar İçin Değerlendirme
@@ -164,13 +150,22 @@ class TransactionManager: ObservableObject {
     /// Her cüzdanın tekrarlayan işlemlerini retroaktif catch-up ile günceller.
     /// UI thread'ini bloklamaz (background priority).
     func evaluateAllWalletsRecurring(walletIds: [String]) {
-        guard !walletIds.isEmpty else { return }
+        // Aktif cüzdan zaten canlı dinleniyor ve snapshot geldikçe değerlendiriliyor; tekrar sorgulamaya gerek yok.
+        // Kopyalar en fazla günde bir üretildiği için her cüzdanı günde bir kez taramak yeterli.
+        // (Eskiden uygulama her ön plana geldiğinde her cüzdanın TÜM işlemleri okunuyordu.)
+        let today = Calendar.current.startOfDay(for: Date()).timeIntervalSince1970
+        let defaults = UserDefaults.standard
+        let pending = walletIds.filter { walletId in
+            walletId != currentWalletId &&
+            defaults.double(forKey: "recurringEvaluatedAt_\(walletId)") < today
+        }
+        guard !pending.isEmpty else { return }
         
         Task.detached(priority: .background) {
-            for walletId in walletIds {
+            for walletId in pending {
                 guard !Task.isCancelled else { break }
                 do {
-                    // Orijinal tekrarlayan işlemleri çek (parentRecurringId alanı olmayan)
+                    // Sadece orijinal tekrarlayan işlemleri çek. Kopyalar isRecurring=false olduğundan bu sorguya girmez.
                     let snapshot = try await Firestore.firestore()
                         .collection("wallets").document(walletId)
                         .collection("transactions")
@@ -181,20 +176,28 @@ class TransactionManager: ObservableObject {
                         snapshot.documents.compactMap { try? $0.data(as: TransactionModel.self) }
                     }
                     let originals = allRecurring.filter { $0.parentRecurringId == nil }
-                    guard !originals.isEmpty else { continue }
                     
-                    // Mevcut kopyaları çek (duplicate önleme için)
-                    let copiesSnapshot = try await Firestore.firestore()
-                        .collection("wallets").document(walletId)
-                        .collection("transactions")
-                        .whereField("isRecurring", isEqualTo: false)
-                        .getDocuments()
-                    let existingCopies = await MainActor.run {
-                        copiesSnapshot.documents.compactMap { try? $0.data(as: TransactionModel.self) }
+                    // Mevcut kopyaları okumak yerine lastGeneratedDate + deterministik kopya ID'leri ile
+                    // mükerrer kayıt önleniyor (aynı dönem iki kez yazılsa bile aynı dokümana yazılır).
+                    if !originals.isEmpty {
+                        // lastGeneratedDate alanı olmayan eski serilerin kopyaları rastgele ID'lerle üretilmiş
+                        // olabilir; sadece bu seriler için mevcut kopyaları (seri bazında) oku.
+                        var existingCopies: [TransactionModel] = []
+                        for original in originals where original.lastGeneratedDate == nil {
+                            guard let id = original.id else { continue }
+                            let copies = try await Firestore.firestore()
+                                .collection("wallets").document(walletId)
+                                .collection("transactions")
+                                .whereField("parentRecurringId", isEqualTo: id)
+                                .getDocuments()
+                            let parsedCopies = await MainActor.run {
+                                copies.documents.compactMap { try? $0.data(as: TransactionModel.self) }
+                            }
+                            existingCopies.append(contentsOf: parsedCopies)
+                        }
+                        await Self.processRecurringOriginals(originals, existingCopies: existingCopies, walletId: walletId)
                     }
-                    .filter { $0.parentRecurringId != nil }
-                    
-                    await Self.processRecurringOriginals(originals, existingCopies: existingCopies, walletId: walletId)
+                    defaults.set(today, forKey: "recurringEvaluatedAt_\(walletId)")
                 } catch {
                     print("evaluateAllWalletsRecurring error for wallet \(walletId): \(error)")
                 }
@@ -325,7 +328,10 @@ class TransactionManager: ObservableObject {
                     copy.recurrenceInterval = nil
                     copy.recurrenceEndDate = nil
                     
-                    let docRef = db.collection("wallets").document(walletId).collection("transactions").document()
+                    // Deterministik ID: aynı dönem iki cihazdan / iki tetiklemeden üretilse bile
+                    // tek dokümana yazılır, mükerrer kopya oluşmaz.
+                    let docRef = db.collection("wallets").document(walletId).collection("transactions")
+                        .document(Self.recurringCopyId(parentId: txId, date: dayStart, calendar: calendar))
                     do {
                         try batch.setData(from: copy, forDocument: docRef)
                         generatedSignatures.insert(signature)
@@ -352,15 +358,11 @@ class TransactionManager: ObservableObject {
             
             // Orijinal işlemin lastGeneratedDate'ini güncelle (sadece ilerleme olduysa)
             if let newDate = newLastGeneratedDate, newDate != tx.lastGeneratedDate {
-                var updatedOriginal = tx
-                updatedOriginal.lastGeneratedDate = newDate
+                // Sadece ilgili alanı güncelle; tüm dokümanı yeniden yazmak, bu arada başka bir
+                // cihazda yapılmış düzenlemeleri eski değerlerle ezebiliyordu.
                 let originalRef = db.collection("wallets").document(walletId).collection("transactions").document(txId)
-                do {
-                    try batch.setData(from: updatedOriginal, forDocument: originalRef, merge: true)
-                    batchCount += 1
-                } catch {
-                    print("Error adding original update to batch: \(error)")
-                }
+                batch.updateData(["lastGeneratedDate": Timestamp(date: newDate)], forDocument: originalRef)
+                batchCount += 1
 
                 if batchCount >= 450 {
                     await commitBatch()
@@ -369,6 +371,11 @@ class TransactionManager: ObservableObject {
         }
 
         await commitBatch()
+    }
+    
+    private static func recurringCopyId(parentId: String, date: Date, calendar: Calendar) -> String {
+        let c = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%@_r%04d%02d%02d", parentId, c.year ?? 0, c.month ?? 0, c.day ?? 0)
     }
     
     // MARK: - Borç Ödeme Operasyonu
@@ -415,10 +422,14 @@ class TransactionManager: ObservableObject {
             updatedDebt.isPaid = true
         }
         
-        let debtToSave = updatedDebt
-        async let step1: Void = FirestoreService.shared.createTransaction(newInstallment)
-        async let step2: Void = FirestoreService.shared.updateTransaction(debtToSave)
-        _ = try await (step1, step2)
+        // Taksit kaydı ve borç güncellemesi tek batch'te: biri yazılıp diğeri yazılmazsa
+        // taksit sayısı ile ödeme kayıtları birbirini tutmuyordu.
+        guard let debtId = updatedDebt.id else { return }
+        let transactionsRef = db.collection("wallets").document(debtTransaction.walletId).collection("transactions")
+        let batch = db.batch()
+        try batch.setData(from: newInstallment, forDocument: transactionsRef.document())
+        try batch.setData(from: updatedDebt, forDocument: transactionsRef.document(debtId), merge: true)
+        try await batch.commit()
     }
     
     // MARK: - Deletion Impact Assessment

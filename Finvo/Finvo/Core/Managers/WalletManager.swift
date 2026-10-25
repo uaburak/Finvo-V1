@@ -15,6 +15,9 @@ class WalletManager: ObservableObject {
     }
     
     private var cancellables = Set<AnyCancellable>()
+    /// Pro durumu sorgulanmış (veya sorgusu devam eden) kullanıcılar. Profil bulunamayan üyeler için
+    /// her cüzdan snapshot'ında tekrar tekrar Firestore sorgusu atılmasını önler.
+    private var requestedProStatuses = Set<String>()
     
     init() {
         // Dinamik cüzdan verilerini FirestoreService üzerinden takip et
@@ -75,12 +78,13 @@ class WalletManager: ObservableObject {
         
         for wallet in _wallets where wallet.type == .shared {
             for member in wallet.members {
-                if member != currentUsername, self.usersProStatus[member] == nil {
+                if member != currentUsername, self.usersProStatus[member] == nil, !requestedProStatuses.contains(member) {
                     membersToFetch.insert(member)
                 }
             }
         }
         
+        requestedProStatuses.formUnion(membersToFetch)
         for member in membersToFetch {
             Task {
                 if let profile = try? await FirestoreService.shared.getUserProfileByUsername(member) {

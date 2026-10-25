@@ -430,10 +430,12 @@ struct ProfilePhotoLabelView: View {
     }
     
     private func logout() {
-        do {
-            try authManager.signOut()
-        } catch {
-            print("Çıkış yapılamadı")
+        Task {
+            do {
+                try await authManager.signOutUser()
+            } catch {
+                print("Çıkış yapılamadı")
+            }
         }
     }
 }

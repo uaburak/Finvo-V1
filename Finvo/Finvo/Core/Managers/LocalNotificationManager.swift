@@ -92,19 +92,49 @@ class LocalNotificationManager: NSObject, ObservableObject, UNUserNotificationCe
         }
     }
     
+    /// Son başarıyla yazılan "uid|token" ikilisi. Token değişmediyse her açılışta
+    /// tekrar yazıp Firestore yazma kotası harcamıyoruz.
+    @AppStorage("lastSyncedFcmToken") private var lastSyncedFcmToken: String = ""
+
     func updateFcmTokenInFirestore(token: String) {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         lastKnownUid = uid
-        Firestore.firestore().collection("users").document(uid).setData(["fcmToken": token], merge: true)
+        let signature = "\(uid)|\(token)"
+        guard signature != lastSyncedFcmToken else { return }
+        Firestore.firestore().collection("users").document(uid).setData(["fcmToken": token], merge: true) { [weak self] error in
+            guard error == nil else { return }
+            Task { @MainActor in self?.lastSyncedFcmToken = signature }
+        }
     }
 
     private func removeFcmTokenFromFirestore(uid: String) {
+        lastSyncedFcmToken = ""
         Firestore.firestore().collection("users").document(uid)
             .updateData(["fcmToken": FieldValue.delete()]) { error in
                 if let error = error {
                     print("Error removing fcmToken on sign out: \(error)")
                 }
             }
+    }
+
+    /// Çıkıştan ÖNCE çağrılır. Oturum kapandıktan sonra yazma izni olmadığından token silme
+    /// isteği reddediliyor ve cihaz eski kullanıcının push bildirimlerini almaya devam ediyordu.
+    /// Çevrimdışıyken çıkışı bekletmemek için en fazla 3 saniye beklenir.
+    func removeFcmTokenBeforeSignOut() async {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        lastKnownUid = nil
+        lastSyncedFcmToken = ""
+        let ref = Firestore.firestore().collection("users").document(uid)
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask {
+                try? await ref.updateData(["fcmToken": FieldValue.delete()])
+            }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+            }
+            await group.next()
+            group.cancelAll()
+        }
     }
     
     /// iOS uygulama başına en fazla 64 bekleyen yerel bildirim tutar; fazlası sessizce yok sayılır.
