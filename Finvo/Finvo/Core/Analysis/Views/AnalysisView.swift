@@ -133,9 +133,18 @@ struct AnalysisView: View {
             .toolbar {
                 // PDF Share Button
                 ToolbarItem(placement: .topBarLeading) {
-                    Button(action: {
-                        sharePDF()
-                    }) {
+                    Menu {
+                        Button {
+                            sharePDF()
+                        } label: {
+                            Label("PDF Rapor", systemImage: "doc.richtext")
+                        }
+                        Button {
+                            shareCSV()
+                        } label: {
+                            Label("Tüm İşlemler (CSV / Excel)", systemImage: "tablecells")
+                        }
+                    } label: {
                         if isSharingPDF {
                             ProgressView().tint(theme.labelPrimary)
                         } else {
@@ -260,7 +269,7 @@ struct AnalysisView: View {
                 }
                 Button("Vazgeç", role: .cancel) { }
             } message: {
-                Text("Özel tarih aralığı filtreleme ve PDF raporları oluşturma yalnızca Pro üyeler içindir.")
+                Text("Özel tarih aralığı filtreleme, PDF raporları ve CSV dışa aktarma yalnızca Pro üyeler içindir.")
             }
             .fullScreenCover(isPresented: $showPaywall) {
                 ProSubscriptionPaywallView()
@@ -583,6 +592,25 @@ struct AnalysisView: View {
         }
     }
 
+    
+    // MARK: - CSV Export
+    @MainActor
+    private func shareCSV() {
+        if authManager.currentUserProfile?.isPro != true {
+            showProAlert = true
+            return
+        }
+        let currency = UserDefaults.standard.string(forKey: "appCurrency").flatMap { CurrencyType(rawValue: $0) } ?? .tryCurrency
+        do {
+            pdfURL = try CSVExporter.export(
+                transactions: transactionManager.transactions,
+                walletName: walletManager.activeWallet?.name ?? "Finvo",
+                currency: currency
+            )
+        } catch {
+            print("CSV export failed: \(error)")
+        }
+    }
     
     // MARK: - PDF Export Engine
     @MainActor

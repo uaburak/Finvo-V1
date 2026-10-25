@@ -26,7 +26,7 @@ struct ProSubscriptionPaywallView: View {
             PlanFeature(icon: "person.3.fill", color: .orange, title: "Cüzdan Üyesi", free: "2", pro: "Sınırsız"),
             PlanFeature(icon: "square.grid.2x2.fill", color: .teal, title: "Kategori Yönetimi", free: nil, pro: nil),
             PlanFeature(icon: "calendar", color: .pink, title: "Özel Tarih Aralığı", free: nil, pro: nil),
-            PlanFeature(icon: "doc.richtext.fill", color: .indigo, title: "PDF Rapor", free: nil, pro: nil)
+            PlanFeature(icon: "doc.richtext.fill", color: .indigo, title: "PDF ve CSV Dışa Aktarma", free: nil, pro: nil)
         ]
     }
 
