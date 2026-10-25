@@ -47,6 +47,16 @@ struct AddTransactionsView: View {
     
     @State private var currentStep: TransactionStep
     @State private var selectedDetent: PresentationDetent
+    /// Adım içeriğinin doğal yüksekliği ve navigation bar yüksekliği; sheet boyu bunlardan hesaplanır.
+    @State private var measuredContentHeight: CGFloat = 0
+    @State private var measuredTopInset: CGFloat = 0
+    
+    /// Sheet en fazla bu kadar uzar; içerik daha uzunsa kaydırılır.
+    private static let maxSheetHeight: CGFloat = 650
+    private static let minSheetHeight: CGFloat = 220
+    /// Hesaplanan yüksekliğe eklenen pay. Yüzen sheet altta kendi boşluğunu (~29pt) zaten bıraktığı için
+    /// küçük negatif değer, son kartın altında ~22pt görünür boşluk bırakır.
+    private static let sheetBottomMargin: CGFloat = -7
     
     init(transactionToEdit: TransactionModel? = nil) {
         self.transactionToEdit = transactionToEdit
@@ -180,10 +190,24 @@ struct AddTransactionsView: View {
                             stepContent
                                 .padding(.top, 0)
                         }
+                        // İçeriğin gerçek yüksekliği (alttaki kaydırma boşluğu hariç)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                            measuredContentHeight = height
+                        }
                         .padding(.horizontal, 24)
                         .padding(.bottom, 100)
                     }
+                    .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { inset in
+                        measuredTopInset = inset
+                    }
                 } // Ends VStack
+                // Sheet boyu içeriğe göre: az seçenekte kısa, çok seçenekte en fazla maxSheetHeight
+                .onChange(of: fittedSheetHeight) { _, newHeight in
+                    guard let newHeight else { return }
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        selectedDetent = .height(newHeight)
+                    }
+                }
 
                 .navigationTitle(LocalizedStringKey(currentStep.titleKey))
                 .navigationBarTitleDisplayMode(.inline)
@@ -218,7 +242,7 @@ struct AddTransactionsView: View {
                 ProSubscriptionPaywallView()
             }
             // Dinamik Sheet Yüksekliği (Animasyonla Geçiş)
-            .presentationDetents([.height(280), .height(650)], selection: $selectedDetent)
+            .presentationDetents([selectedDetent], selection: $selectedDetent)
             .presentationDragIndicator(.hidden)
             // Bütün steplerde hiçbir arka plan rengi yok (Tamamen Şeffaf)
             .presentationBackground(.clear) 
@@ -259,6 +283,14 @@ struct AddTransactionsView: View {
             } message: {
                 Text(ocrErrorMessage)
             }
+    }
+
+    /// İçeriğe göre sheet yüksekliği (nav bar + içerik + alt boşluk), üst sınır maxSheetHeight.
+    /// Henüz ölçüm yoksa nil döner ve mevcut yükseklik korunur.
+    private var fittedSheetHeight: CGFloat? {
+        guard measuredContentHeight > 0 else { return nil }
+        let total = measuredTopInset + measuredContentHeight + Self.sheetBottomMargin
+        return min(max(total, Self.minSheetHeight), Self.maxSheetHeight).rounded()
     }
 
     @ViewBuilder
@@ -607,17 +639,12 @@ struct AddTransactionsView: View {
         if next == .subcategory, (selectedMainCategory?.subCategories ?? []).filter({ $0.isOn }).isEmpty {
             guard let skip = TransactionStep(rawValue: next.rawValue + 1) else { return }
             currentStep = skip
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                selectedDetent = .height(650)
-            }
             return
         }
         
         // Normal adım geçişi
         currentStep = next
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-            selectedDetent = next == .type ? .height(280) : .height(650)
-        }
+        // Sheet yüksekliği yeni adımın içeriği ölçülünce fittedSheetHeight üzerinden animasyonla güncellenir
     }
     
     /// Geri navigasyon — nextStep() ile simetrik çalışır.
@@ -630,17 +657,11 @@ struct AddTransactionsView: View {
         if prev == .subcategory, (selectedMainCategory?.subCategories ?? []).filter({ $0.isOn }).isEmpty {
             guard let skip = TransactionStep(rawValue: prev.rawValue - 1) else { return }
             currentStep = skip
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                selectedDetent = skip == .type ? .height(280) : .height(650)
-            }
             return
         }
         
         // Normal geri geçiş
         currentStep = prev
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-            selectedDetent = prev == .type ? .height(280) : .height(650)
-        }
     }
     
     private func formatAmountText() -> String {
@@ -804,18 +825,12 @@ struct AddTransactionsView: View {
                     
                     // Instantly navigate to detail screen
                     self.currentStep = .details
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                        self.selectedDetent = .height(650)
-                    }
                 } else {
                     self.selectedMainCategory = nil
                     self.selectedSubCategory = nil
                     
                     // Category couldn't be matched. Let user select it directly (step 2)
                     self.currentStep = .category
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                        self.selectedDetent = .height(650)
-                    }
                 }
                 
                 // OCR scanned transactions are always expenses
