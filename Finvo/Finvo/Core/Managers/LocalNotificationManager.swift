@@ -21,6 +21,7 @@ class LocalNotificationManager: NSObject, ObservableObject, UNUserNotificationCe
     @AppStorage("notificationMinute") var notificationMinute: Int = 0
     @AppStorage("expenseNotificationsEnabled") var expenseNotificationsEnabled: Bool = true
     @AppStorage("incomeNotificationsEnabled") var incomeNotificationsEnabled: Bool = true
+    @AppStorage("monthlySummaryEnabled") var monthlySummaryEnabled: Bool = true
     
     /// Oturumu açık olan kullanıcının uid'si. Çıkış yapıldığında token'ı doğru dokümandan silebilmek için tutulur.
     private var lastKnownUid: String?
@@ -232,9 +233,19 @@ class LocalNotificationManager: NSObject, ObservableObject, UNUserNotificationCe
 
         // En yakın tarihli bildirimler önce planlansın; 64 üstü kalanlar bir sonraki
         // yeniden planlamada (yeni snapshot / ayar değişikliği) sıraya girer.
+        // Ay sonu özeti için bir yer ayrılır
+        let summaryRequest = monthlySummaryEnabled ? makeMonthlySummaryRequest(for: transactions) : nil
         let scheduled = candidates
             .sorted { $0.triggerDate < $1.triggerDate }
-            .prefix(Self.pendingNotificationLimit)
+            .prefix(Self.pendingNotificationLimit - (summaryRequest == nil ? 0 : 1))
+
+        if let summaryRequest {
+            UNUserNotificationCenter.current().add(summaryRequest) { error in
+                if let error = error {
+                    print("Error scheduling monthly summary: \(error)")
+                }
+            }
+        }
 
         for candidate in scheduled {
             UNUserNotificationCenter.current().add(candidate.request) { error in
@@ -243,6 +254,67 @@ class LocalNotificationManager: NSObject, ObservableObject, UNUserNotificationCe
                 }
             }
         }
+    }
+    
+    // MARK: - Aylık Özet
+    /// Bu ayın özetini sonraki ayın 1'inde saat 10:00'da gösterecek bildirimi hazırlar.
+    /// Her işlem değişikliğinde yeniden planlandığı için içerik son açılıştaki verilerle günceldir.
+    private func makeMonthlySummaryRequest(for transactions: [TransactionModel]) -> UNNotificationRequest? {
+        let calendar = Calendar.current
+        let now = Date()
+        guard let monthInterval = calendar.dateInterval(of: .month, for: now),
+              let previousMonthStart = calendar.date(byAdding: .month, value: -1, to: monthInterval.start) else { return nil }
+
+        let currency = UserDefaults.standard.string(forKey: "appCurrency").flatMap { CurrencyType(rawValue: $0) } ?? .tryCurrency
+        let rates = ExchangeRateManager.shared
+        var expense = 0.0, income = 0.0, previousExpense = 0.0
+        var byCategory: [String: (total: Double, name: String)] = [:]
+
+        for tx in transactions where !tx.isDebt {
+            let value = rates.convert(amount: tx.amount, from: tx.currency ?? .tryCurrency, to: currency)
+            if monthInterval.contains(tx.date) {
+                if tx.type == .expense {
+                    expense += value
+                    let key = tx.mainCategoryId ?? tx.mainCategoryName
+                    byCategory[key] = ((byCategory[key]?.total ?? 0) + value, tx.resolvedMainCategoryName)
+                } else {
+                    income += value
+                }
+            } else if tx.type == .expense, tx.date >= previousMonthStart, tx.date < monthInterval.start {
+                previousExpense += value
+            }
+        }
+        guard expense > 0 || income > 0 else { return nil }
+
+        func money(_ v: Double) -> String { "\(currency.symbol)\(v.formatted(.number.grouping(.automatic).precision(.fractionLength(0))))" }
+
+        let monthName = monthInterval.start.formatted(.dateTime.month(.wide).locale(Locale(identifier: UserDefaults.standard.string(forKey: "appLanguage") ?? "tr")))
+        var lines: [String] = [String(format: L10n("Harcama %@, gelir %@."), money(expense), money(income))]
+        if let top = byCategory.max(by: { $0.value.total < $1.value.total }) {
+            lines.append(String(format: L10n("En çok %@ (%@)."), top.value.name.localized, money(top.value.total)))
+        }
+        if previousExpense > 0 {
+            let change = Int(((expense - previousExpense) / previousExpense * 100).rounded())
+            if change != 0 {
+                lines.append(change < 0
+                    ? String(format: L10n("Geçen aya göre %%%d daha az harcadın."), abs(change))
+                    : String(format: L10n("Geçen aya göre %%%d daha fazla harcadın."), change))
+            }
+        }
+
+        let content = UNMutableNotificationContent()
+        content.title = String(format: L10n("%@ Özeti"), monthName.capitalized)
+        content.body = lines.joined(separator: " ")
+        content.sound = .default
+        content.userInfo = ["type": "monthly_summary"]
+
+        var trigger = calendar.dateComponents([.year, .month], from: monthInterval.end)
+        trigger.day = 1
+        trigger.hour = 10
+        trigger.minute = 0
+        return UNNotificationRequest(identifier: "monthly_summary",
+                                     content: content,
+                                     trigger: UNCalendarNotificationTrigger(dateMatching: trigger, repeats: false))
     }
     
     // MARK: - Instant/Remote Notification Trigger
