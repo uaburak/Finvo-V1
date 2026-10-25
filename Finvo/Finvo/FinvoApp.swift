@@ -42,6 +42,8 @@ struct FinvoApp: App {
     @StateObject private var walletManager = WalletManager()
     @StateObject private var notificationManager = NotificationManager()
     @StateObject private var transactionManager = TransactionManager()
+    @StateObject private var appLockManager = AppLockManager.shared
+    @Environment(\.scenePhase) private var scenePhase
     
     init() {
         // Konsoldaki gereksiz AutoLayout ve klavye uyarılarını gizlemek için
@@ -74,6 +76,18 @@ struct FinvoApp: App {
                 }
             }
             .environmentObject(authManager)
+            // Uygulama kilidi (Face ID / şifre): oturum açıkken ve kilit etkinken içeriğin üzerini kapatır
+            .overlay {
+                if appLockManager.isLocked && authManager.isAuthenticated {
+                    AppLockView()
+                        .transition(.opacity)
+                }
+            }
+            .animation(.easeInOut(duration: 0.2), value: appLockManager.isLocked)
+            .onChange(of: scenePhase) { _, phase in
+                // Arka plana geçince kilitle; uygulama değiştirici önizlemesinde de veriler görünmez
+                if phase == .background { appLockManager.lockIfNeeded() }
+            }
             // Tüm uygulama için yumuşak scroll kenar efekti. Bu modifier alt hiyerarşideki
             // tüm ScrollView/List'lere (sheet'ler ve navigation destination'lar dahil) yayılır,
             // bu yüzden tek tek ekranlara eklenmesine gerek yok.

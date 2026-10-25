@@ -23,11 +23,11 @@
 
 /* Begin PBXFileReference section */
 		670FA7B12F48F05600DA7224 /* Finvo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Finvo.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		FDFF1BD8274123357A6E8FC8 /* GoogleService-Info.plist */ = {isa = PBXFileReference; explicitFileType = text.plist; lastKnownFileType = text.plist; name = "GoogleService-Info.plist"; path = "Finvo/GoogleService-Info.plist"; sourceTree = "<group>"; };
+		FDFF1BD8274123357A6E8FC8 /* GoogleService-Info.plist */ = {isa = PBXFileReference; explicitFileType = text.plist; name = "GoogleService-Info.plist"; path = "Finvo/GoogleService-Info.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		67E8C3EE2F6DCA8D00964879 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		67E8C3EE2F6DCA8D00964879 /* Exceptions for "Finvo" folder in "Finvo" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -40,7 +40,7 @@
 		670FA7B32F48F05600DA7224 /* Finvo */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				67E8C3EE2F6DCA8D00964879 /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
+				67E8C3EE2F6DCA8D00964879 /* Exceptions for "Finvo" folder in "Finvo" target */,
 			);
 			path = Finvo;
 			sourceTree = "<group>";
