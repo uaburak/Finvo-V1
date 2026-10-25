@@ -60,14 +60,20 @@ struct FamilyDashboardView: View {
                 }
                 guard isSharedWalletActive else { return }
                 viewModel.calculateWholesomeDebts(from: transactionManager.transactions, targetCurrency: appCurrency)
-                if let members = walletManager.activeWallet?.members {
-                    viewModel.fetchMemberProfiles(usernames: members)
-                }
                 if let walletId = walletManager.activeWallet?.id {
                     viewModel.startCountListeners(walletId: walletId)
                 }
             }
-            .onDisappear { viewModel.stopListeners() }
+            // Not: Eskiden root onDisappear'da dinleyiciler kapatılıyordu; Alışveriş/Görevler ekranına her
+            // geçişte kapanıp dönüşte bekleyen tüm kayıtlar baştan okunuyordu. Artık sadece cüzdan değişince
+            // yeniden kuruluyor. (Hiç kullanılmayan üye profili sorguları da kaldırıldı.)
+            .onChange(of: walletManager.activeWallet?.id) { _, newId in
+                if let newId, isSharedWalletActive {
+                    viewModel.startCountListeners(walletId: newId)
+                } else {
+                    viewModel.stopListeners()
+                }
+            }
             .onChange(of: transactionManager.transactions) { _, newTx in
                 if isSharedWalletActive { viewModel.calculateWholesomeDebts(from: newTx, targetCurrency: appCurrency) }
             }

@@ -17,7 +17,6 @@ class FamilyDashboardViewModel: ObservableObject {
     @Published var wholesomeSituations: [WholesomeSituation] = []
     @Published var pendingMissionsCount: Int = 0
     @Published var pendingShoppingItemsCount: Int = 0
-    @Published var memberProfiles: [UserModel] = []
 
     private let db = Firestore.firestore()
     private var shoppingListener: ListenerRegistration?
@@ -55,22 +54,6 @@ class FamilyDashboardViewModel: ObservableObject {
         shoppingListener = nil
         missionsListener = nil
         currentWalletId = nil
-    }
-
-    // MARK: - Member Profiles
-    func fetchMemberProfiles(usernames: [String]) {
-        guard !usernames.isEmpty else { return }
-        Task {
-            var fetched: [UserModel] = []
-            for username in usernames {
-                if let profile = try? await FirestoreService.shared.getUserProfileByUsername(username) {
-                    fetched.append(profile)
-                }
-            }
-            await MainActor.run {
-                self.memberProfiles = fetched
-            }
-        }
     }
 
     // MARK: - Wholesome Debts (Aile İçi Durum Analizi)

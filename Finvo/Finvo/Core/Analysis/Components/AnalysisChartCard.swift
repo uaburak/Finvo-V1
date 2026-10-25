@@ -317,7 +317,7 @@ struct AnalysisChartCard: View {
                 .contentTransition(.numericText())
                 .animation(.snappy(duration: 0.4), value: title)
             
-            Text("\(amount >= 0 ? "+" : "")₺\(amount.formatted(.number.precision(.fractionLength(0))))")
+            Text("\(amount >= 0 ? "+" : "")\((UserDefaults.standard.string(forKey: "appCurrency").flatMap { CurrencyType(rawValue: $0) } ?? .tryCurrency).symbol)\(amount.formatted(.number.precision(.fractionLength(0))))")
                 .font(.title2.bold())
                 .foregroundColor(amount >= 0 ? theme.income : theme.expense)
                 .contentTransition(.numericText())

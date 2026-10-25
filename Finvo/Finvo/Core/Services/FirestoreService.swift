@@ -311,11 +311,13 @@ class FirestoreService: ObservableObject {
     
     func saveCategory(walletId: String, category: CategoryModel) async throws {
         let docRef: DocumentReference
-        if let fid = category.firestoreId {
+        if let fid = category.firestoreId, !fid.isEmpty {
             docRef = db.collection("wallets").document(walletId).collection("categories").document(fid)
         } else {
-            // Eğer ID henüz yoksa (mock data), deterministik safeId kullan
-            docRef = db.collection("wallets").document(walletId).collection("categories").document(category.safeId)
+            // Eğer ID henüz yoksa (mock data), deterministik safeId kullan; boşsa (sadece emoji vb.) otomatik ID
+            let safeId = category.safeId
+            let categories = db.collection("wallets").document(walletId).collection("categories")
+            docRef = safeId.isEmpty ? categories.document() : categories.document(safeId)
         }
         try docRef.setData(from: category, merge: true)
     }

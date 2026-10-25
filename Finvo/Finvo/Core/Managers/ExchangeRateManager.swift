@@ -65,6 +65,11 @@ struct CurrencyType: RawRepresentable, Codable, Hashable, Identifiable {
         }
     }
     
+    // Eşitlik sadece para birimi koduna göre: Firestore'dan çözülen (isimsiz) USD ile listedeki
+    // (isimli) USD farklı sayılıyordu; seçim işaretleri ve Picker seçimi bu yüzden çalışmıyordu.
+    static func == (lhs: CurrencyType, rhs: CurrencyType) -> Bool { lhs.code == rhs.code }
+    func hash(into hasher: inout Hasher) { hasher.combine(code) }
+    
     init(code: String, name: String? = nil, symbol: String? = nil, assetType: String = "Döviz") {
         self.code = code
         self.customName = name
